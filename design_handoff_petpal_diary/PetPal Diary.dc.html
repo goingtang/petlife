@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+body{margin:0;background:#E9DECF;font-family:'Noto Sans TC',sans-serif;color:#3B2F28;-webkit-font-smoothing:antialiased}
+a{color:#C4602F;text-decoration:none}a:hover{color:#9E4A22}
+*::-webkit-scrollbar{display:none}
+input::placeholder{color:#9C8B7E}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px 20px;box-sizing:border-box">
+<div style="display:flex;align-items:baseline;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:22px;color:#3B2F28">寵物生活紀錄</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:18px;color:#C4602F">PetPal Diary</span>
+</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+<div style="position:absolute;inset:0;background:#F7F0E6;overflow:hidden">
+
+<div style="position:absolute;inset:0;overflow-y:auto;padding:58px 0 120px;box-sizing:border-box">
+
+<sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">10月24日 星期六</span>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:26px;line-height:1.25;text-wrap:pretty">早安，今天也好好<br>照顧{{ pet.name }}吧</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:4px">
+<div style="display:flex">
+<sc-for list="{{ family }}" as="f" hint-placeholder-count="3">
+<div style="width:30px;height:30px;border-radius:50%;background:{{ f.c }};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #F7F0E6;margin-left:-8px">{{ f.n }}</div>
+</sc-for>
+</div>
+<span style="font-size:11px;color:#7A685B">3 人共同照顧</span>
+</div>
+</div>
+
+<div style="display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+<button onClick="{{ addPet }}" style="flex:none;height:44px;padding:0 16px;border-radius:22px;border:1.5px dashed #CDBBA6;background:transparent;color:#7A685B;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">＋ 新增</button>
+</div>
+
+<div style="background:#FFFCF7;border-radius:28px;padding:14px;display:flex;gap:14px;align-items:center;border:1.5px solid #EADDCB">
+<div style="width:96px;height:96px;flex:none">
+<sc-for list="{{ heroSlots }}" as="h" hint-placeholder-count="1">
+<div style="display:{{ h.display }};width:96px;height:96px"><image-slot id="hero-{{ h.id }}" shape="rounded" radius="24" placeholder="寵物照片" style="width:96px;height:96px;background:{{ h.color }}"></image-slot></div>
+</sc-for>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:22px">{{ pet.name }}</span>
+<span style="font-size:13px;color:#7A685B">{{ pet.kindLabel }}</span>
+<div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+<div style="flex:1;height:8px;border-radius:4px;background:#F0E5D6;overflow:hidden"><div style="height:100%;width:{{ progressW }};background:#7E9C78;border-radius:4px;transition:width .3s"></div></div>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px">{{ doneCount }}/{{ taskCount }}</span>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">今日照護</span>
+<button onClick="{{ openLog }}" style="height:36px;padding:0 14px;border-radius:18px;border:none;background:#C4602F;color:#fff;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">＋ 快速記錄</button>
+</div>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ tasks }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.toggle }}" style="width:100%;display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 14px;border:none;border-top:{{ t.sep }};background:transparent;text-align:left;cursor:pointer;font-family:'Noto Sans TC',sans-serif">
+<span style="width:28px;height:28px;flex:none;border-radius:50%;border:2px solid {{ t.ring }};background:{{ t.fill }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;transition:all .2s">{{ t.check }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-size:15px;font-weight:500;color:{{ t.color }};text-decoration:{{ t.deco }}">{{ t.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ t.meta }}</span>
+</span>
+<span style="width:26px;height:26px;flex:none;border-radius:50%;background:{{ t.whoColor }};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ t.whoN }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<button onClick="{{ goHealth }}" style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:24px;border:none;background:#F8E7BF;text-align:left;cursor:pointer;font-family:'Noto Sans TC',sans-serif;color:#3B2F28">
+<span style="width:52px;height:52px;flex:none;border-radius:18px;background:#FFFCF7;display:flex;flex-direction:column;align-items:center;justify-content:center">
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:20px;line-height:1">{{ reminder.days }}</span>
+<span style="font-size:10px;color:#7A685B">天後</span>
+</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px">
+<span style="font-size:12px;font-weight:700;color:#8A6416">即將到期</span>
+<span style="font-size:16px;font-weight:700">{{ reminder.name }}</span>
+<span style="font-size:12px;color:#6B5A4D">{{ reminder.date }} · 記得先預約醫院</span>
+</span>
+<span style="font-size:20px;color:#8A6416">›</span>
+</button>
+
+<sc-if value="{{ showTips }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ tip.open }}" style="display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:24px;border:none;background:#E3EBDD;text-align:left;cursor:pointer;font-family:'Noto Sans TC',sans-serif;color:#3B2F28">
+<span style="font-size:12px;font-weight:700;color:#4E6B49">新手小知識</span>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px;line-height:1.35">{{ tip.title }}</span>
+<span style="font-size:13px;line-height:1.6;color:#4F4239;text-wrap:pretty">{{ tip.lead }}</span>
+<span style="font-size:13px;font-weight:700;color:#4E6B49">閱讀全文 ›</span>
+</button>
+</sc-if>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">最近紀錄</span>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ logs }}" as="l" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-family:'Fredoka',sans-serif;font-weight:500;font-size:14px;color:#7A685B;width:42px">{{ l.time }}</span>
+<span style="flex:1;font-size:14px">{{ l.text }}</span>
+<span style="font-size:12px;color:#7A685B">{{ l.whoFull }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHealth }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">健康</span>
+<div style="display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+
+<div style="background:#FFFCF7;border-radius:28px;padding:18px;border:1.5px solid #EADDCB;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start">
+<div style="display:flex;flex-direction:column;gap:2px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">體重</span>
+<div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:40px;line-height:1.1">{{ latestW }}</span><span style="font-size:15px;color:#7A685B">kg</span></div>
+</div>
+<span style="padding:6px 10px;border-radius:12px;background:#E3EBDD;color:#4E6B49;font-size:12px;font-weight:700">{{ deltaW }}</span>
+</div>
+<svg viewBox="0 0 300 110" style="width:100%;height:auto;overflow:visible">
+<line x1="0" y1="100" x2="300" y2="100" stroke="#EADDCB" stroke-width="1.5"></line>
+<polyline points="{{ wArea }}" fill="#F8E7BF" opacity="0.6"></polyline>
+<polyline points="{{ wPoints }}" fill="none" stroke="#C4602F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+<sc-for list="{{ wDots }}" as="d" hint-placeholder-count="6">
+<circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}" fill="#FFFCF7" stroke="#C4602F" stroke-width="2.5"></circle>
+</sc-for>
+</svg>
+<div style="display:flex;justify-content:space-between;font-size:11px;color:#7A685B;margin-top:-4px">
+<sc-for list="{{ wLabels }}" as="m" hint-placeholder-count="6"><span>{{ m }}</span></sc-for>
+</div>
+<button onClick="{{ openWeight }}" style="height:46px;border-radius:23px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">記錄今天的體重</button>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">疫苗與預防</span>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ vaccines }}" as="v" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;min-height:62px;padding:10px 16px;border-top:{{ v.sep }}">
+<span style="flex:1;display:flex;flex-direction:column;gap:2px">
+<span style="font-size:15px;font-weight:500">{{ v.name }}</span>
+<span style="font-size:12px;color:#7A685B">{{ v.date }}</span>
+</span>
+<span style="padding:5px 10px;border-radius:11px;background:{{ v.bg }};color:{{ v.fg }};font-size:12px;font-weight:700">{{ v.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">看診紀錄</span>
+<sc-for list="{{ visits }}" as="v" hint-placeholder-count="2">
+<button onClick="{{ v.toggle }}" style="display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;text-align:left;cursor:pointer;font-family:'Noto Sans TC',sans-serif;color:#3B2F28">
+<span style="display:flex;justify-content:space-between;width:100%;gap:8px">
+<span style="font-size:15px;font-weight:700">{{ v.reason }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-size:13px;color:#7A685B">{{ v.date }}</span>
+</span>
+<span style="font-size:12px;color:#7A685B">{{ v.clinic }} · {{ v.hint }}</span>
+<sc-if value="{{ v.open }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:13px;line-height:1.6;color:#4F4239;padding-top:8px;border-top:1.5px dashed #EADDCB;width:100%">{{ v.note }}</span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAct }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ act.label }}</span>
+<div style="display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+<div style="background:#FFFCF7;border-radius:32px;border:1.5px solid #EADDCB;padding:24px 18px;display:flex;flex-direction:column;align-items:center;gap:20px">
+<div style="position:relative;width:220px;height:220px">
+<svg viewBox="0 0 220 220" style="width:220px;height:220px;transform:rotate(-90deg)">
+<circle cx="110" cy="110" r="96" fill="none" stroke="#F0E5D6" stroke-width="16"></circle>
+<circle cx="110" cy="110" r="96" fill="none" stroke="#7E9C78" stroke-width="16" stroke-linecap="round" stroke-dasharray="603.2" stroke-dashoffset="{{ ringOffset }}" style="transition:stroke-dashoffset .9s linear"></circle>
+</svg>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+<span style="font-size:13px;color:#7A685B">{{ timerState }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:46px;line-height:1">{{ timerText }}</span>
+<span style="font-size:13px;color:#7A685B">目標 {{ act.goal }} 分鐘</span>
+</div>
+</div>
+<div style="display:flex;gap:10px;width:100%">
+<button onClick="{{ timerMain }}" style="flex:1;height:54px;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 17px 'Noto Sans TC',sans-serif;cursor:pointer">{{ timerMainLabel }}</button>
+<sc-if value="{{ canFinish }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ timerFinish }}" style="flex:1;height:54px;border-radius:27px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 17px 'Noto Sans TC',sans-serif;cursor:pointer">完成並記錄</button>
+</sc-if>
+</div>
+</div>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:17px">這週</span>
+<span style="font-size:13px;color:#7A685B">共 <span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:16px;color:#3B2F28">{{ weekTotal }}</span> 分鐘</span>
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;height:120px;gap:8px">
+<sc-for list="{{ weekBars }}" as="b" hint-placeholder-count="7">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<span style="font-family:'Fredoka',sans-serif;font-size:11px;color:#7A685B">{{ b.v }}</span>
+<div style="width:100%;max-width:28px;height:{{ b.h }};border-radius:10px;background:{{ b.bg }};transition:height .3s"></div>
+<span style="font-size:12px;color:{{ b.fg }};font-weight:{{ b.fw }}">{{ b.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">紀錄</span>
+<sc-for list="{{ actHistory }}" as="h" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="flex:1;font-size:14px">{{ h.when }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:15px">{{ h.min }} 分</span>
+<span style="font-size:12px;color:#7A685B">{{ h.who }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLearn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">新手知識庫</span>
+<input value="{{ q }}" onChange="{{ setQ }}" placeholder="搜尋：餵食、疫苗、環境…" style="height:46px;border-radius:23px;border:1.5px solid #EADDCB;background:#FFFCF7;padding:0 18px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none"></input>
+<div style="display:flex;gap:8px;overflow-x:auto;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ cats }}" as="c" hint-placeholder-count="8">
+<button onClick="{{ c.select }}" style="flex:none;height:38px;padding:0 14px;border-radius:19px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ articles }}" as="a" hint-placeholder-count="4">
+<button onClick="{{ a.open }}" style="display:flex;gap:14px;align-items:center;padding:14px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;text-align:left;cursor:pointer;font-family:'Noto Sans TC',sans-serif;color:#3B2F28">
+<span style="width:56px;height:56px;flex:none;border-radius:18px;background:{{ a.color }};display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:20px">{{ a.glyph }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+<span style="font-size:15px;font-weight:700;line-height:1.4;text-wrap:pretty">{{ a.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ a.tag }} · {{ a.mins }} 分鐘閱讀</span>
+</span>
+</button>
+</sc-for>
+<sc-if value="{{ noArticles }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:14px;color:#7A685B;text-align:center;padding:24px 0">找不到相關文章，換個關鍵字試試</span>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isNear }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">附近與社群</span>
+<div style="display:flex;padding:4px;border-radius:24px;background:#EFE4D4">
+<sc-for list="{{ segs }}" as="s" hint-placeholder-count="2">
+<button onClick="{{ s.select }}" style="flex:1;height:40px;border-radius:20px;border:none;background:{{ s.bg }};color:#3B2F28;font:{{ s.fw }} 15px 'Noto Sans TC',sans-serif;cursor:pointer;box-shadow:{{ s.shadow }}">{{ s.name }}</button>
+</sc-for>
+</div>
+<sc-if value="{{ isPlaces }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:8px">
+<sc-for list="{{ placeFilters }}" as="c" hint-placeholder-count="4">
+<button onClick="{{ c.select }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ places }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7">
+<div style="display:flex;justify-content:space-between;gap:10px">
+<div style="display:flex;flex-direction:column;gap:3px">
+<span style="font-size:16px;font-weight:700">{{ p.name }}</span>
+<span style="font-size:12px;color:{{ p.openColor }};font-weight:500">{{ p.hours }}</span>
+</div>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:15px;color:#7A685B">{{ p.dist }}</span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="2"><span style="padding:3px 9px;border-radius:9px;background:#F4EBDF;font-size:12px;color:#5E4E42">{{ t }}</span></sc-for>
+</div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ p.nav }}" style="flex:1;height:44px;border-radius:22px;border:none;background:#3B2F28;color:#F7F0E6;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">導航</button>
+<button onClick="{{ p.call }}" style="flex:1;height:44px;border-radius:22px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">致電</button>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<sc-for list="{{ posts }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:24px;border:1.5px solid #EADDCB;background:#FFFCF7">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:36px;height:36px;border-radius:50%;background:{{ p.color }};display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:15px">{{ p.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column">
+<span style="font-size:14px;font-weight:700">{{ p.author }}</span>
+<span style="font-size:12px;color:#7A685B">{{ p.pet }} · {{ p.ago }}</span>
+</span>
+</div>
+<div style="height:200px"><image-slot id="post-{{ p.id }}" shape="rounded" radius="18" placeholder="貼文照片" style="width:100%;height:200px;background:#F4EBDF"></image-slot></div>
+<span style="font-size:14px;line-height:1.6;text-wrap:pretty">{{ p.text }}</span>
+<div style="display:flex;gap:8px">
+<button onClick="{{ p.like }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid {{ p.likeBorder }};background:{{ p.likeBg }};color:{{ p.likeFg }};font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px">
+<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" fill="{{ p.heartFill }}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>{{ p.likes }}
+</button>
+<span style="height:38px;padding:0 4px;display:flex;align-items:center;font-size:13px;color:#7A685B">{{ p.comments }} 則留言</span>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ hasArticle }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#F7F0E6;z-index:40;overflow-y:auto;padding:58px 20px 120px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+<button onClick="{{ closeArticle }}" style="align-self:flex-start;height:44px;padding:0 16px 0 12px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">‹ 返回</button>
+<div style="height:150px;border-radius:28px;background:{{ article.color }};display:flex;align-items:flex-end;padding:18px;box-sizing:border-box">
+<span style="padding:5px 12px;border-radius:12px;background:#FFFCF7;font-size:13px;font-weight:700">{{ article.tag }} · {{ article.mins }} 分鐘</span>
+</div>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:26px;line-height:1.3;text-wrap:pretty">{{ article.title }}</span>
+<span style="font-size:15px;line-height:1.7;color:#4F4239;text-wrap:pretty">{{ article.lead }}</span>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ article.steps }}" as="s" hint-placeholder-count="4">
+<div style="display:flex;gap:12px;padding:14px;border-radius:20px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="width:28px;height:28px;flex:none;border-radius:50%;background:#3B2F28;color:#F7F0E6;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">{{ s.n }}</span>
+<span style="font-size:15px;line-height:1.6;text-wrap:pretty;padding-top:2px">{{ s.text }}</span>
+</div>
+</sc-for>
+</div>
+<span style="font-size:12px;color:#7A685B;line-height:1.6">內容為一般照護建議，實際狀況請依獸醫師評估。</span>
+<button onClick="{{ article.save }}" style="height:52px;border-radius:26px;border:none;background:#C4602F;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ article.saveLabel }}</button>
+</div>
+</sc-if>
+
+<div style="position:absolute;left:14px;right:14px;bottom:28px;height:68px;border-radius:34px;background:#3B2F28;display:flex;align-items:center;padding:0 6px;z-index:50;box-shadow:0 10px 30px rgba(59,47,40,.25)">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.select }}" style="flex:1;height:56px;border-radius:28px;border:none;background:{{ t.bg }};color:{{ t.fg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font:500 11px 'Noto Sans TC',sans-serif;transition:background .2s">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"></path><path d="{{ t.d2 }}"></path></svg>{{ t.name }}
+</button>
+</sc-for>
+</div>
+
+<sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(59,47,40,.4);z-index:70"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;z-index:71;background:#FFFCF7;border-radius:32px 32px 0 0;padding:12px 20px 44px;display:flex;flex-direction:column;gap:18px">
+<div style="width:40px;height:5px;border-radius:3px;background:#E0D2BF;align-self:center"></div>
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:21px">{{ sheetTitle }}</span>
+<button onClick="{{ closeSheet }}" style="width:44px;height:44px;border-radius:22px;border:none;background:#F4EBDF;color:#3B2F28;font-size:18px;cursor:pointer">✕</button>
+</div>
+<sc-if value="{{ isLogSheet }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+<sc-for list="{{ logTypes }}" as="lt" hint-placeholder-count="4">
+<button onClick="{{ lt.select }}" style="height:48px;border-radius:16px;border:1.5px solid {{ lt.border }};background:{{ lt.bg }};color:{{ lt.fg }};font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ lt.k }}</button>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">份量</span>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:24px;background:#F7F0E6">
+<button onClick="{{ amtDown }}" style="width:48px;height:48px;border-radius:24px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">−</button>
+<span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:34px">{{ logAmt }}</span><span style="font-size:15px;color:#7A685B">{{ logUnit }}</span></span>
+<button onClick="{{ amtUp }}" style="width:48px;height:48px;border-radius:24px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">＋</button>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">狀況</span>
+<div style="display:flex;gap:8px">
+<sc-for list="{{ notes }}" as="n" hint-placeholder-count="3">
+<button onClick="{{ n.select }}" style="flex:1;height:44px;border-radius:22px;border:1.5px solid {{ n.border }};background:{{ n.bg }};color:#3B2F28;font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ n.k }}</button>
+</sc-for>
+</div>
+</div>
+<button onClick="{{ saveLog }}" style="height:54px;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 17px 'Noto Sans TC',sans-serif;cursor:pointer">儲存 · 通知家人</button>
+</div>
+</sc-if>
+<sc-if value="{{ isWeightSheet }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:24px;background:#F7F0E6">
+<button onClick="{{ wDown }}" style="width:52px;height:52px;border-radius:26px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">−</button>
+<span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:44px">{{ wDraft }}</span><span style="font-size:16px;color:#7A685B">kg</span></span>
+<button onClick="{{ wUp }}" style="width:52px;height:52px;border-radius:26px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">＋</button>
+</div>
+<span style="font-size:13px;line-height:1.6;color:#4F4239;text-wrap:pretty">小技巧：先抱著{{ pet.name }}一起量，再減去自己的體重。每月固定同一天測量最準。</span>
+<button onClick="{{ saveWeight }}" style="height:54px;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 17px 'Noto Sans TC',sans-serif;cursor:pointer">儲存體重</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:60px;left:50%;transform:translateX(-50%);z-index:90;padding:12px 18px;border-radius:22px;background:#3B2F28;color:#F7F0E6;font-size:14px;font-weight:500;white-space:nowrap;box-shadow:0 8px 24px rgba(59,47,40,.3)">{{ toast }}</div>
+</sc-if>
+
+</div>
+</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showTips&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;首頁&quot;},&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;today&quot;,&quot;health&quot;,&quot;act&quot;,&quot;learn&quot;,&quot;near&quot;],&quot;default&quot;:&quot;today&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;首頁&quot;},&quot;fastTimer&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;活動計時&quot;}}">
+const FAM={me:{n:'我',full:'我',c:'#C4602F'},mom:{n:'媽',full:'媽媽',c:'#6F8F69'},jie:{n:'傑',full:'小傑',c:'#B8862A'}};
+const PETS=[
+ {id:'dou',name:'豆豆',kind:'dog',kindLabel:'柴犬 · 2 歲 · 公',color:'#F2C66D'},
+ {id:'mochi',name:'麻糬',kind:'cat',kindLabel:'米克斯 · 1 歲 · 母',color:'#EFB8A0'},
+ {id:'bai',name:'小白',kind:'rabbit',kindLabel:'荷蘭侏儒兔 · 8 個月',color:'#CFDCC8'}];
+const ACT={dog:{label:'散步',goal:40,start:'出門散步'},cat:{label:'遊戲時間',goal:20,start:'開始逗貓'},rabbit:{label:'放風時間',goal:60,start:'開始放風'}};
+const mk=a=>a.map(([title,time,who,done],i)=>({id:i,title,time,who,done:done?who:null}));
+const TASKS={
+ dou:mk([['晨間散步','07:30','jie',1],['早餐 · 乾糧 1 份','08:00','me',1],['換新鮮的水','12:00','mom',0],['晚餐 · 乾糧 1 份','18:30','mom',0],['晚間散步','20:00','me',0]]),
+ mochi:mk([['早餐 · 濕食 1 罐','08:00','me',1],['鏟貓砂','09:00','jie',0],['換新鮮的水','12:00','mom',0],['逗貓 15 分鐘','16:00','jie',0],['晚餐 · 乾糧 1 份','19:00','me',0]]),
+ bai:mk([['補滿牧草','08:00','mom',1],['新鮮葉菜','12:00','me',0],['換新鮮的水','12:00','mom',1],['放風 1 小時','17:00','jie',0],['清理便盆','21:00','me',0]])};
+const LOGS={
+ dou:[{time:'08:02',text:'餵食 · 1 份',who:'me'},{time:'07:31',text:'散步 · 25 分鐘',who:'jie'},{time:'07:45',text:'便便 · 1 次',who:'jie'}],
+ mochi:[{time:'08:05',text:'餵食 · 1 罐',who:'me'},{time:'昨天',text:'飲水 · 180 ml',who:'mom'}],
+ bai:[{time:'08:10',text:'牧草 · 補滿',who:'mom'},{time:'08:12',text:'飲水 · 換水',who:'mom'}]};
+const WEIGHTS={dou:[9.8,10.1,10.3,10.2,10.6,10.8],mochi:[3.1,3.4,3.6,3.8,3.9,4.1],bai:[0.7,0.8,0.85,0.9,0.95,1.0]};
+const VAX={
+ dou:[['八合一疫苗','2026/03/12'],['狂犬病疫苗','2026/10/29'],['心絲蟲預防藥','2026/11/01']],
+ mochi:[['三合一疫苗','2026/05/02'],['體內外驅蟲','2026/10/30'],['狂犬病疫苗','2026/11/15']],
+ bai:[['年度健康檢查','2026/06/10'],['剪趾甲','2026/10/28'],['牙齒檢查','2026/12/05']]};
+const VISITS={
+ dou:[{date:'09/18',clinic:'安心動物醫院',reason:'皮膚搔癢',note:'診斷為輕微過敏性皮膚炎。開立外用藥膏，一天兩次，連續 7 天；避免散步後直接躺草地。'},{date:'03/12',clinic:'安心動物醫院',reason:'年度疫苗',note:'施打八合一疫苗，體重 10.1 kg，心音正常。下次回診：明年 3 月。'}],
+ mochi:[{date:'08/02',clinic:'安心動物醫院',reason:'結紮手術',note:'手術順利，術後 10 天拆線。期間戴頭套，避免跳高。'},{date:'05/02',clinic:'安心動物醫院',reason:'三合一疫苗',note:'第三劑完成。醫師提醒：每天刷牙或使用潔牙零食。'}],
+ bai:[{date:'06/10',clinic:'森林異寵專科',reason:'健康檢查',note:'牙齒咬合正常。建議牧草量再增加，水果每週不超過 2 次。'},{date:'04/20',clinic:'森林異寵專科',reason:'初診建檔',note:'體重 0.7 kg，耳朵與毛髮乾淨。建議兔籠放在遠離冷氣出風口處。'}]};
+const WEEK={dou:[45,38,50,30,42,55,25],mochi:[15,20,10,25,18,12,0],bai:[60,45,70,50,65,40,30]};
+const HIST={dou:[{when:'今天 07:31 · 公園',min:25,who:'小傑'},{when:'昨天 20:10 · 河堤',min:30,who:'我'}],mochi:[{when:'昨天 16:20',min:12,who:'小傑'}],bai:[{when:'今天 09:00 · 客廳',min:30,who:'媽媽'}]};
+const ART=[
+ {id:'a1',tag:'狗',glyph:'狗',color:'#F8E7BF',mins:4,title:'帶狗狗回家的第一週',lead:'新環境對狗狗來說很陌生，第一週的重點是建立安全感與固定作息。',steps:['準備一個安靜的角落，放睡墊和有你氣味的舊衣服。','前三天減少訪客，餵食、散步、睡覺時間盡量固定。','一週內預約健康檢查，並完成寵物登記與晶片。','散步從每天 2–3 次、每次 10–15 分鐘開始，再慢慢拉長。']},
+ {id:'a2',tag:'貓',glyph:'貓',color:'#F6DCCF',mins:3,title:'新手貓砂盆這樣放',lead:'貓砂盆的位置與清潔程度，直接影響貓咪會不會亂尿。',steps:['貓砂盆數量建議為「貓的數量 + 1」。','放在安靜、好進出的地方，並遠離食碗和水碗。','每天鏟砂，每 2–4 週整盆更換清洗。','若頻繁進出卻尿不出來，請盡快就醫。']},
+ {id:'a3',tag:'兔子',glyph:'兔',color:'#E3EBDD',mins:3,title:'兔子的飲食金字塔',lead:'兔子的牙齒會持續生長，正確的飲食比例能同時照顧腸胃與牙齒。',steps:['牧草佔每日飲食 80% 以上，需無限量供應。','新鮮葉菜每天適量，新品項一次只加一種。','兔飼料限量給予，依體重控制份量。','水果糖分高，只當作偶爾的獎勵。']},
+ {id:'a4',tag:'鳥',glyph:'鳥',color:'#DDE6EE',mins:4,title:'鳥寵的居住環境',lead:'鳥類呼吸系統敏感，居住環境的空氣品質特別重要。',steps:['籠子寬度至少為翅膀展開的兩倍。','遠離廚房油煙，並避免高溫空燒不沾鍋。','每天安排在安全空間的籠外活動時間。','準備不同粗細的棲木，幫助腳部健康。']},
+ {id:'a5',tag:'爬蟲',glyph:'爬',color:'#E6E2C8',mins:5,title:'爬蟲的溫度與 UVB 燈',lead:'爬蟲無法自行調節體溫，飼養箱需要模擬自然的溫度變化。',steps:['設置溫度梯度：一側為熱點，另一側為較涼的區域。','依物種選擇 UVB 燈，並定期更換燈管。','放置溫度計與濕度計，每天確認數值。','購買前先查清楚物種成體大小與壽命。']},
+ {id:'a6',tag:'水族',glyph:'魚',color:'#D7E7E4',mins:4,title:'開缸前的養水與硝化',lead:'新魚缸最常見的問題是水質還沒穩定就放魚。',steps:['先養水 2–4 週，建立硝化菌。','魚隻少量、分批放入，觀察幾天再增加。','每週換水約 10–20%，避免一次大量換水。','定期檢測氨與亞硝酸鹽。']},
+ {id:'a7',tag:'小型哺乳類',glyph:'鼠',color:'#EEE0F0',mins:3,title:'倉鼠的墊材與跑輪',lead:'倉鼠喜歡挖洞，足夠的墊材能大幅降低壓力。',steps:['墊材厚度建議 15 公分以上。','跑輪尺寸要讓倉鼠跑步時背部不彎曲。','黃金鼠習性獨居，建議單獨飼養。','避免使用有香味或針葉類的木屑。']},
+ {id:'a8',tag:'狗',glyph:'針',color:'#F8E7BF',mins:3,title:'看懂幼犬幼貓的疫苗時程',lead:'疫苗通常分多劑施打，按時完成才能建立完整保護力。',steps:['多數幼犬、幼貓在 6–8 週齡開始第一劑。','之後約每 3–4 週追加一次，直到約 16 週齡。','狂犬病疫苗依規定施打。','成年後依獸醫建議定期補強。']}];
+const TIPS={dog:'a1',cat:'a2',rabbit:'a3'};
+const CATS=['全部','狗','貓','兔子','鳥','爬蟲','水族','小型哺乳類'];
+const PLACES=[
+ {name:'安心動物醫院',type:'醫院',dist:'350 m',hours:'24 小時營業',open:true,tags:['犬貓','急診']},
+ {name:'森林異寵專科',type:'醫院',exotic:true,dist:'1.2 km',hours:'營業中 · 至 21:00',open:true,tags:['鳥','爬蟲','兔子']},
+ {name:'毛孩日常用品店',type:'用品店',dist:'600 m',hours:'營業中 · 至 22:00',open:true,tags:['飼料','美容']},
+ {name:'藍海水族館',type:'用品店',exotic:true,dist:'2.1 km',hours:'今日公休',open:false,tags:['水族','活體']}];
+const POSTS=[
+ {id:'p1',author:'阿哲',pet:'可可 · 柯基',initial:'哲',color:'#F2C66D',ago:'1 小時前',text:'今天第一次挑戰河堤 5 公里，回家後秒睡。',likes:58,comments:6},
+ {id:'p2',author:'雅婷',pet:'球球 · 小太陽鸚鵡',initial:'雅',color:'#DDE6EE',ago:'3 小時前',text:'球球學會說「早安」了！每天早上練習 10 分鐘，大概花了兩週。',likes:102,comments:14},
+ {id:'p3',author:'小芸',pet:'布丁 · 倉鼠',initial:'芸',color:'#EEE0F0',ago:'昨天',text:'照著知識庫把墊材加到 15 公分，布丁馬上挖了一條隧道。',likes:24,comments:3}];
+const LT=[{k:'餵食',unit:'份',step:1,def:1},{k:'飲水',unit:'ml',step:50,def:200},{k:'便便',unit:'次',step:1,def:1},{k:'用藥',unit:'劑',step:1,def:1}];
+const TABS=[
+ {k:'today',name:'今天',d:'M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z',d2:''},
+ {k:'health',name:'健康',d:'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z',d2:''},
+ {k:'act',name:'活動',d:'M3 12h4l2-5 4 10 2-5h6',d2:''},
+ {k:'learn',name:'知識',d:'M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z',d2:'M5 17a3 3 0 0 1 3-3h10'},
+ {k:'near',name:'附近',d:'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z',d2:'M12 8.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3'}];
+const clone=o=>JSON.parse(JSON.stringify(o));
+const daysTo=s=>{const [y,m,d]=s.split('/').map(Number);return Math.round((new Date(y,m-1,d)-new Date(2026,9,24))/864e5);};
+const now=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+
+class Component extends DCLogic {
+  state={tab:this.props.startTab??'today',petId:'dou',tasks:clone(TASKS),logs:clone(LOGS),weights:clone(WEIGHTS),week:clone(WEEK),hist:clone(HIST),
+    sheet:null,logType:0,logAmt:1,logNote:'正常',wDraft:0,toast:null,running:false,elapsed:0,cat:'全部',q:'',article:null,saved:{},seg:'附近',pf:'全部',liked:{},openVisit:null};
+  componentWillUnmount(){clearInterval(this.iv);clearTimeout(this.tt);}
+  flash(t){clearTimeout(this.tt);this.setState({toast:t});this.tt=setTimeout(()=>this.setState({toast:null}),2200);}
+  stopTimer(){clearInterval(this.iv);this.iv=null;}
+  startTimer(){const sp=(this.props.fastTimer??true)?20:1;this.iv=setInterval(()=>this.setState(s=>({elapsed:s.elapsed+sp})),1000);}
+  setPet(id){this.stopTimer();this.setState({petId:id,running:false,elapsed:0,openVisit:null});}
+  renderVals(){
+    const s=this.state,pet=PETS.find(p=>p.id===s.petId),act=ACT[pet.kind];
+    const chip=(on)=>({bg:on?'#3B2F28':'#FFFCF7',fg:on?'#F7F0E6':'#3B2F28',border:on?'#3B2F28':'#EADDCB'});
+    const petChips=PETS.map(p=>({...p,initial:p.name[0],...chip(p.id===s.petId),select:()=>this.setPet(p.id)}));
+    const tl=s.tasks[s.petId],doneCount=tl.filter(t=>t.done).length;
+    const tasks=tl.map((t,i)=>{const who=FAM[t.done||t.who];return{title:t.title,sep:i?'1.5px solid #F0E5D6':'none',
+      ring:t.done?'#7E9C78':'#CDBBA6',fill:t.done?'#7E9C78':'transparent',check:t.done?'✓':'',color:t.done?'#9C8B7E':'#3B2F28',deco:t.done?'line-through':'none',
+      meta:t.done?`${FAM[t.done].full}已完成`:`${t.time} · 輪到${FAM[t.who].full}`,whoN:who.n,whoColor:who.c,
+      toggle:()=>this.setState(st=>{const n=clone(st.tasks);const x=n[st.petId][i];x.done=x.done?null:'me';return{tasks:n};})};});
+    const vax=VAX[s.petId].map(([name,date])=>({name,date,days:daysTo(date)}));
+    const rem=vax.filter(v=>v.days>=0).sort((a,b)=>a.days-b.days)[0];
+    const vaccines=vax.map((v,i)=>{const st=v.days<0?['已完成','#E3EBDD','#4E6B49']:v.days<=7?[`${v.days} 天後`,'#F8E7BF','#7A5A12']:[`${v.days} 天後`,'#F4EBDF','#5E4E42'];
+      return{name:v.name,date:v.date,label:st[0],bg:st[1],fg:st[2],sep:i?'1.5px solid #F0E5D6':'none'};});
+    const W=s.weights[s.petId],mn=Math.min(...W)-0.1*Math.max(...W)/5,mx=Math.max(...W)+0.02,
+      pts=W.map((w,i)=>({x:+(10+i*(280/(W.length-1))).toFixed(1),y:+(90-(w-mn)/(mx-mn)*80).toFixed(1)}));
+    const wPoints=pts.map(p=>p.x+','+p.y).join(' ');
+    const wLabels=['5月','6月','7月','8月','9月','10月','今天'].slice(-W.length);
+    const dl=W[W.length-1]-W[W.length-2];
+    const LT0=LT[s.logType];
+    const tip=ART.find(a=>a.id===TIPS[pet.kind]);
+    const openArt=id=>this.setState({article:id});
+    const arts=ART.filter(a=>(s.cat==='全部'||a.tag===s.cat)&&(!s.q||(a.title+a.lead+a.steps.join('')).includes(s.q)));
+    const A=s.article&&ART.find(a=>a.id===s.article);
+    const goal=act.goal*60,mm=Math.floor(s.elapsed/60),ss=s.elapsed%60;
+    const wk=s.week[s.petId],wmax=Math.max(act.goal,...wk);
+    const places=PLACES.filter(p=>s.pf==='全部'||(s.pf==='異寵'?p.exotic:p.type===s.pf));
+    return {
+      isToday:s.tab==='today',isHealth:s.tab==='health',isAct:s.tab==='act',isLearn:s.tab==='learn',isNear:s.tab==='near',
+      showTips:this.props.showTips??true,
+      pet,petChips,family:Object.values(FAM),
+      heroSlots:PETS.map(p=>({id:p.id,color:p.color,display:p.id===s.petId?'block':'none'})),
+      addPet:()=>this.flash('新增寵物流程尚未開放'),
+      tasks,doneCount,taskCount:tl.length,progressW:Math.round(doneCount/tl.length*100)+'%',
+      reminder:rem||{days:'-',name:'目前沒有待辦',date:''},goHealth:()=>this.setState({tab:'health'}),
+      tip:{...tip,open:()=>openArt(tip.id)},
+      logs:s.logs[s.petId].slice(0,4).map(l=>({...l,whoFull:FAM[l.who].full})),
+      openLog:()=>this.setState({sheet:'log',logType:0,logAmt:LT[0].def,logNote:'正常'}),
+      latestW:W[W.length-1].toFixed(2).replace(/0$/,''),deltaW:(dl>=0?'↑ ':'↓ ')+Math.abs(dl).toFixed(2).replace(/0$/,'')+' kg · 較上月',
+      wPoints,wArea:`10,100 ${wPoints} 290,100`,wDots:pts.map((p,i)=>({...p,r:i===pts.length-1?6:4})),wLabels,
+      openWeight:()=>this.setState({sheet:'weight',wDraft:W[W.length-1]}),
+      vaccines,
+      visits:VISITS[s.petId].map((v,i)=>({...v,open:s.openVisit===i,hint:s.openVisit===i?'收合':'查看醫囑',toggle:()=>this.setState(st=>({openVisit:st.openVisit===i?null:i}))})),
+      act,ringOffset:(603.2*(1-Math.min(1,s.elapsed/goal))).toFixed(1),
+      timerText:String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0'),
+      timerState:s.running?'進行中':s.elapsed?'已暫停':'準備好了嗎？',
+      timerMainLabel:s.running?'暫停':s.elapsed?'繼續':act.start,canFinish:s.elapsed>0,
+      timerMain:()=>{if(s.running){this.stopTimer();this.setState({running:false});}else{this.startTimer();this.setState({running:true});}},
+      timerFinish:()=>{this.stopTimer();const m=Math.max(1,Math.round(s.elapsed/60));
+        this.setState(st=>{const w=clone(st.week),h=clone(st.hist),lg=clone(st.logs);w[st.petId][6]+=m;h[st.petId].unshift({when:'今天 '+now(),min:m,who:'我'});lg[st.petId].unshift({time:now(),text:`${act.label} · ${m} 分鐘`,who:'me'});
+          return{week:w,hist:h,logs:lg,running:false,elapsed:0};});this.flash(`已記錄 ${m} 分鐘${act.label}`);},
+      weekTotal:wk.reduce((a,b)=>a+b,0),
+      weekBars:wk.map((v,i)=>({v,h:Math.max(6,Math.round(v/wmax*80))+'px',label:['日','一','二','三','四','五','今'][i],bg:i===6?'#C4602F':v>=act.goal?'#7E9C78':'#E5D8C6',fg:i===6?'#3B2F28':'#7A685B',fw:i===6?700:400})),
+      actHistory:s.hist[s.petId],
+      q:s.q,setQ:e=>this.setState({q:e.target.value}),
+      cats:CATS.map(c=>({name:c,...chip(c===s.cat),select:()=>this.setState({cat:c})})),
+      articles:arts.map(a=>({...a,open:()=>openArt(a.id)})),noArticles:arts.length===0,
+      hasArticle:!!A,closeArticle:()=>this.setState({article:null}),
+      article:A?{...A,steps:A.steps.map((t,i)=>({n:i+1,text:t})),saveLabel:s.saved[A.id]?'已收藏 ✓':'收藏這篇',
+        save:()=>{this.setState(st=>({saved:{...st.saved,[A.id]:!st.saved[A.id]}}));if(!s.saved[A.id])this.flash('已加入收藏');}}:{steps:[]},
+      segs:['附近','社群'].map(n=>({name:n,bg:n===s.seg?'#FFFCF7':'transparent',fw:n===s.seg?700:500,shadow:n===s.seg?'0 2px 6px rgba(59,47,40,.1)':'none',select:()=>this.setState({seg:n})})),
+      isPlaces:s.seg==='附近',isFeed:s.seg==='社群',
+      placeFilters:['全部','醫院','用品店','異寵'].map(c=>({name:c,...chip(c===s.pf),select:()=>this.setState({pf:c})})),
+      places:places.map(p=>({...p,openColor:p.open?'#4E6B49':'#A0442A',nav:()=>this.flash(`開始導航到${p.name}`),call:()=>this.flash(`撥打給${p.name}`)})),
+      posts:POSTS.map(p=>{const on=!!s.liked[p.id];return{...p,likes:p.likes+(on?1:0),likeBg:on?'#F6DCCF':'transparent',likeFg:on?'#A0442A':'#3B2F28',likeBorder:on?'#F6DCCF':'#EADDCB',heartFill:on?'#C4602F':'none',
+        like:()=>this.setState(st=>({liked:{...st.liked,[p.id]:!st.liked[p.id]}}))};}),
+      tabs:TABS.map(t=>({...t,bg:t.k===s.tab?'#F7F0E6':'transparent',fg:t.k===s.tab?'#3B2F28':'#D8C8B4',select:()=>this.setState({tab:t.k,article:null})})),
+      sheetOpen:!!s.sheet,isLogSheet:s.sheet==='log',isWeightSheet:s.sheet==='weight',
+      sheetTitle:s.sheet==='weight'?`${pet.name}的體重`:`幫${pet.name}記錄`,
+      closeSheet:()=>this.setState({sheet:null}),
+      logTypes:LT.map((t,i)=>({k:t.k,...chip(i===s.logType),select:()=>this.setState({logType:i,logAmt:t.def})})),
+      logAmt:s.logAmt,logUnit:LT0.unit,
+      amtUp:()=>this.setState(st=>({logAmt:st.logAmt+LT0.step})),amtDown:()=>this.setState(st=>({logAmt:Math.max(LT0.step,st.logAmt-LT0.step)})),
+      notes:['正常','食慾差','需注意'].map(k=>({k,bg:k===s.logNote?'#F8E7BF':'transparent',border:k===s.logNote?'#E7C77A':'#EADDCB',select:()=>this.setState({logNote:k})})),
+      saveLog:()=>{const text=`${LT0.k} · ${s.logAmt} ${LT0.unit}`+(s.logNote!=='正常'?` · ${s.logNote}`:'');
+        this.setState(st=>{const lg=clone(st.logs);lg[st.petId].unshift({time:now(),text,who:'me'});return{logs:lg,sheet:null};});this.flash('已記錄，媽媽和小傑會收到通知');},
+      wDraft:s.wDraft.toFixed(2).replace(/0$/,''),
+      wUp:()=>this.setState(st=>({wDraft:Math.round((st.wDraft+0.05)*100)/100})),wDown:()=>this.setState(st=>({wDraft:Math.max(0.05,Math.round((st.wDraft-0.05)*100)/100)})),
+      saveWeight:()=>{this.setState(st=>{const w=clone(st.weights);w[st.petId].push(st.wDraft);if(w[st.petId].length>7)w[st.petId].shift();return{weights:w,sheet:null};});this.flash('體重已更新');},
+      hasToast:!!s.toast,toast:s.toast};
+  }
+}
+</script>
+</body>
+</html>

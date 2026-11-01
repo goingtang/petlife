@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<script src="./petpal-data.js" data-petpal="1"></script>
+<script src="./petpal-tools.js"></script>
+<style>body{margin:0;background:#F7F0E6;color:#3B2F28}a{color:#C4602F;text-decoration:none}a:hover{color:#9E4A22}</style>
+</helmet>
+<div style="position:absolute;inset:0;background:{{ bg }};overflow-y:auto;scrollbar-width:none;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28">
+<sc-if value="{{ notReady }}" hint-placeholder-val="{{ false }}"><div style="height:100%;display:flex;align-items:center;justify-content:center;color:#7A685B">…</div></sc-if>
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:58px 20px 120px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+<button onClick="{{ back }}" style="height:44px;padding:0 16px 0 12px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.back }}</button>
+<span style="font-size:13px;font-weight:700;color:#7A685B">{{ T.moreTitle }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:27px;line-height:1.25">{{ title }}</span>
+<span style="font-size:13px;color:#7A685B">{{ subtitle }}</span>
+</div>
+<sc-if value="{{ showPets }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSupplies }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<sc-if value="{{ sup.hasCart }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 16px;border-radius:18px;background:#DDE6EE;font-size:14px;font-weight:700;color:#2F4A60">{{ sup.cartText }}</div></sc-if>
+<sc-for list="{{ sup.items }}" as="it" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:22px;background:#FFFCF7;border:1.5px solid {{ it.border }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+<span style="display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">{{ it.name }}</span><span style="font-size:12px;color:#7A685B">{{ it.sub }}</span></span>
+<span style="font:600 14px 'Fredoka','Noto Sans TC',sans-serif;color:{{ it.color }};flex:none">{{ it.days }}</span>
+</div>
+<div style="height:8px;border-radius:4px;background:#F0E5D6;overflow:hidden"><div style="height:100%;width:{{ it.w }};background:{{ it.color }};border-radius:4px;transition:width .3s"></div></div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ it.restock }}" style="flex:1;height:42px;border-radius:21px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.restock }} {{ it.pack }}</button>
+<button onClick="{{ it.cart }}" style="flex:1;height:42px;border-radius:21px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ it.cartLabel }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isGroom }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<sc-for list="{{ grm.tasks }}" as="g" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:12px;padding:14px 12px 14px 16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+<span style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:16px;font-weight:700">{{ g.name }}</span><span style="font-size:12px;font-weight:700;color:{{ g.color }}">{{ g.due }}</span></span>
+<span style="height:6px;border-radius:3px;background:#F0E5D6;overflow:hidden;display:block"><span style="display:block;height:100%;width:{{ g.w }};background:{{ g.color }};border-radius:3px"></span></span>
+<span style="font-size:12px;color:#7A685B">{{ g.sub }}</span>
+</span>
+<button onClick="{{ g.done }}" style="flex:none;height:42px;padding:0 16px;border-radius:21px;border:none;background:#7E9C78;color:#fff;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.doneBtn }}</button>
+</div>
+</sc-for>
+<div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:22px;background:#EEE0F0">
+<span style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:700">{{ grm.salon }}</span><span style="font-size:12px;color:#5E4E42">600 m · {{ T.gBath }} / {{ T.gNails }}</span></span>
+<button onClick="{{ grm.book }}" style="flex:none;height:42px;padding:0 16px;border-radius:21px;border:none;background:#3B2F28;color:#F7F0E6;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.bookNow }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDevices }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:700">{{ T.feeder }}</span><span style="font-size:12px;font-weight:700;color:#4E6B49">● {{ T.online }}</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px;color:#7A685B"><span>{{ T.foodLevel }}</span><span style="font:600 14px 'Fredoka',sans-serif;color:#3B2F28">{{ dev.foodLevel }}</span></div>
+<div style="height:10px;border-radius:5px;background:#F0E5D6;overflow:hidden"><div style="height:100%;width:{{ dev.foodLevel }};background:{{ dev.foodColor }};border-radius:5px;transition:width .4s"></div></div>
+<div style="display:flex;gap:10px;align-items:center">
+<div style="display:flex;align-items:center;gap:6px;padding:4px;border-radius:22px;background:#F7F0E6">
+<button onClick="{{ dev.pDown }}" style="width:36px;height:36px;border-radius:18px;border:none;background:#FFFCF7;font-size:16px;cursor:pointer">−</button>
+<span style="font:600 16px 'Fredoka',sans-serif;min-width:52px;text-align:center">{{ dev.portions }}</span>
+<button onClick="{{ dev.pUp }}" style="width:36px;height:36px;border-radius:18px;border:none;background:#FFFCF7;font-size:16px;cursor:pointer">＋</button>
+</div>
+<button onClick="{{ dev.feed }}" style="flex:1;height:46px;border-radius:23px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.feedNow }}</button>
+</div>
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.schedule }}</span>
+<sc-for list="{{ dev.sched }}" as="r" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;justify-content:space-between;min-height:44px"><span style="font:600 15px 'Fredoka',sans-serif">{{ r.t }} <span style="font:400 13px 'Noto Sans TC',sans-serif;color:#7A685B">· {{ r.p }}</span></span>
+<button onClick="{{ r.toggle }}" style="width:52px;height:32px;border-radius:16px;border:none;padding:0;background:{{ r.track }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;transform:translateX({{ r.x }});transition:transform .2s"></span></button></div>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:700">{{ T.fountain }}</span>
+<button onClick="{{ dev.pumpToggle }}" style="display:flex;align-items:center;gap:8px;border:none;background:transparent;cursor:pointer;font:500 13px 'Noto Sans TC',sans-serif;color:#7A685B">{{ T.pump }}<span style="width:52px;height:32px;border-radius:16px;background:{{ dev.pumpTrack }};position:relative;display:block"><span style="position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;transform:translateX({{ dev.pumpX }});transition:transform .2s"></span></span></button></div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:16px;background:#DDE6EE"><span style="font-size:12px;color:#2F4A60">{{ T.waterLevel }}</span><span style="font:600 22px 'Fredoka',sans-serif;color:#2F4A60">{{ dev.water }}</span></div>
+<div style="flex:1;display:flex;flex-direction:column;gap:4px;padding:12px;border-radius:16px;background:{{ dev.filterBg }}"><span style="font-size:12px;color:#5E4E42">{{ dev.filterText }}</span><button onClick="{{ dev.changeFilter }}" style="align-self:flex-start;height:32px;padding:0 12px;border-radius:16px;border:none;background:#3B2F28;color:#F7F0E6;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.changeFilter }}</button></div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-size:16px;font-weight:700">{{ T.camera }}</span>
+<div style="position:relative;height:200px;border-radius:18px;overflow:hidden;background:#3B2F28;filter:{{ dev.camFilter }}">
+<image-slot id="cam-live" shape="rect" placeholder="Camera" style="width:100%;height:200px;background:#5E4E42"></image-slot>
+<span style="position:absolute;top:10px;left:10px;padding:3px 9px;border-radius:9px;background:#A0442A;color:#fff;font:700 11px 'Fredoka',sans-serif;pointer-events:none">● {{ T.live }}</span>
+<sc-if value="{{ dev.talking }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;bottom:10px;left:10px;right:10px;padding:8px 12px;border-radius:12px;background:rgba(59,47,40,.8);color:#fff;font-size:13px;text-align:center;pointer-events:none">{{ T.talking }}</span></sc-if>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<button onClick="{{ dev.treat }}" style="min-height:48px;border-radius:16px;border:none;background:#F8E7BF;font:700 13px 'Noto Sans TC',sans-serif;color:#3B2F28;cursor:pointer">{{ T.tossTreat }}</button>
+<button onClick="{{ dev.talk }}" style="min-height:48px;border-radius:16px;border:none;background:{{ dev.talkBg }};font:700 13px 'Noto Sans TC',sans-serif;color:{{ dev.talkFg }};cursor:pointer">{{ T.talk }}</button>
+<button onClick="{{ dev.night }}" style="min-height:48px;border-radius:16px;border:none;background:{{ dev.nightBg }};font:700 13px 'Noto Sans TC',sans-serif;color:{{ dev.nightFg }};cursor:pointer">{{ T.nightVision }}</button>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.motion }}</span>
+<button onClick="{{ dev.motionToggle }}" style="width:52px;height:32px;border-radius:16px;border:none;padding:0;background:{{ dev.motionTrack }};position:relative;cursor:pointer"><span style="position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;transform:translateX({{ dev.motionX }});transition:transform .2s"></span></button></div>
+<sc-for list="{{ dev.events }}" as="e" hint-placeholder-count="2"><div style="display:flex;gap:10px;font-size:13px"><span style="font:600 13px 'Fredoka',sans-serif;color:#7A685B">{{ e.t }}</span><span>{{ e.text }}</span></div></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isScan }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<label style="height:40px;padding:0 14px;border-radius:20px;background:#3B2F28;color:#F7F0E6;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer">{{ T.scanPhoto }}<input type="file" accept="image/*" capture="environment" onChange="{{ scn.onPhoto }}" style="display:none"></label>
+<button onClick="{{ scn.good }}" style="height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.sampleGood }}</button>
+<button onClick="{{ scn.bad }}" style="height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.sampleBad }}</button>
+</div>
+<sc-if value="{{ scn.hasPhoto }}" hint-placeholder-val="{{ false }}"><div style="height:140px;border-radius:16px;background-image:{{ scn.photo }};background-size:cover;background-position:center"></div></sc-if>
+<textarea value="{{ scn.text }}" onChange="{{ scn.setText }}" placeholder="{{ T.scanPh }}" rows="4" style="border-radius:18px;border:1.5px solid #EADDCB;background:#FFFCF7;padding:12px 14px;font:15px/1.6 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28;outline:none;resize:none"></textarea>
+<button onClick="{{ scn.analyze }}" style="min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.analyze }}</button>
+<sc-if value="{{ scn.hasResult }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;align-items:center;gap:14px">
+<span style="width:72px;height:72px;flex:none;border-radius:50%;background:{{ scn.scoreBg }};color:#fff;display:flex;align-items:center;justify-content:center;font:600 26px 'Fredoka',sans-serif">{{ scn.score }}</span>
+<span style="font-size:15px;font-weight:700">{{ T.score }}</span>
+</div>
+<sc-for list="{{ scn.goods }}" as="g" hint-placeholder-count="1"><div style="display:flex;gap:8px;align-items:center;font-size:14px"><span style="padding:2px 8px;border-radius:8px;background:#E3EBDD;color:#4E6B49;font-size:11px;font-weight:700">{{ T.goodFind }}</span>{{ g }}</div></sc-for>
+<sc-for list="{{ scn.bads }}" as="b" hint-placeholder-count="1"><div style="display:flex;gap:8px;align-items:center;font-size:14px"><span style="padding:2px 8px;border-radius:8px;background:{{ b.bg }};color:{{ b.fg }};font-size:11px;font-weight:700">{{ T.badFind }}</span>{{ b.text }}</div></sc-for>
+<sc-if value="{{ scn.noFlags }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#4E6B49">{{ T.noFlags }}</span></sc-if>
+<span style="font-size:11px;color:#9C8B7E;line-height:1.5">{{ T.scanNote }}</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPlaces }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ plc.cats }}" as="c" hint-placeholder-count="6"><button onClick="{{ c.select }}" style="height:34px;padding:0 12px;border-radius:17px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for></div>
+<sc-for list="{{ plc.list }}" as="p" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;gap:12px;align-items:center">
+<span style="width:52px;height:52px;flex:none;border-radius:16px;background:{{ p.c }};display:flex;align-items:center;justify-content:center;font:20px 'Huninn',sans-serif">{{ p.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;font-weight:700">{{ p.name }}</span><span style="font-size:12px;color:#7A685B">{{ p.sub }}</span></span>
+<button onClick="{{ p.fav }}" aria-label="save" style="flex:none;width:44px;height:44px;border-radius:22px;border:1.5px solid {{ p.favBorder }};background:{{ p.favBg }};color:{{ p.favFg }};font-size:18px;cursor:pointer">{{ p.favIcon }}</button>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ p.pol }}" as="t" hint-placeholder-count="2"><span style="padding:3px 9px;border-radius:9px;background:#F4EBDF;font-size:12px;color:#5E4E42">{{ t }}</span></sc-for></div>
+<button onClick="{{ p.nav }}" style="height:42px;border-radius:21px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.navigate }}</button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSitter }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<sc-if value="{{ sit.tracking }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-size:15px;font-weight:700">{{ sit.liveTitle }}</span>
+<svg viewBox="0 0 300 220" style="width:100%;height:auto;border-radius:16px;background:#E9EFE3">
+<path d="M0 60H300M0 140H300M80 0V220M200 0V220" stroke="#FFFCF7" stroke-width="10"></path>
+<rect x="210" y="150" width="70" height="50" rx="10" fill="#D7E7E4"></rect>
+<polyline points="{{ sit.full }}" fill="none" stroke="#CDBBA6" stroke-width="4" stroke-dasharray="2 6" stroke-linecap="round"></polyline>
+<polyline points="{{ sit.done }}" fill="none" stroke="#C4602F" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+<circle cx="40" cy="180" r="7" fill="#3B2F28"></circle>
+<circle cx="{{ sit.x }}" cy="{{ sit.y }}" r="10" fill="#C4602F" stroke="#fff" stroke-width="3"></circle>
+</svg>
+<div style="display:flex;gap:10px">
+<div style="flex:1;padding:10px 12px;border-radius:14px;background:#F7F0E6;display:flex;flex-direction:column"><span style="font-size:12px;color:#7A685B">{{ T.distance }}</span><span style="font:600 20px 'Fredoka',sans-serif">{{ sit.km }}</span></div>
+<div style="flex:1;padding:10px 12px;border-radius:14px;background:#F7F0E6;display:flex;flex-direction:column"><span style="font-size:12px;color:#7A685B">{{ T.elapsedLbl }}</span><span style="font:600 20px 'Fredoka',sans-serif">{{ sit.min }}</span></div>
+</div>
+<sc-for list="{{ sit.events }}" as="e" hint-placeholder-count="1"><div style="display:flex;gap:10px;font-size:14px"><span style="font:600 13px 'Fredoka',sans-serif;color:#7A685B;width:44px">{{ e.t }}</span><span>{{ e.text }}</span></div></sc-for>
+<button onClick="{{ sit.end }}" style="min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.endWalk }}</button>
+</div>
+</sc-if>
+<sc-if value="{{ sit.hasBookings }}" hint-placeholder-val="{{ false }}">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px">{{ T.myBookings }}</span>
+<sc-for list="{{ sit.bookings }}" as="b" hint-placeholder-count="1">
+<div style="display:flex;align-items:center;gap:10px;padding:12px 12px 12px 16px;border-radius:20px;background:#E3EBDD">
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;font-weight:700">{{ b.title }}</span><span style="font-size:12px;color:#3F5A3B">{{ b.sub }}</span></span>
+<sc-if value="{{ b.canTrack }}" hint-placeholder-val="{{ false }}"><button onClick="{{ b.track }}" style="flex:none;height:40px;padding:0 14px;border-radius:20px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.trackLive }}</button></sc-if>
+</div>
+</sc-for>
+</sc-if>
+<sc-for list="{{ sit.list }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;gap:12px;align-items:center">
+<span style="width:48px;height:48px;flex:none;border-radius:50%;background:{{ p.c }};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700">{{ p.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><span style="display:flex;gap:6px;align-items:center"><span style="font-size:15px;font-weight:700">{{ p.name }}</span><sc-if value="{{ p.verified }}" hint-placeholder-val="{{ false }}"><span style="padding:1px 7px;border-radius:7px;background:#E3EBDD;color:#4E6B49;font-size:11px;font-weight:700">{{ T.verified }}</span></sc-if></span><span style="font-size:12px;color:#7A685B">{{ p.sub }}</span></span>
+<span style="font:600 15px 'Fredoka',sans-serif;flex:none">{{ p.price }}</span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ p.sv }}" as="t" hint-placeholder-count="2"><span style="padding:3px 9px;border-radius:9px;background:#F4EBDF;font-size:12px;color:#5E4E42">{{ t }}</span></sc-for></div>
+<sc-if value="{{ p.open }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding-top:6px;border-top:1.5px dashed #EADDCB">
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ sit.svOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ o.name }}</button></sc-for></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ sit.dayOpts }}" as="o" hint-placeholder-count="3"><button onClick="{{ o.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ o.name }}</button></sc-for></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ sit.timeOpts }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font:600 13px 'Fredoka',sans-serif;cursor:pointer">{{ o.name }}</button></sc-for></div>
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="display:flex;align-items:center;gap:6px;font-size:13px;color:#7A685B">{{ T.hours }}<button onClick="{{ sit.hDown }}" style="width:32px;height:32px;border-radius:16px;border:1.5px solid #EADDCB;background:transparent;cursor:pointer">−</button><span style="font:600 16px 'Fredoka',sans-serif;color:#3B2F28">{{ sit.hrs }}</span><button onClick="{{ sit.hUp }}" style="width:32px;height:32px;border-radius:16px;border:1.5px solid #EADDCB;background:transparent;cursor:pointer">＋</button></span>
+<span style="font-size:13px;color:#7A685B">{{ T.total }} <span style="font:600 18px 'Fredoka',sans-serif;color:#3B2F28">{{ sit.total }}</span></span>
+</div>
+<button onClick="{{ sit.confirm }}" style="min-height:48px;border-radius:24px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.confirmBook }}</button>
+</div>
+</sc-if>
+<sc-if value="{{ p.closed }}" hint-placeholder-val="{{ true }}"><button onClick="{{ p.book }}" style="height:42px;border-radius:21px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.bookNow }}</button></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMeet }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px">{{ T.events }}</span>
+<sc-for list="{{ mt.events }}" as="e" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:14px;border-radius:22px;background:{{ e.c }}">
+<span style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:15px;font-weight:700">{{ e.name }}</span><span style="font-size:12px;color:#5E4E42">{{ e.sub }}</span><span style="font-size:12px;font-weight:700;color:#5E4E42">{{ e.spots }}</span></span>
+<button onClick="{{ e.toggle }}" style="flex:none;height:42px;padding:0 16px;border-radius:21px;border:none;background:{{ e.btnBg }};color:{{ e.btnFg }};font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ e.label }}</button>
+</div>
+</sc-for>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px">{{ T.playdates }}</span>
+<sc-for list="{{ mt.mates }}" as="m" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="width:48px;height:48px;flex:none;border-radius:50%;background:{{ m.c }};display:flex;align-items:center;justify-content:center;font:18px 'Huninn',sans-serif">{{ m.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:15px;font-weight:700">{{ m.name }}</span><span style="font-size:12px;color:#7A685B">{{ m.sub }}</span></span>
+<button onClick="{{ m.hi }}" style="flex:none;height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #3B2F28;background:{{ m.bg }};color:{{ m.fg }};font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ m.label }}</button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMiles }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="padding:16px;border-radius:22px;background:#F8E7BF;font-size:15px;font-weight:700;color:#5E4512">{{ ml.next }}</div>
+<button onClick="{{ ml.toggleAdd }}" style="min-height:46px;border-radius:23px;border:1.5px dashed #CDBBA6;background:transparent;color:#5E4E42;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addMilestone }}</button>
+<sc-if value="{{ ml.showAdd }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<input value="{{ ml.title }}" onChange="{{ ml.setTitle }}" placeholder="{{ T.milestonePh }}" style="height:46px;border-radius:14px;border:1.5px solid {{ ml.border }};background:#F7F0E6;padding:0 14px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<input type="date" value="{{ ml.date }}" onChange="{{ ml.setDate }}" style="height:44px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 12px;font:14px 'Fredoka',sans-serif;color:#3B2F28">
+<button onClick="{{ ml.save }}" style="min-height:48px;border-radius:24px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.saveBtn }}</button>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;padding-left:8px">
+<sc-for list="{{ ml.items }}" as="m" hint-placeholder-count="5">
+<div style="display:flex;gap:14px">
+<div style="display:flex;flex-direction:column;align-items:center;flex:none"><span style="width:14px;height:14px;border-radius:7px;background:{{ m.c }};border:3px solid #FFFCF7;box-shadow:0 0 0 1.5px {{ m.c }};margin-top:4px"></span><span style="flex:1;width:2px;background:#EADDCB;min-height:20px"></span></div>
+<div style="display:flex;flex-direction:column;gap:2px;padding-bottom:18px;min-width:0"><span style="font:600 12px 'Fredoka',sans-serif;color:#7A685B">{{ m.date }}</span><span style="font-size:15px;font-weight:500;line-height:1.4">{{ m.text }}</span></div>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ hasLocalToast }}" hint-placeholder-val="{{ false }}"><div style="position:fixed;top:60px;left:20px;right:20px;display:flex;justify-content:center;z-index:90;pointer-events:none"><div style="padding:12px 18px;border-radius:22px;background:#3B2F28;color:#F7F0E6;font-size:14px">{{ localToast }}</div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;tool&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;supplies&quot;,&quot;groom&quot;,&quot;devices&quot;,&quot;scan&quot;,&quot;places&quot;,&quot;sitter&quot;,&quot;meet&quot;,&quot;miles&quot;],&quot;default&quot;:&quot;supplies&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh-TW&quot;,&quot;zh-CN&quot;,&quot;en&quot;,&quot;ja&quot;,&quot;es&quot;],&quot;default&quot;:&quot;zh-TW&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;petId&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dou&quot;,&quot;mochi&quot;,&quot;bai&quot;],&quot;default&quot;:&quot;dou&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;bg&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;options&quot;:[&quot;#F7F0E6&quot;,&quot;#E9EFE3&quot;,&quot;#F8E8E0&quot;,&quot;#E6EDF1&quot;],&quot;default&quot;:&quot;#F7F0E6&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;store&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;onBack&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;},&quot;onToast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(m: string) =&gt; void&quot;},&quot;onUpdate&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(fn) =&gt; void&quot;},&quot;onOpenTool&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(tool: string) =&gt; void&quot;}}">
+const IDX={"zh-TW":0,"zh-CN":1,en:2,ja:3,es:4},TODAY="2026/10/24";
+function waitAll(ms){return new Promise((res,rej)=>{const ok=()=>window.PetPalData&&window.PetPalTools;if(ok())return res();const t0=Date.now();const iv=setInterval(()=>{if(ok()){clearInterval(iv);res();}else if(Date.now()-t0>ms){clearInterval(iv);rej();}},50);});}
+function compressImage(file,max){return new Promise(res=>{const r=new FileReader();r.onerror=()=>res(null);r.onload=()=>{const img=new Image();img.onerror=()=>res(null);img.onload=()=>{const k=Math.min(1,(max||900)/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",0.72));};img.src=r.result;};r.readAsDataURL(file);});}
+const chip=on=>({bg:on?"#3B2F28":"#FFFCF7",fg:on?"#F7F0E6":"#3B2F28",border:on?"#3B2F28":"#EADDCB"});
+const money=n=>"NT$"+Math.round(n).toLocaleString("en-US");
+const nowT=()=>new Date().toTimeString().slice(0,5);
+const addDays=(d,n)=>{const [y,m,dd]=d.split("/").map(Number);const t=new Date(y,m-1,dd+n);return t.getFullYear()+"/"+String(t.getMonth()+1).padStart(2,"0")+"/"+String(t.getDate()).padStart(2,"0");};
+
+class Component extends DCLogic {
+  state={ready:!!(window.PetPalData&&window.PetPalTools),own:null,pet:this.props.petId||"dou",supPet:"all",lt:null,talking:false,camEvents:[],
+    scanText:"",scanPhoto:null,scanRes:null,plCat:"all",bookFor:null,bk:{sv:null,day:0,time:"17:00",hrs:1},tracking:null,step:0,mlAdd:false,mlTitle:"",mlDate:"2026-10-24",mlTried:false};
+  componentDidMount(){waitAll(8000).then(()=>{const D=window.PetPalData;let own=null;if(!this.props.store){try{const s=JSON.parse(localStorage.getItem("petpal.store.v2")||"null");if(D.isValidStore(s))own=s;}catch(e){}if(!own)own=D.seed();}this.setState({ready:true,own});}).catch(()=>{});}
+  componentWillUnmount(){clearTimeout(this.tt);clearInterval(this.iv);clearTimeout(this.ht);clearTimeout(this.kt);}
+  componentDidUpdate(pp){if(pp.petId!==this.props.petId&&this.props.petId)this.setState({pet:this.props.petId});}
+  get store(){return this.props.store||this.state.own;}
+  tools(){return (this.store&&this.store.tools)||window.PetPalTools.seedTools();}
+  upd(fn){const TL=window.PetPalTools,wrap=st=>{if(!st.tools)st.tools=TL.seedTools();fn(st,st.tools);};
+    if(this.props.onUpdate)this.props.onUpdate(wrap);else this.setState(s=>{const st=JSON.parse(JSON.stringify(s.own));wrap(st);return{own:st};});}
+  toast(m){if(this.props.onToast)this.props.onToast(m);else{this.setState({lt:m});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({lt:null}),2200);}}
+  lang(){return this.props.lang||"zh-TW";}
+  tr=(k,v)=>{const TL=window.PetPalTools;if(TL.S[k]){const a=TL.S[k];let s=a[IDX[this.lang()]]??a[0];if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s;}return window.PetPalData.tr(this.lang(),k,v);};
+  pick(a){return Array.isArray(a)?(a[IDX[this.lang()]]??a[0]):a;}
+  val=x=>window.PetPalData.val(this.lang(),x);
+  petObj(){const D=window.PetPalData;return D.PETS.find(p=>p.id===this.state.pet)||D.PETS[0];}
+  logEntry(pid,form,v){this.upd(st=>{st.pets[pid].entries.unshift({id:"u"+Date.now(),form,at:TODAY+" "+nowT(),who:"me",v});});}
+  startTrack(id){clearInterval(this.iv);this.setState({tracking:id,step:0});const N=window.PetPalTools.WALK_PATH.length-1;
+    this.iv=setInterval(()=>this.setState(s=>{if(s.step>=N){clearInterval(this.iv);return null;}return{step:s.step+1};}),900);}
+  analyze(text){const TL=window.PetPalTools,t=(text||"").toLowerCase();if(!t.trim())return null;
+    const parts=t.split(/[、,，;；\n]/).map(x=>x.trim()).filter(Boolean),has=kw=>kw.some(k=>t.includes(k.toLowerCase()));
+    const goods=[],bads=[];let score=70;
+    if(parts[0]&&TL.MEAT.some(k=>parts[0].includes(k.toLowerCase()))){goods.push("rMeatFirst");score+=10;}
+    if(parts.slice(0,3).some(p=>TL.FILLER.some(k=>p.includes(k.toLowerCase())))){bads.push(["rFiller",1]);score-=8;}
+    TL.SCAN_RULES.forEach(r=>{if(has(r.kw)){if(r.good){goods.push(r.k);score+=5;}else{bads.push([r.k,r.sev]);score-=r.sev*8;}}});
+    return{score:Math.max(0,Math.min(100,score)),goods,bads};}
+  renderVals(){
+    if(!this.state.ready||!this.store)return{ready:false,notReady:true,bg:this.props.bg||"#F7F0E6"};
+    const s=this.state,D=window.PetPalData,TL=window.PetPalTools,tr=this.tr,val=this.val,tl=this.tools(),tool=this.props.tool||"supplies";
+    const T={};Object.keys(D.U).forEach(k=>T[k]=tr(k));Object.keys(TL.S).forEach(k=>T[k]=tr(k));
+    const pet=this.petObj(),P=this.store.pets[pet.id];
+    const base={ready:true,notReady:false,T,bg:this.props.bg||"#F7F0E6",title:tr("t_"+tool),subtitle:tr("d_"+tool),back:()=>this.props.onBack&&this.props.onBack(),
+      showPets:["groom","devices","miles","supplies","sitter"].includes(tool),
+      petChips:(tool==="supplies"?[{id:"all",name:tr("allPets"),color:"#EFE4D4"},...D.PETS]:D.PETS).map(p=>{const on=tool==="supplies"?s.supPet===p.id:s.pet===p.id;return{name:p.name,color:p.color,initial:p.name[0],...chip(on),select:()=>tool==="supplies"?this.setState({supPet:p.id}):this.setState({pet:p.id})};}),
+      isSupplies:tool==="supplies",isGroom:tool==="groom",isDevices:tool==="devices",isScan:tool==="scan",isPlaces:tool==="places",isSitter:tool==="sitter",isMeet:tool==="meet",isMiles:tool==="miles",
+      hasLocalToast:!!s.lt,localToast:s.lt||""};
+    const pName=id=>(D.PETS.find(p=>p.id===id)||{name:id}).name;
+    if(tool==="supplies"){
+      const items=tl.supplies.filter(x=>s.supPet==="all"||x.pet===s.supPet).map(x=>({x,days:Math.floor(x.stock/x.use)})).sort((a,b)=>a.days-b.days);
+      const nCart=Object.keys(tl.cart||{}).filter(k=>tl.cart[k]).length,u=x=>x.unit==="kg"?"kg":tr(x.unit),fmt=n=>Math.round(n*100)/100;
+      base.sup={hasCart:nCart>0,cartText:tr("shopList",{n:nCart}),
+        items:items.map(({x,days})=>{const low=days<=7,inC=!!(tl.cart||{})[x.id];return{name:tr(x.key),sub:pName(x.pet)+" · "+fmt(x.stock)+" "+u(x)+" · "+tr("perDay",{x:fmt(x.use)+" "+u(x)}),
+          days:low?tr("runningLow")+" · "+tr("daysLeft",{n:days}):tr("daysLeft",{n:days}),color:days<=3?"#A0442A":low?"#D08A2E":"#7E9C78",border:low?"#E7B49A":"#EADDCB",w:Math.min(100,Math.round(days/30*100))+"%",
+          pack:"+"+x.pack+" "+u(x),cartLabel:inC?tr("inCart"):tr("addCart"),
+          restock:()=>{this.upd((st,X)=>{const y=X.supplies.find(z=>z.id===x.id);y.stock=fmt(y.stock+y.pack);if(X.cart)delete X.cart[x.id];});this.toast(tr("restocked"));},
+          cart:()=>this.upd((st,X)=>{X.cart=X.cart||{};X.cart[x.id]=!X.cart[x.id];})};})};
+    }
+    if(tool==="groom"){
+      const list=(TL.GROOM[pet.kind]||[]).map(([k,n])=>{const last=(tl.groom[pet.id]||{})[k]||TODAY,el=D.daysBetween(last,TODAY),left=n-el;return{k,n,last,el,left};}).sort((a,b)=>a.left-b.left);
+      base.grm={tasks:list.map(g=>({name:tr(g.k),sub:tr("everyN",{n:g.n})+" · "+tr("lastDone",{d:g.last.slice(5)}),due:g.left<0?tr("overdue",{n:-g.left}):g.left===0?tr("dueToday"):tr("dueIn",{n:g.left}),
+          color:g.left<0?"#A0442A":g.left<=1?"#D08A2E":"#7E9C78",w:Math.min(100,Math.round(g.el/g.n*100))+"%",
+          done:()=>{this.upd((st,X)=>{X.groom[pet.id]=X.groom[pet.id]||{};X.groom[pet.id][g.k]=TODAY;});this.toast(tr("groomDone"));}})),
+        salon:tr("plDaily"),book:()=>this.toast(tr("booked",{x:tr("plDaily")}))};
+    }
+    if(tool==="devices"){
+      const dv=tl.devices,f=dv.feeder,fo=dv.fountain,cam=dv.camera,tog=on=>({track:on?"#7E9C78":"#E0D2BF",x:on?"20px":"0px"});
+      base.dev={foodLevel:f.level+"%",foodColor:f.level<20?"#A0442A":"#E7B44C",portions:f.portions+" "+tr("portions"),
+        pUp:()=>this.upd((st,X)=>{X.devices.feeder.portions=Math.min(4,X.devices.feeder.portions+1);}),pDown:()=>this.upd((st,X)=>{X.devices.feeder.portions=Math.max(1,X.devices.feeder.portions-1);}),
+        feed:()=>{const n=f.portions;this.upd((st,X)=>{X.devices.feeder.level=Math.max(0,X.devices.feeder.level-n*4);st.pets[pet.id].entries.unshift({id:"u"+Date.now(),form:"feed",at:TODAY+" "+nowT(),who:"me",v:{food:pet.kind==="rabbit"?"hay":"dry",amount:n,appetite:"normal"}});});this.toast(tr("fed",{n}));},
+        sched:f.sched.map((r,i)=>{const t=tog(r.on);return{t:r.t,p:r.p+" "+tr("portions"),track:t.track,x:t.x,toggle:()=>this.upd((st,X)=>{X.devices.feeder.sched[i].on=!r.on;})};}),
+        water:fo.level+"%",filterText:tr("filterLife",{n:fo.filter}),filterBg:fo.filter<=3?"#F6DCCF":"#F4EBDF",
+        changeFilter:()=>{this.upd((st,X)=>{X.devices.fountain.filter=30;});this.toast(tr("filterChanged"));},
+        pumpToggle:()=>this.upd((st,X)=>{X.devices.fountain.pump=!fo.pump;}),pumpTrack:tog(fo.pump).track,pumpX:tog(fo.pump).x,
+        camFilter:cam.night?"grayscale(1) brightness(1.15) contrast(1.1)":"none",talking:s.talking,
+        treat:()=>{this.toast(tr("treatTossed"));this.setState(st=>({camEvents:[{t:nowT(),k:"treatTossed"},...st.camEvents].slice(0,4)}));},
+        talk:()=>{clearTimeout(this.kt);this.setState({talking:!s.talking});if(!s.talking)this.kt=setTimeout(()=>this.setState({talking:false}),5000);},
+        talkBg:s.talking?"#3B2F28":"#DDE6EE",talkFg:s.talking?"#F7F0E6":"#3B2F28",
+        night:()=>this.upd((st,X)=>{X.devices.camera.night=!cam.night;}),nightBg:cam.night?"#3B2F28":"#EEE0F0",nightFg:cam.night?"#F7F0E6":"#3B2F28",
+        motionToggle:()=>this.upd((st,X)=>{X.devices.camera.motion=!cam.motion;}),motionTrack:tog(cam.motion).track,motionX:tog(cam.motion).x,
+        events:cam.motion?[...s.camEvents.map(e=>({t:e.t,text:tr(e.k)})),{t:"10:42",text:tr("mv2")},{t:"09:15",text:tr("mv1")}]:[]};
+    }
+    if(tool==="scan"){
+      const r=s.scanRes;
+      base.scn={text:s.scanText,setText:e=>this.setState({scanText:e.target.value}),hasPhoto:!!s.scanPhoto,photo:s.scanPhoto?"url(\""+s.scanPhoto+"\")":"none",
+        onPhoto:e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(f)compressImage(f,900).then(u=>{if(u){this.setState({scanPhoto:u});this.toast(tr("photoAdded"));}});},
+        good:()=>{const t=tr("sampleGoodText");this.setState({scanText:t,scanRes:this.analyze(t)});},bad:()=>{const t=tr("sampleBadText");this.setState({scanText:t,scanRes:this.analyze(t)});},
+        analyze:()=>this.setState({scanRes:this.analyze(s.scanText)}),
+        hasResult:!!r,score:r?r.score:"",scoreBg:r?(r.score>=75?"#7E9C78":r.score>=50?"#D08A2E":"#A0442A"):"#7E9C78",
+        goods:r?r.goods.map(k=>tr(k)):[],bads:r?r.bads.map(([k,sev])=>({text:tr(k),bg:sev>=3?"#A0442A":sev===2?"#FBE0CF":"#F8E7BF",fg:sev>=3?"#fff":sev===2?"#B4561F":"#7A5A12"})):[],noFlags:!!r&&r.bads.length===0};
+    }
+    if(tool==="places"){
+      const fav=tl.favPlaces||{},list=TL.PLACES2.filter(p=>s.plCat==="all"||(s.plCat==="favs"?fav[p.id]:p.cat===s.plCat));
+      base.plc={cats:["all","pcCafe","pcFood","pcStay","pcPark","favs"].map(c=>({name:tr(c),...chip(s.plCat===c),select:()=>this.setState({plCat:c})})),
+        list:list.map(p=>{const on=!!fav[p.id],n=this.pick(p.n);return{name:n,initial:n[0],c:p.c,sub:tr(p.cat)+" · "+p.dist+" · ★ "+p.rate,pol:p.pol.map(k=>tr(k)),
+          favIcon:on?"♥":"♡",favBg:on?"#F6DCCF":"transparent",favFg:on?"#A0442A":"#3B2F28",favBorder:on?"#F6DCCF":"#EADDCB",
+          fav:()=>{this.upd((st,X)=>{X.favPlaces=X.favPlaces||{};X.favPlaces[p.id]=!on;});if(!on)this.toast(tr("saved"));},nav:()=>this.toast(tr("navTo",{x:n}))};})};
+    }
+    if(tool==="sitter"){
+      const SP=TL.SITTERS,bk=s.bk,openS=SP.find(x=>x.id===s.bookFor),days=[[TODAY,tr("todayDue")],[addDays(TODAY,1),tr("tomorrow")],[addDays(TODAY,2),addDays(TODAY,2).slice(5)]];
+      const sv=bk.sv||(openS?openS.sv[0]:null),B=tl.bookings||[];
+      const tb=s.tracking&&B.find(b=>b.id===s.tracking),path=TL.WALK_PATH,stp=Math.min(s.step,path.length-1),cur=path[stp];
+      base.sit={list:SP.map(p=>({name:p.name,initial:p.name[0],c:p.c,verified:p.verified,sub:"★ "+p.rate+" · "+tr("reviews",{n:p.rev})+" · "+p.dist,price:money(p.price)+tr("perHour"),sv:p.sv.map(k=>tr(k)),
+          open:s.bookFor===p.id,closed:s.bookFor!==p.id,book:()=>this.setState({bookFor:p.id,bk:{sv:p.sv[0],day:0,time:"17:00",hrs:1}})})),
+        svOpts:openS?openS.sv.map(k=>({name:tr(k),...chip(sv===k),select:()=>this.setState(st=>({bk:{...st.bk,sv:k}}))})):[],
+        dayOpts:days.map(([d,n],i)=>({name:n,...chip(bk.day===i),select:()=>this.setState(st=>({bk:{...st.bk,day:i}}))})),
+        timeOpts:["08:00","12:00","17:00","19:00"].map(t=>({name:t,...chip(bk.time===t),select:()=>this.setState(st=>({bk:{...st.bk,time:t}}))})),
+        hrs:bk.hrs,hUp:()=>this.setState(st=>({bk:{...st.bk,hrs:Math.min(8,st.bk.hrs+1)}})),hDown:()=>this.setState(st=>({bk:{...st.bk,hrs:Math.max(1,st.bk.hrs-1)}})),
+        total:openS?money(openS.price*bk.hrs):"",
+        confirm:()=>{if(!openS)return;const b={id:"b"+Date.now(),sitter:openS.id,sv,date:days[bk.day][0],time:bk.time,hrs:bk.hrs,pet:pet.id,amt:openS.price*bk.hrs};
+          this.upd((st,X)=>{X.bookings=X.bookings||[];X.bookings.unshift(b);X.expenses.push({id:"x"+Date.now(),date:b.date,cat:"ecOther",amt:b.amt,pet:pet.id,note:openS.name});});
+          this.setState({bookFor:null});this.toast(tr("booked",{x:openS.name}));},
+        hasBookings:B.length>0,
+        bookings:B.map(b=>{const sp=SP.find(x=>x.id===b.sitter)||{name:""};return{title:sp.name+" · "+tr(b.sv),sub:pName(b.pet)+" · "+(b.date===TODAY?tr("todayDue"):b.date.slice(5))+" "+b.time+" · "+b.hrs+" h · "+tr("confirmed"),
+          canTrack:b.sv==="svWalk"&&b.date===TODAY&&s.tracking!==b.id,track:()=>this.startTrack(b.id)};}),
+        tracking:!!tb,liveTitle:tb?tr("liveWalk",{x:(SP.find(x=>x.id===tb.sitter)||{}).name,name:pName(tb.pet)}):"",
+        full:path.map(p=>p.join(",")).join(" "),done:path.slice(0,stp+1).map(p=>p.join(",")).join(" "),x:cur[0],y:cur[1],
+        km:(stp*0.12).toFixed(2)+" km",min:(stp*2)+" "+tr("min"),
+        events:TL.WALK_EVENTS.filter(([i])=>i<=stp).reverse().map(([i,k])=>({t:"17:"+String(i*2).padStart(2,"0"),text:tr(k)})),
+        end:()=>{clearInterval(this.iv);const m=Math.max(1,stp*2);this.logEntry(tb.pet,"activity",{min:m});this.upd((st,X)=>{X.bookings=X.bookings.filter(b=>b.id!==tb.id);});this.setState({tracking:null,step:0});this.toast(tr("walkSaved"));}};
+    }
+    if(tool==="meet"){
+      const rs=tl.rsvp||{},hi=tl.hi||{};
+      base.mt={events:TL.EVENTS.map(e=>{const on=!!rs[e.id],pl=TL.PLACES2.find(p=>p.id===e.place);return{name:tr(e.n),c:e.c,sub:e.date+" · "+(pl?this.pick(pl.n):tr(e.place)),spots:tr("spotsLeft",{n:e.spots-(on?1:0)}),
+          label:on?tr("going"):tr("join"),btnBg:on?"#FFFCF7":"#3B2F28",btnFg:on?"#3B2F28":"#F7F0E6",toggle:()=>this.upd((st,X)=>{X.rsvp=X.rsvp||{};X.rsvp[e.id]=!on;})};}),
+        mates:TL.PLAYMATES.map(m=>{const st=hi[m.id];return{name:m.name,initial:m.name[0],c:m.c,sub:tr(m.breed)+" · "+m.dist+" · "+m.tags.map(t=>tr(t)).join(tr("listSep")),
+          label:st==="matched"?"♥":st?tr("hiSent"):tr("sayHi"),bg:st?"#3B2F28":"transparent",fg:st?"#F7F0E6":"#3B2F28",
+          hi:()=>{if(st)return;this.upd((s2,X)=>{X.hi=X.hi||{};X.hi[m.id]="sent";});clearTimeout(this.ht);this.ht=setTimeout(()=>{this.upd((s2,X)=>{X.hi[m.id]="matched";});this.toast(tr("matched",{x:m.name}));},2200);}};})};
+    }
+    if(tool==="miles"){
+      const items=[],add=(date,text,c)=>items.push({date,text,c});
+      add(pet.birthday,tr("mBirthday",{name:pet.name}),"#E7B44C");add(pet.adopted,tr("mAdopted"),"#C4602F");
+      const G=P.entries.filter(e=>e.form==="growth").sort((a,b)=>a.at<b.at?-1:1);
+      if(G.length){add(G[0].at.slice(0,10),tr("mFirstWeigh",{w:G[0].v.weight}),"#7E9C78");if(G.length>1)add(G[G.length-1].at.slice(0,10),tr("mLatestWeigh",{w:G[G.length-1].v.weight}),"#7E9C78");}
+      P.entries.filter(e=>e.form==="reminder"&&e.v.date<=TODAY).forEach(e=>add(e.v.date,tr("mVaccine",{x:val(e.v.title)}),"#6E8FB0"));
+      const J=(this.store.journal||[]).filter(j=>j.petId===pet.id).sort((a,b)=>a.at<b.at?-1:1);if(J.length)add(J[0].at.slice(0,10),tr("mFirstDiary",{x:val(J[0].v.title)}),"#A77AA3");
+      (tl.milestones||[]).filter(m=>m.pet===pet.id).forEach(m=>add(m.date,m.title,"#3B2F28"));
+      items.sort((a,b)=>a.date<b.date?1:-1);
+      const [by,bm,bd]=pet.birthday.split("/").map(Number);let ny=2026;if(("2026/"+String(bm).padStart(2,"0")+"/"+String(bd).padStart(2,"0"))<=TODAY)ny=2027;
+      const nb=ny+"/"+String(bm).padStart(2,"0")+"/"+String(bd).padStart(2,"0");
+      base.ml={next:tr("nextBirthday",{n:ny-by,d:D.daysBetween(TODAY,nb)}),items,
+        showAdd:s.mlAdd,toggleAdd:()=>this.setState({mlAdd:!s.mlAdd,mlTried:false}),title:s.mlTitle,date:s.mlDate,border:s.mlTried&&!s.mlTitle.trim()?"#A0442A":"#EADDCB",
+        setTitle:e=>this.setState({mlTitle:e.target.value}),setDate:e=>this.setState({mlDate:e.target.value}),
+        save:()=>{if(!s.mlTitle.trim())return this.setState({mlTried:true});const m={id:"ms"+Date.now(),pet:pet.id,title:s.mlTitle.trim(),date:s.mlDate.replace(/-/g,"/")};
+          this.upd((st,X)=>{X.milestones=X.milestones||[];X.milestones.push(m);});this.setState({mlAdd:false,mlTitle:""});this.toast(tr("milestoneSaved"));}};
+    }
+    return base;
+  }
+}
+</script>
+</body>
+</html>

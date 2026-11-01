@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<script src="./petpal-data.js" data-petpal="1"></script>
+<script src="./petpal-tools.js"></script>
+<style>
+body{margin:0;background:#E9DECF;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28;-webkit-font-smoothing:antialiased}
+a{color:#C4602F;text-decoration:none}a:hover{color:#9E4A22}
+*::-webkit-scrollbar{display:none}
+input::placeholder,textarea::placeholder{color:#9C8B7E}
+@keyframes pp-spin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+<div style="min-height:100vh;background:#E9DECF;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:40px 20px;box-sizing:border-box">
+<div style="display:flex;align-items:baseline;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:22px;color:#3B2F28">寵物生活紀錄</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:18px;color:#C4602F">PetPal Diary</span>
+</div>
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+<div style="position:absolute;inset:0;background:{{ appBg }};transition:background .3s;overflow:hidden;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28">
+
+<sc-if value="{{ notReady }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;text-align:center">
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:24px;color:#C4602F">PetPal Diary</span>
+<sc-if value="{{ loading }}" hint-placeholder-val="{{ true }}">
+<div style="width:28px;height:28px;border-radius:50%;border:3px solid #EADDCB;border-top-color:#C4602F;animation:pp-spin .8s linear infinite"></div>
+<span style="font-size:14px;color:#7A685B">{{ loadTxt.loading }}</span>
+</sc-if>
+<sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:15px;font-weight:700">{{ loadTxt.error }}</span>
+<button onClick="{{ retry }}" style="height:46px;padding:0 22px;border-radius:23px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ loadTxt.retry }}</button>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding:58px 0 120px;box-sizing:border-box">
+
+<sc-if value="{{ isToday }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.dateLabel }}</span>
+<div style="display:flex;gap:6px">
+<button onClick="{{ openSos }}" style="height:32px;padding:0 12px;border-radius:16px;border:none;background:#A0442A;color:#fff;font:700 12px 'Fredoka',sans-serif;letter-spacing:.5px;cursor:pointer">SOS</button>
+<button onClick="{{ openCustom }}" aria-label="customize" style="width:32px;height:32px;padding:0;border-radius:16px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;cursor:pointer;display:flex;align-items:center;justify-content:center">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></svg>
+</button>
+<button onClick="{{ openLang }}" style="height:32px;padding:0 12px;border-radius:16px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg>{{ langShort }}
+</button>
+</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:25px;line-height:1.3;text-wrap:pretty;flex:1">{{ greeting }}</span>
+<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none">
+<div style="display:flex;padding-left:8px">
+<sc-for list="{{ family }}" as="f" hint-placeholder-count="3">
+<div style="width:30px;height:30px;border-radius:50%;background:{{ f.c }};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #F7F0E6;margin-left:-8px">{{ f.initial }}</div>
+</sc-for>
+</div>
+<span style="font-size:11px;color:#7A685B">{{ caregivers }}</span>
+</div>
+</div>
+
+
+
+<div style="order:{{ ord.hero }};display:{{ disp.hero }};flex-direction:column;gap:12px">
+<div style="position:relative;height:300px;border-radius:32px;overflow:hidden;background:{{ pet.color }}">
+<sc-for list="{{ heroSlots }}" as="h" hint-placeholder-count="1">
+<div style="display:{{ h.display }};position:absolute;inset:0"><image-slot id="hero-{{ h.id }}" shape="rect" placeholder="Photo" style="width:100%;height:300px;background:{{ h.color }}"></image-slot></div>
+</sc-for>
+<div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;padding:5px;border-radius:28px;background:rgba(255,252,247,.94)">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" aria-label="{{ p.name }}" style="width:42px;height:42px;padding:0;border-radius:50%;border:2.5px solid {{ p.ring }};background:{{ p.color }};color:#3B2F28;font:16px 'Huninn',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center">{{ p.initial }}</button>
+</sc-for>
+<button onClick="{{ addPet }}" aria-label="{{ T.addPet }}" style="width:42px;height:42px;padding:0;border-radius:50%;border:1.5px dashed #CDBBA6;background:transparent;color:#7A685B;font-size:18px;cursor:pointer">＋</button>
+</div>
+<button onClick="{{ openProfile }}" style="position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:22px;border:none;background:#FFFCF7;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:24px;line-height:1.2">{{ pet.name }}</span><span style="font-size:13px;color:#7A685B">{{ petSub }}</span></span>
+<span style="font-size:12px;font-weight:700;color:#C4602F;flex:none">{{ T.viewProfile }}</span>
+</button>
+</div>
+<div style="display:flex;align-items:center;gap:12px;padding:16px 16px 16px 18px;border-radius:24px;background:#3B2F28;color:#F7F0E6">
+<span style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+<span style="font-size:12px;font-weight:700;color:#F2C66D">{{ nextUp.label }}</span>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:20px;line-height:1.3">{{ nextUp.title }}</span>
+<span style="font-size:13px;color:#D8C8B4">{{ nextUp.meta }}</span>
+</span>
+<sc-if value="{{ nextUp.has }}" hint-placeholder-val="{{ true }}"><button onClick="{{ nextUp.done }}" style="flex:none;min-height:48px;padding:0 18px;border-radius:24px;border:none;background:#F2C66D;color:#3B2F28;font:700 15px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ T.markDone }}</button></sc-if>
+</div>
+<div style="display:flex;align-items:center;gap:10px;padding:0 4px">
+<span style="flex:1;height:8px;border-radius:4px;background:#EADDCB;overflow:hidden"><span style="display:block;height:100%;width:{{ progressW }};background:#7E9C78;border-radius:4px;transition:width .3s"></span></span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px">{{ doneCount }}/{{ taskCount }}</span>
+</div>
+</div>
+
+<div style="order:{{ ord.care }};display:{{ disp.care }};flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.todayCare }}</span>
+<button onClick="{{ openPicker }}" style="height:36px;padding:0 14px;border-radius:18px;border:none;background:#C4602F;color:#fff;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.quickLog }}</button>
+</div>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ tasks }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.toggle }}" style="width:100%;display:flex;align-items:center;gap:12px;min-height:60px;padding:10px 14px;border:none;border-top:{{ t.sep }};background:transparent;text-align:left;cursor:pointer;font-family:inherit">
+<span style="width:28px;height:28px;flex:none;border-radius:50%;border:2px solid {{ t.ring }};background:{{ t.fill }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;transition:all .2s">{{ t.check }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-size:15px;font-weight:500;color:{{ t.color }};text-decoration:{{ t.deco }}">{{ t.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ t.meta }}</span>
+</span>
+<span style="width:26px;height:26px;flex:none;border-radius:50%;background:{{ t.whoColor }};color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ t.whoN }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<button onClick="{{ goHealth }}" style="order:{{ ord.reminder }};display:{{ disp.reminder }};align-items:center;gap:14px;padding:16px;border-radius:24px;border:none;background:#F8E7BF;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="width:56px;height:56px;flex:none;border-radius:18px;background:#FFFCF7;display:flex;flex-direction:column;align-items:center;justify-content:center">
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:20px;line-height:1">{{ reminder.days }}</span>
+<span style="font-size:10px;color:#7A685B">{{ T.daysLater }}</span>
+</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px">
+<span style="font-size:12px;font-weight:700;color:#8A6416">{{ T.dueSoon }}</span>
+<span style="font-size:16px;font-weight:700">{{ reminder.title }}</span>
+<span style="font-size:12px;color:#6B5A4D">{{ reminder.date }} · {{ T.bookVet }}</span>
+</span>
+<span style="font-size:20px;color:#8A6416">›</span>
+</button>
+
+<sc-if value="{{ showTips }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ tip.open }}" style="order:{{ ord.tip }};display:{{ disp.tip }};flex-direction:column;gap:8px;padding:18px;border-radius:24px;border:none;background:#E3EBDD;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="font-size:12px;font-weight:700;color:#4E6B49">{{ T.newbieTip }}</span>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px;line-height:1.35">{{ tip.title }}</span>
+<span style="font-size:13px;line-height:1.6;color:#4F4239;text-wrap:pretty">{{ tip.lead }}</span>
+<span style="font-size:13px;font-weight:700;color:#4E6B49">{{ T.readMore }}</span>
+</button>
+</sc-if>
+
+<div style="order:{{ ord.recent }};display:{{ disp.recent }};flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.recentLogs }}</span>
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ recent }}" as="l" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-family:'Fredoka',sans-serif;font-weight:500;font-size:13px;color:#7A685B;width:58px;flex:none">{{ l.time }}</span>
+<span style="flex:1;font-size:14px;min-width:0">{{ l.text }}</span>
+<span style="font-size:12px;color:#7A685B;flex:none">{{ l.who }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDiary }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:8px 20px 0">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ T.sharedDiary }}</span>
+<button onClick="{{ openInvite }}" style="flex:none;height:40px;padding:0 16px;border-radius:20px;border:none;background:#3B2F28;color:#F7F0E6;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">＋ {{ T.invite }}</button>
+</div>
+<button onClick="{{ openMembers }}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;cursor:pointer;font-family:inherit;color:#3B2F28;text-align:left">
+<span style="display:flex;padding-left:8px;flex:none">
+<sc-for list="{{ memberDots }}" as="m" hint-placeholder-count="4"><span style="width:30px;height:30px;border-radius:50%;background:{{ m.color }};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #FFFCF7;margin-left:-8px">{{ m.initial }}</span></sc-for>
+</span>
+<span style="flex:1;font-size:13px;color:#5E4E42">{{ membersText }}</span>
+<span style="font-size:18px;color:#7A685B">›</span>
+</button>
+<sc-if value="{{ actorBanner.show }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 16px;border-radius:18px;background:#DDE6EE">
+<span style="font-size:13px;font-weight:700;color:#2F4A60">{{ actorBanner.text }}</span>
+<button onClick="{{ actorBanner.back }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:none;background:#FFFCF7;color:#2F4A60;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.backToMe }}</button>
+</div>
+</sc-if>
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px">
+<sc-for list="{{ dayStrip }}" as="d" hint-placeholder-count="7">
+<button onClick="{{ d.select }}" style="display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;border-radius:16px;border:1.5px solid {{ d.border }};background:{{ d.bg }};color:{{ d.fg }};cursor:pointer;font-family:inherit;min-width:0">
+<span style="font-size:11px;white-space:nowrap">{{ d.wd }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:17px">{{ d.num }}</span>
+<span style="width:5px;height:5px;border-radius:3px;background:{{ d.dot }}"></span>
+</button>
+</sc-for>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ diaryFilters }}" as="c" hint-placeholder-count="3"><button onClick="{{ c.select }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for>
+</div>
+<sc-for list="{{ journal }}" as="j" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:24px;border:1.5px solid #EADDCB;background:#FFFCF7">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:38px;height:38px;flex:none;border-radius:50%;background:{{ j.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700">{{ j.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;min-width:0">
+<span style="font-size:14px;font-weight:700">{{ j.author }}</span>
+<span style="font-size:12px;color:#7A685B">{{ j.meta }}</span>
+</span>
+<sc-if value="{{ j.isPrivate }}" hint-placeholder-val="{{ false }}"><span style="flex:none;padding:3px 9px;border-radius:9px;background:#EFE4D4;font-size:11px;font-weight:700;color:#5E4E42">{{ T.private }}</span></sc-if>
+</div>
+<sc-if value="{{ j.hasPhotos }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;border-radius:18px;overflow:hidden">
+<sc-for list="{{ j.photos }}" as="ph" hint-placeholder-count="1">
+<div style="grid-column:{{ ph.span }};height:{{ ph.h }};position:relative;background:#F4EBDF">
+<sc-if value="{{ ph.isImg }}" hint-placeholder-val="{{ false }}"><div role="img" style="position:absolute;inset:0;background-image:{{ ph.bg }};background-size:cover;background-position:center"></div></sc-if>
+<sc-if value="{{ ph.isSlot }}" hint-placeholder-val="{{ false }}"><image-slot id="{{ ph.slotId }}" shape="rect" placeholder="{{ ph.slotLabel }}" style="width:100%;height:100%"></image-slot></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:17px;font-weight:700;line-height:1.4">{{ j.title }}</span>
+<sc-if value="{{ j.hasBody }}" hint-placeholder-val="{{ true }}"><span style="font-size:14px;line-height:1.65;color:#4F4239;text-wrap:pretty">{{ j.body }}</span></sc-if>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ j.tags }}" as="t" hint-placeholder-count="2"><span style="padding:3px 10px;border-radius:10px;background:#F4EBDF;font-size:12px;color:#5E4E42">{{ t }}</span></sc-for>
+</div>
+<sc-if value="{{ j.hasEdited }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#9C8B7E">{{ j.edited }}</span></sc-if>
+<div style="display:flex;gap:8px;flex-wrap:wrap;border-top:1.5px solid #F0E5D6;padding-top:10px">
+<button onClick="{{ j.like }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;border-color:{{ j.likeBorder }};background:{{ j.likeBg }};color:{{ j.likeFg }}">
+<svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" fill="{{ j.heartFill }}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>{{ j.likes }}
+</button>
+<button onClick="{{ j.share }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ T.share }}</button>
+<sc-if value="{{ j.canEdit }}" hint-placeholder-val="{{ false }}"><button onClick="{{ j.edit }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ T.edit }}</button></sc-if>
+<sc-if value="{{ j.canDelete }}" hint-placeholder-val="{{ false }}"><button onClick="{{ j.del }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;color:#A0442A">{{ T.delete }}</button></sc-if>
+</div>
+</div>
+</sc-for>
+<sc-if value="{{ noJournal }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;align-items:center;gap:10px;padding:24px 0">
+<span style="font-size:14px;color:#7A685B">{{ T.noEntries }}</span>
+<button onClick="{{ showAllDays }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ T.showAllDays }}</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isHealth }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ T.tabHealth }}</span>
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+
+<div style="background:#FFFCF7;border-radius:28px;padding:18px;border:1.5px solid #EADDCB;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+<div style="display:flex;flex-direction:column;gap:2px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.weight }}</span>
+<div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:40px;line-height:1.1">{{ latestW }}</span><span style="font-size:15px;color:#7A685B">kg</span></div>
+</div>
+<span style="padding:6px 10px;border-radius:12px;background:#E3EBDD;color:#4E6B49;font-size:12px;font-weight:700">{{ deltaW }}</span>
+</div>
+<svg viewBox="0 0 300 110" style="width:100%;height:auto;overflow:visible">
+<line x1="0" y1="100" x2="300" y2="100" stroke="#EADDCB" stroke-width="1.5"></line>
+<polyline points="{{ wArea }}" fill="#F8E7BF" opacity="0.6"></polyline>
+<polyline points="{{ wPoints }}" fill="none" stroke="#C4602F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+<sc-for list="{{ wDots }}" as="d" hint-placeholder-count="6">
+<circle cx="{{ d.x }}" cy="{{ d.y }}" r="{{ d.r }}" fill="#FFFCF7" stroke="#C4602F" stroke-width="2.5"></circle>
+</sc-for>
+</svg>
+<div style="display:flex;justify-content:space-between;font-family:'Fredoka',sans-serif;font-size:11px;color:#7A685B;margin-top:-4px">
+<sc-for list="{{ wLabels }}" as="m" hint-placeholder-count="6"><span>{{ m }}</span></sc-for>
+</div>
+<button onClick="{{ openGrowth }}" style="height:46px;border-radius:23px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.logGrowth }}</button>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.remindersTitle }}</span>
+<button onClick="{{ openReminder }}" style="height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addReminder }}</button>
+</div>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ reminders }}" as="v" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:12px;min-height:62px;padding:10px 16px;border-top:{{ v.sep }}">
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-size:15px;font-weight:500">{{ v.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ v.sub }}</span>
+</span>
+<span style="padding:5px 10px;border-radius:11px;background:{{ v.bg }};color:{{ v.fg }};font-size:12px;font-weight:700;flex:none">{{ v.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.healthRecords }}</span>
+<button onClick="{{ openHealthForm }}" style="height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addHealth }}</button>
+</div>
+<sc-for list="{{ healthList }}" as="v" hint-placeholder-count="3">
+<button onClick="{{ v.toggle }}" style="display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="display:flex;justify-content:space-between;width:100%;gap:8px">
+<span style="font-size:15px;font-weight:700">{{ v.title }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-size:13px;color:#7A685B;flex:none">{{ v.time }}</span>
+</span>
+<span style="font-size:12px;color:#7A685B">{{ v.sub }}</span>
+<sc-if value="{{ v.hasDocs }}" hint-placeholder-val="{{ false }}"><span style="display:flex;gap:6px"><sc-for list="{{ v.docs }}" as="dc" hint-placeholder-count="1"><span style="width:52px;height:52px;border-radius:12px;background-color:#EFE4D4;background-image:{{ dc.bg }};background-size:cover;background-position:center;display:block"></span></sc-for></span></sc-if>
+<sc-if value="{{ v.open }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:13px;line-height:1.6;color:#4F4239;padding-top:8px;border-top:1.5px dashed #EADDCB;width:100%">{{ v.note }}</span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAct }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ act.label }}</span>
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+<div style="background:#FFFCF7;border-radius:32px;border:1.5px solid #EADDCB;padding:24px 18px;display:flex;flex-direction:column;align-items:center;gap:20px">
+<div style="position:relative;width:220px;height:220px">
+<svg viewBox="0 0 220 220" style="width:220px;height:220px;transform:rotate(-90deg)">
+<circle cx="110" cy="110" r="96" fill="none" stroke="#F0E5D6" stroke-width="16"></circle>
+<circle cx="110" cy="110" r="96" fill="none" stroke="#7E9C78" stroke-width="16" stroke-linecap="round" stroke-dasharray="603.2" stroke-dashoffset="{{ ringOffset }}" style="transition:stroke-dashoffset .9s linear"></circle>
+</svg>
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+<span style="font-size:13px;color:#7A685B">{{ timerState }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:46px;line-height:1">{{ timerText }}</span>
+<span style="font-size:13px;color:#7A685B">{{ act.goalText }}</span>
+</div>
+</div>
+<div style="display:flex;gap:10px;width:100%">
+<button onClick="{{ timerMain }}" style="flex:1;min-height:54px;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ timerMainLabel }}</button>
+<sc-if value="{{ canFinish }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ timerFinish }}" style="flex:1;min-height:54px;border-radius:27px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.finish }}</button>
+</sc-if>
+</div>
+</div>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:17px">{{ T.thisWeek }}</span>
+<span style="font-size:13px;color:#7A685B">{{ weekTotal }}</span>
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;height:120px;gap:8px">
+<sc-for list="{{ weekBars }}" as="b" hint-placeholder-count="7">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+<span style="font-family:'Fredoka',sans-serif;font-size:11px;color:#7A685B">{{ b.v }}</span>
+<div style="width:100%;max-width:28px;height:{{ b.h }};border-radius:10px;background:{{ b.bg }};transition:height .3s"></div>
+<span style="font-size:12px;color:{{ b.fg }};font-weight:{{ b.fw }};white-space:nowrap">{{ b.label }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.history }}</span>
+<sc-for list="{{ actHistory }}" as="h" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="flex:1;font-size:14px">{{ h.when }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:15px">{{ h.min }}</span>
+<span style="font-size:12px;color:#7A685B">{{ h.who }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMore }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:20px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ moreTitle }}</span>
+<button onClick="{{ planCard.open }}" style="display:flex;align-items:center;gap:12px;min-height:60px;padding:12px 16px;border-radius:22px;border:none;background:{{ planCard.bg }};color:{{ planCard.fg }};text-align:left;cursor:pointer;font-family:inherit">
+<span style="flex:none;padding:4px 10px;border-radius:10px;background:{{ planCard.badgeBg }};color:{{ planCard.badgeFg }};font:700 12px 'Fredoka',sans-serif">{{ planCard.badge }}</span>
+<span style="flex:1;font-size:14px;font-weight:700;line-height:1.4">{{ planCard.text }}</span>
+<span style="font-size:18px">›</span>
+</button>
+<sc-for list="{{ moreGroups }}" as="g" hint-placeholder-count="4">
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-size:13px;font-weight:700;color:#7A685B">{{ g.name }}</span>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<sc-for list="{{ g.items }}" as="it" hint-placeholder-count="4">
+<button onClick="{{ it.open }}" style="min-height:88px;border-radius:22px;border:none;background:{{ it.c }};padding:14px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;width:100%"><span style="font-family:'Huninn','Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;font-size:16px;line-height:1.3">{{ it.name }}</span><sc-if value="{{ it.locked }}" hint-placeholder-val="{{ false }}"><span style="flex:none;padding:2px 7px;border-radius:7px;background:#3B2F28;color:#F7F0E6;font:700 10px 'Fredoka',sans-serif">PRO</span></sc-if></span>
+<span style="font-size:12px;color:#5E4E42;line-height:1.4">{{ it.desc }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLearn }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ T.learnTitle }}</span>
+<input value="{{ q }}" onChange="{{ setQ }}" placeholder="{{ T.searchPh }}" style="height:46px;border-radius:23px;border:1.5px solid #EADDCB;background:#FFFCF7;padding:0 18px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none"></input>
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ cats }}" as="c" hint-placeholder-count="8">
+<button onClick="{{ c.select }}" style="flex:none;height:38px;padding:0 14px;border-radius:19px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ articles }}" as="a" hint-placeholder-count="4">
+<button onClick="{{ a.open }}" style="display:flex;gap:14px;align-items:center;padding:14px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="width:56px;height:56px;flex:none;border-radius:18px;background:{{ a.color }};display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:20px">{{ a.glyph }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+<span style="font-size:15px;font-weight:700;line-height:1.4;text-wrap:pretty">{{ a.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ a.meta }}</span>
+</span>
+</button>
+</sc-for>
+<sc-if value="{{ noArticles }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:14px;color:#7A685B;text-align:center;padding:24px 0">{{ T.noResults }}</span>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isNear }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:8px 20px 0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:28px">{{ T.nearTitle }}</span>
+<div style="display:flex;padding:4px;border-radius:24px;background:#EFE4D4">
+<sc-for list="{{ segs }}" as="s" hint-placeholder-count="2">
+<button onClick="{{ s.select }}" style="flex:1;height:40px;border-radius:20px;border:none;background:{{ s.bg }};color:#3B2F28;font:{{ s.fw }} 15px 'Noto Sans TC',sans-serif;cursor:pointer;box-shadow:{{ s.shadow }}">{{ s.name }}</button>
+</sc-for>
+</div>
+<sc-if value="{{ isPlaces }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ placeFilters }}" as="c" hint-placeholder-count="4">
+<button onClick="{{ c.select }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button>
+</sc-for>
+</div>
+<sc-for list="{{ places }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7">
+<div style="display:flex;justify-content:space-between;gap:10px">
+<div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+<span style="font-size:16px;font-weight:700">{{ p.name }}</span>
+<span style="font-size:12px;color:{{ p.openColor }};font-weight:500">{{ p.hours }}</span>
+</div>
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:15px;color:#7A685B;flex:none">{{ p.dist }}</span>
+</div>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<sc-for list="{{ p.tags }}" as="t" hint-placeholder-count="2"><span style="padding:3px 9px;border-radius:9px;background:#F4EBDF;font-size:12px;color:#5E4E42">{{ t }}</span></sc-for>
+</div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ p.nav }}" style="flex:1;height:44px;border-radius:22px;border:none;background:#3B2F28;color:#F7F0E6;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.navigate }}</button>
+<button onClick="{{ p.call }}" style="flex:1;height:44px;border-radius:22px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.call }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<sc-for list="{{ posts }}" as="p" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:24px;border:1.5px solid #EADDCB;background:#FFFCF7">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:36px;height:36px;border-radius:50%;background:{{ p.color }};display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:15px">{{ p.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column">
+<span style="font-size:14px;font-weight:700">{{ p.author }}</span>
+<span style="font-size:12px;color:#7A685B">{{ p.meta }}</span>
+</span>
+</div>
+<div style="height:200px"><image-slot id="post-{{ p.id }}" shape="rounded" radius="18" placeholder="Photo" style="width:100%;height:200px;background:#F4EBDF"></image-slot></div>
+<span style="font-size:14px;line-height:1.6;text-wrap:pretty">{{ p.text }}</span>
+<div style="display:flex;gap:8px">
+<button onClick="{{ p.like }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid {{ p.likeBorder }};background:{{ p.likeBg }};color:{{ p.likeFg }};font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px">
+<svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z" fill="{{ p.heartFill }}" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path></svg>{{ p.likes }}
+</button>
+<span style="height:38px;padding:0 4px;display:flex;align-items:center;font-size:13px;color:#7A685B">{{ p.comments }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ isDiaryFab }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ newEntry }}" style="position:absolute;right:20px;bottom:110px;z-index:45;height:52px;padding:0 20px;border-radius:26px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;box-shadow:0 8px 20px rgba(196,96,47,.35);opacity:{{ fabOpacity }}">{{ T.writeDiary }}</button>
+</sc-if>
+
+<sc-if value="{{ hasArticle }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:{{ appBg }};z-index:40;overflow-y:auto;scrollbar-width:none;padding:58px 20px 120px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+<button onClick="{{ closeArticle }}" style="align-self:flex-start;height:44px;padding:0 16px 0 12px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.back }}</button>
+<div style="height:150px;flex:none;border-radius:28px;background:{{ article.color }};display:flex;align-items:flex-end;padding:18px;box-sizing:border-box">
+<span style="padding:5px 12px;border-radius:12px;background:#FFFCF7;font-size:13px;font-weight:700">{{ article.meta }}</span>
+</div>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:26px;line-height:1.3;text-wrap:pretty">{{ article.title }}</span>
+<span style="font-size:15px;line-height:1.7;color:#4F4239;text-wrap:pretty">{{ article.lead }}</span>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{ article.steps }}" as="s" hint-placeholder-count="3">
+<div style="display:flex;gap:12px;padding:14px;border-radius:20px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="width:28px;height:28px;flex:none;border-radius:50%;background:#3B2F28;color:#F7F0E6;font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">{{ s.n }}</span>
+<span style="font-size:15px;line-height:1.6;text-wrap:pretty;padding-top:2px">{{ s.text }}</span>
+</div>
+</sc-for>
+</div>
+<span style="font-size:12px;color:#7A685B;line-height:1.6">{{ T.disclaimer }}</span>
+<button onClick="{{ article.save }}" style="min-height:52px;flex:none;border-radius:26px;border:none;background:#C4602F;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ article.saveLabel }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ showHealthTool }}" hint-placeholder-val="{{ false }}">
+<dc-import name="PetPalHealthTools" tool="{{ tool }}" lang="{{ lang }}" store="{{ store }}" pet-id="{{ petId }}" bg="{{ appBg }}" on-back="{{ closeTool }}" on-toast="{{ flash }}" on-update="{{ toolUpd }}" on-open-tool="{{ openTool }}" style="position:absolute;inset:0;z-index:40" hint-size="100%,100%"></dc-import>
+</sc-if>
+<sc-if value="{{ showLifeTool }}" hint-placeholder-val="{{ false }}">
+<dc-import name="PetPalLifeTools" tool="{{ tool }}" lang="{{ lang }}" store="{{ store }}" pet-id="{{ petId }}" bg="{{ appBg }}" on-back="{{ closeTool }}" on-toast="{{ flash }}" on-update="{{ toolUpd }}" on-open-tool="{{ openTool }}" style="position:absolute;inset:0;z-index:40" hint-size="100%,100%"></dc-import>
+</sc-if>
+
+<sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+<dc-import name="PetProfile" on-update="{{ toolUpd }}" pet-id="{{ petId }}" lang="{{ lang }}" store="{{ store }}" on-back="{{ closeProfile }}" on-open-form="{{ openForm }}" on-toast="{{ flash }}" bg="{{ appBg }}" style="position:absolute;inset:0;z-index:40" hint-size="100%,100%"></dc-import>
+</sc-if>
+
+<div style="position:absolute;left:14px;right:14px;bottom:28px;height:68px;border-radius:34px;background:#3B2F28;display:flex;align-items:center;padding:0 6px;z-index:50;box-shadow:0 10px 30px rgba(59,47,40,.25)">
+<sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+<button onClick="{{ t.select }}" style="flex:1;min-width:0;height:56px;border-radius:28px;border:none;background:{{ t.bg }};color:{{ t.fg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font:500 10px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;transition:background .2s;white-space:nowrap;overflow:hidden;padding:0 2px">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"></path><path d="{{ t.d2 }}"></path></svg>{{ t.name }}
+</button>
+</sc-for>
+</div>
+
+<sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(59,47,40,.4);z-index:70"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;z-index:71;max-height:86%;overflow-y:auto;scrollbar-width:none;box-sizing:border-box;background:#FFFCF7;border-radius:32px 32px 0 0;padding:12px 20px 44px;display:flex;flex-direction:column;gap:18px">
+<div style="width:40px;height:5px;border-radius:3px;background:#E0D2BF;align-self:center;flex:none"></div>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+<div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:21px">{{ sheetTitle }}</span>
+<span style="font-size:12px;color:#7A685B">{{ sheetSub }}</span>
+</div>
+<button onClick="{{ closeSheet }}" style="width:44px;height:44px;flex:none;border-radius:22px;border:none;background:#F4EBDF;color:#3B2F28;font-size:16px;cursor:pointer">✕</button>
+</div>
+
+<sc-if value="{{ isPicker }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+<sc-for list="{{ formTiles }}" as="ft" hint-placeholder-count="6">
+<button onClick="{{ ft.open }}" style="min-height:84px;border-radius:22px;border:none;background:{{ ft.color }};padding:14px;display:flex;flex-direction:column;justify-content:space-between;gap:6px;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:17px">{{ ft.title }}</span>
+<span style="font-size:12px;color:#5E4E42;line-height:1.4">{{ ft.desc }}</span>
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLang }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;border-radius:22px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ langs }}" as="l" hint-placeholder-count="5">
+<button onClick="{{ l.select }}" style="display:flex;justify-content:space-between;align-items:center;min-height:56px;padding:0 18px;border:none;border-top:{{ l.sep }};background:{{ l.bg }};color:#3B2F28;font:{{ l.fw }} 16px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ l.name }}<span style="color:#C4602F;font-weight:700">{{ l.check }}</span></button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isPaywall }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<sc-if value="{{ pw.hasReason }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 14px;border-radius:16px;background:#F8E7BF;color:#5E4512;font-size:14px;font-weight:700">{{ pw.reason }}</div></sc-if>
+<div style="display:flex;flex-direction:column;gap:6px;padding:20px;border-radius:24px;background:#3B2F28;color:#F7F0E6">
+<span style="font:600 13px 'Fredoka',sans-serif;color:#F2C66D;letter-spacing:.5px">PETPAL PRO</span>
+<span style="display:flex;align-items:baseline;gap:4px"><span style="font:600 40px 'Fredoka',sans-serif;line-height:1.1">US$1</span><span style="font-size:15px;opacity:.85">{{ T.perMonth }}</span></span>
+<span style="font-size:14px;opacity:.9">{{ T.proSub }}</span>
+</div>
+<span style="font-size:13px;color:#7A685B;font-weight:700">{{ T.cmpTitle }}</span>
+<div style="border-radius:20px;border:1.5px solid #EADDCB;overflow:hidden">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 56px 56px;align-items:center;min-height:40px;padding:0 12px;background:#F7F0E6;font:700 12px 'Noto Sans TC',sans-serif;color:#7A685B"><span></span><span style="text-align:center">{{ T.freePlan }}</span><span style="text-align:center;color:#C4602F">Pro</span></div>
+<sc-for list="{{ pw.rows }}" as="r" hint-placeholder-count="8">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 56px 56px;align-items:center;min-height:46px;padding:6px 12px;border-top:1.5px solid #F0E5D6;background:#FFFCF7">
+<span style="font-size:13px;line-height:1.4">{{ r.name }}</span>
+<span style="text-align:center;font:600 14px 'Fredoka','Noto Sans TC',sans-serif;color:{{ r.freeColor }}">{{ r.free }}</span>
+<span style="text-align:center;font:600 14px 'Fredoka','Noto Sans TC',sans-serif;color:#C4602F">{{ r.pro }}</span>
+</div>
+</sc-for>
+</div>
+<sc-if value="{{ pw.showBuy }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ pw.subscribe }}" style="min-height:54px;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 16px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ pw.buyLabel }}</button>
+</sc-if>
+<sc-if value="{{ pw.isPro }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-radius:18px;background:#E3EBDD">
+<span style="font-size:14px;font-weight:700;color:#3F5A3B">{{ pw.status }}</span>
+<sc-if value="{{ pw.canCancel }}" hint-placeholder-val="{{ false }}"><button onClick="{{ pw.cancel }}" style="flex:none;height:36px;padding:0 12px;border-radius:18px;border:1.5px solid #3F5A3B;background:transparent;color:#3F5A3B;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.cancelSub }}</button></sc-if>
+</div>
+</sc-if>
+<button onClick="{{ pw.restore }}" style="align-self:center;border:none;background:transparent;color:#7A685B;font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer;text-decoration:underline">{{ T.restore }}</button>
+<span style="font-size:11px;line-height:1.6;color:#9C8B7E;text-align:center">{{ T.proNote }}</span>
+</div>
+</sc-if>
+
+<sc-if value="{{ isShare }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:20px;border:1.5px solid #EADDCB">
+<span style="width:52px;height:52px;flex:none;border-radius:16px;background:{{ sharePreview.color }};display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:20px">{{ sharePreview.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-size:15px;font-weight:700">{{ sharePreview.title }}</span>
+<span style="font-size:12px;color:#7A685B">{{ sharePreview.meta }}</span>
+</span>
+</div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 8px">
+<sc-for list="{{ shareChannels }}" as="ch" hint-placeholder-count="7">
+<button onClick="{{ ch.select }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;color:#3B2F28;padding:0;min-width:0">
+<span style="width:52px;height:52px;border-radius:50%;background:{{ ch.c }};color:{{ ch.fg }};display:flex;align-items:center;justify-content:center;font:800 {{ ch.fs }} 'Fredoka',sans-serif">{{ ch.g }}</span>
+<span style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ ch.n }}</span>
+</button>
+</sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:18px;background:#F7F0E6">
+<span style="flex:1;min-width:0;font-family:'Fredoka',sans-serif;font-size:13px;color:#5E4E42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ shareUrl }}</span>
+<button onClick="{{ copyShare }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.copyLink }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isOut }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:16px">
+<sc-if value="{{ out.hasCard }}" hint-placeholder-val="{{ false }}">
+<div style="width:58%;aspect-ratio:4/5;align-self:center;border-radius:18px;background-image:{{ out.cardBg }};background-size:cover;background-position:center;box-shadow:0 8px 24px rgba(59,47,40,.18)"></div>
+</sc-if>
+<sc-if value="{{ out.isIg }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ out.steps }}" as="st" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:10px"><span style="width:24px;height:24px;flex:none;border-radius:12px;background:#3B2F28;color:#F7F0E6;font:600 12px 'Fredoka',sans-serif;display:flex;align-items:center;justify-content:center">{{ st.n }}</span><span style="font-size:14px">{{ st.text }}</span></div>
+</sc-for>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.message }}</span>
+<div style="padding:12px 14px;border-radius:16px;background:#F7F0E6;font-size:14px;line-height:1.6;word-break:break-all">{{ out.text }}</div>
+</div>
+<sc-if value="{{ out.showNote }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:12px;line-height:1.6;padding:10px 12px;border-radius:14px;background:#F8E7BF;color:#5E4512">{{ out.note }}</span>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:10px">
+<sc-if value="{{ out.hasCard }}" hint-placeholder-val="{{ false }}">
+<a href="{{ out.card }}" download="petpal-diary.png" style="min-height:52px;border-radius:26px;font:700 16px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box;background:#C4602F;color:#fff">{{ T.saveCard }}</a>
+</sc-if>
+<sc-if value="{{ out.hasLink }}" hint-placeholder-val="{{ false }}">
+<a href="{{ out.link }}" target="_blank" rel="noopener noreferrer" style="min-height:52px;border-radius:26px;font:700 16px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box;background:#C4602F;color:#fff">{{ out.openLabel }}</a>
+</sc-if>
+<button onClick="{{ out.copy }}" style="min-height:52px;border-radius:26px;font:700 16px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;text-decoration:none;box-sizing:border-box;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28">{{ T.copyText }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isInvite }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.role }}</span>
+<sc-for list="{{ inviteRoles }}" as="r" hint-placeholder-count="2">
+<button onClick="{{ r.select }}" style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:20px;border:2px solid {{ r.border }};background:{{ r.bg }};text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="width:20px;height:20px;flex:none;border-radius:50%;border:2px solid {{ r.border }};background:{{ r.dot }};margin-top:1px"></span>
+<span style="display:flex;flex-direction:column;gap:3px">
+<span style="font-size:15px;font-weight:700">{{ r.name }}</span>
+<span style="font-size:12px;line-height:1.5;color:#5E4E42">{{ r.desc }}</span>
+</span>
+</button>
+</sc-for>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.inviteLink }}</span>
+<div style="display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;border-radius:18px;background:#F7F0E6">
+<span style="flex:1;min-width:0;font-family:'Fredoka',sans-serif;font-size:13px;color:#5E4E42;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ inviteUrl }}</span>
+<button onClick="{{ copyInvite }}" style="flex:none;height:36px;padding:0 14px;border-radius:18px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.copyLink }}</button>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.sendVia }}</span>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 8px">
+<sc-for list="{{ inviteChannels }}" as="ch" hint-placeholder-count="7">
+<button onClick="{{ ch.select }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;border:none;background:transparent;cursor:pointer;font-family:inherit;color:#3B2F28;padding:0;min-width:0">
+<span style="width:52px;height:52px;border-radius:50%;background:{{ ch.c }};color:{{ ch.fg }};display:flex;align-items:center;justify-content:center;font:800 {{ ch.fs }} 'Fredoka',sans-serif">{{ ch.g }}</span>
+<span style="font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{ ch.n }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMembers }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;border-radius:22px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ membersList }}" as="m" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:10px;min-height:64px;padding:8px 10px 8px 14px;border-top:{{ m.sep }};background:{{ m.rowBg }}">
+<span style="width:36px;height:36px;flex:none;border-radius:50%;background:{{ m.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700">{{ m.initial }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
+<span style="font-size:15px;font-weight:700">{{ m.name }}</span>
+<span style="font-size:12px;color:#7A685B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.pets }}</span>
+</span>
+<button onClick="{{ m.cycleRole }}" style="flex:none;height:32px;padding:0 10px;border-radius:16px;border:1.5px solid {{ m.roleBorder }};background:{{ m.roleBg }};color:#3B2F28;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer">{{ m.role }}</button>
+<button onClick="{{ m.preview }}" style="flex:none;height:32px;padding:0 10px;border-radius:16px;border:none;background:#3B2F28;color:#F7F0E6;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer;opacity:{{ m.previewOp }}">{{ m.previewLabel }}</button>
+</div>
+</sc-for>
+</div>
+<span style="font-size:12px;color:#7A685B">{{ T.tapToChange }}</span>
+<button onClick="{{ openInvite }}" style="min-height:52px;border-radius:26px;border:none;background:#C4602F;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">＋ {{ T.invite }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isCustom }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.bgColor }}</span>
+<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px">
+<sc-for list="{{ themes }}" as="th" hint-placeholder-count="5">
+<button onClick="{{ th.select }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0;border:none;background:transparent;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="width:48px;height:48px;border-radius:50%;background:{{ th.color }};border:1.5px solid #D9C9B4;box-shadow:{{ th.ring }};display:flex;align-items:center;justify-content:center;color:#3B2F28;font-weight:700;font-size:16px">{{ th.check }}</span>
+<span style="font-size:12px;font-weight:{{ th.fw }}">{{ th.name }}</span>
+</button>
+</sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.homeLayout }}</span>
+<button onClick="{{ resetLayout }}" style="border:none;background:transparent;color:#C4602F;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer;padding:4px 0">{{ T.resetLayout }}</button>
+</div>
+<span style="font-size:12px;color:#7A685B;line-height:1.5">{{ T.layoutHint }}</span>
+<div style="display:flex;flex-direction:column;border-radius:22px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ layoutRows }}" as="r" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:8px;min-height:60px;padding:0 8px 0 16px;border-top:{{ r.sep }};background:#FFFCF7">
+<span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:14px;color:#9C8B7E;width:16px">{{ r.n }}</span>
+<span style="flex:1;font-size:15px;font-weight:500;color:{{ r.color }}">{{ r.name }}</span>
+<button onClick="{{ r.up }}" style="width:40px;height:40px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;cursor:pointer;opacity:{{ r.upOp }};font-size:14px">▲</button>
+<button onClick="{{ r.down }}" style="width:40px;height:40px;border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;cursor:pointer;opacity:{{ r.downOp }};font-size:14px">▼</button>
+<button onClick="{{ r.toggle }}" style="width:52px;height:32px;flex:none;border-radius:16px;border:none;padding:0;background:{{ r.trackBg }};position:relative;cursor:pointer;transition:background .2s"><span style="position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transform:translateX({{ r.knobX }});transition:transform .2s"></span></button>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isForm }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:18px">
+<sc-for list="{{ fields }}" as="f" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:8px">
+<sc-if value="{{ f.showLabel }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:13px;color:#7A685B;font-weight:500">{{ f.label }}</span><sc-if value="{{ f.required }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#9C8B7E">{{ T.required }}</span></sc-if></div>
+</sc-if>
+<sc-if value="{{ f.isOptions }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-wrap:wrap;gap:8px">
+<sc-for list="{{ f.opts }}" as="o" hint-placeholder-count="3">
+<button onClick="{{ o.select }}" style="min-height:44px;padding:0 16px;border-radius:22px;border:1.5px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font:500 14px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ o.name }}</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ f.isPhotos }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px">
+<sc-for list="{{ f.photos }}" as="ph" hint-placeholder-count="1">
+<div style="position:relative;aspect-ratio:1;border-radius:14px;overflow:hidden;background:#EFE4D4;display:flex;align-items:center;justify-content:center">
+<sc-if value="{{ ph.isImg }}" hint-placeholder-val="{{ false }}"><div role="img" style="position:absolute;inset:0;background-image:{{ ph.bg }};background-size:cover;background-position:center"></div></sc-if>
+<sc-if value="{{ ph.isSlot }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#7A685B;text-align:center;padding:4px">{{ ph.slotLabel }}</span></sc-if>
+<button onClick="{{ ph.remove }}" style="position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:14px;border:none;background:rgba(59,47,40,.75);color:#fff;font-size:12px;cursor:pointer">✕</button>
+</div>
+</sc-for>
+<sc-if value="{{ f.canAddPhoto }}" hint-placeholder-val="{{ true }}">
+<label style="aspect-ratio:1;border-radius:14px;border:1.5px dashed #CDBBA6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:#7A685B;font-size:11px;text-align:center;padding:4px;box-sizing:border-box">
+<span style="font-size:22px;line-height:1">＋</span>{{ f.addPhotoLabel }}
+<input type="file" accept="image/*" multiple="{{ true }}" onChange="{{ f.onFiles }}" style="display:none">
+</label>
+</sc-if>
+</div>
+<span style="font-size:11px;color:#9C8B7E">{{ f.photoMax }}</span>
+<sc-if value="{{ f.upsell }}" hint-placeholder-val="{{ false }}"><button onClick="{{ f.openPaywall }}" style="align-self:flex-start;border:none;background:#F8E7BF;color:#7A5A12;padding:8px 12px;border-radius:12px;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer;text-align:left">{{ T.photoLimitPro }}</button></sc-if>
+</sc-if>
+<sc-if value="{{ f.isStepper }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:24px;background:#F7F0E6">
+<button onClick="{{ f.down }}" style="width:48px;height:48px;border-radius:24px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">−</button>
+<span style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:34px">{{ f.display }}</span><span style="font-size:15px;color:#7A685B">{{ f.unit }}</span></span>
+<button onClick="{{ f.up }}" style="width:48px;height:48px;border-radius:24px;border:none;background:#FFFCF7;font-size:22px;color:#3B2F28;cursor:pointer">＋</button>
+</div>
+</sc-if>
+<sc-if value="{{ f.isText }}" hint-placeholder-val="{{ false }}">
+<input value="{{ f.value }}" onChange="{{ f.onInput }}" placeholder="{{ f.ph }}" inputMode="{{ f.inputMode }}" style="height:48px;border-radius:16px;border:1.5px solid {{ f.border }};background:#FFFCF7;padding:0 16px;font:15px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28;outline:none"></input>
+</sc-if>
+<sc-if value="{{ f.isTextarea }}" hint-placeholder-val="{{ false }}">
+<textarea value="{{ f.value }}" onChange="{{ f.onInput }}" placeholder="{{ f.ph }}" rows="3" style="border-radius:16px;border:1.5px solid {{ f.border }};background:#FFFCF7;padding:12px 16px;font:15px/1.6 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28;outline:none;resize:none"></textarea>
+</sc-if>
+<sc-if value="{{ f.isDate }}" hint-placeholder-val="{{ false }}">
+<input type="date" value="{{ f.value }}" onChange="{{ f.onInput }}" style="height:48px;border-radius:16px;border:1.5px solid {{ f.border }};background:#FFFCF7;padding:0 16px;font:15px 'Fredoka','Noto Sans TC',sans-serif;color:#3B2F28;outline:none"></input>
+</sc-if>
+<sc-if value="{{ f.isToggle }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ f.toggle }}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:52px;padding:0 6px 0 16px;border-radius:26px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer;text-align:left">
+<span>{{ f.label }}</span>
+<span style="width:52px;height:32px;flex:none;border-radius:16px;background:{{ f.trackBg }};position:relative;transition:background .2s;margin-right:4px"><span style="position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:13px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transform:translateX({{ f.knobX }});transition:transform .2s"></span></span>
+</button>
+</sc-if>
+<sc-if value="{{ f.hasHint }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:13px;line-height:1.5;padding:10px 12px;border-radius:14px;background:#F8E7BF;color:#5E4512">{{ f.hint }}</span>
+</sc-if>
+<sc-if value="{{ f.hasError }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:12px;font-weight:500;color:#A0442A">{{ f.error }}</span>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{ formTip }}" hint-placeholder-val="{{ false }}">
+<span style="font-size:13px;line-height:1.6;color:#4F4239;text-wrap:pretty">{{ formTip }}</span>
+</sc-if>
+<sc-if value="{{ dup.has }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:18px;background:#FBE0CF;flex:none">
+<span style="font-size:15px;font-weight:700;color:#8A3A1F">{{ dup.title }}</span>
+<span style="font-size:13px;line-height:1.6;color:#5E3A2A">{{ T.dupBody }}</span>
+<button onClick="{{ dup.confirm }}" style="align-self:flex-start;height:40px;padding:0 16px;border-radius:20px;border:1.5px solid #8A3A1F;background:transparent;color:#8A3A1F;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.dupConfirm }}</button>
+</div>
+</sc-if>
+<button onClick="{{ submitForm }}" style="min-height:54px;flex:none;border-radius:27px;border:none;background:#C4602F;color:#fff;font:700 17px 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;cursor:pointer">{{ submitLabel }}</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;top:60px;left:20px;right:20px;display:flex;justify-content:center;z-index:90;pointer-events:none">
+<div style="padding:12px 18px;border-radius:22px;background:#3B2F28;color:#F7F0E6;font-size:14px;font-weight:500;text-align:center;box-shadow:0 8px 24px rgba(59,47,40,.3)">{{ toast }}</div>
+</div>
+</sc-if>
+</sc-if>
+
+</div>
+</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh-TW&quot;,&quot;zh-CN&quot;,&quot;en&quot;,&quot;ja&quot;,&quot;es&quot;],&quot;default&quot;:&quot;zh-TW&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;語言&quot;},&quot;forcePlan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;auto&quot;,&quot;free&quot;,&quot;pro&quot;],&quot;default&quot;:&quot;auto&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;方案&quot;},&quot;showTips&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;首頁&quot;},&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;today&quot;,&quot;diary&quot;,&quot;health&quot;,&quot;act&quot;,&quot;more&quot;,&quot;near&quot;],&quot;default&quot;:&quot;today&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;首頁&quot;},&quot;fastTimer&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;活動計時&quot;}}">
+const LOADTXT={"zh-TW":["載入中…","資料載入失敗，請檢查網路後重試","重新載入"],"zh-CN":["加载中…","数据加载失败，请检查网络后重试","重新加载"],en:["Loading…","Couldn't load data. Check your connection and retry.","Retry"],ja:["読み込み中…","データを読み込めませんでした。接続を確認して再試行してください","再読み込み"],es:["Cargando…","No se pudieron cargar los datos. Revisa la conexión.","Reintentar"]};
+const SKEY="petpal.store.v2",LKEY="petpal.lang",PKEY="petpal.prefs";
+const THEMES=[{k:"cream",c:"#F7F0E6",n:"thCream"},{k:"sage",c:"#E9EFE3",n:"thSage"},{k:"blush",c:"#F8E8E0",n:"thBlush"},{k:"sky",c:"#E6EDF1",n:"thSky"},{k:"sand",c:"#EEE3D0",n:"thSand"}];
+const SECTIONS=[{k:"hero",n:"secHero"},{k:"care",n:"secCare"},{k:"reminder",n:"secReminder"},{k:"tip",n:"secTip"},{k:"recent",n:"secRecent"}];
+const DEFAULT_PREFS=()=>({bg:"cream",order:SECTIONS.map(x=>x.k),hidden:{}});
+function loadPrefs(){try{const p=JSON.parse(localStorage.getItem(PKEY)||"null");if(p&&THEMES.some(t=>t.k===p.bg)&&Array.isArray(p.order)&&p.order.length===SECTIONS.length&&SECTIONS.every(x=>p.order.includes(x.k)))return{bg:p.bg,order:p.order,hidden:p.hidden||{}};}catch(e){}return DEFAULT_PREFS();}
+function waitData(ms){return new Promise((res,rej)=>{if(window.PetPalData)return res(window.PetPalData);const t0=Date.now();const iv=setInterval(()=>{if(window.PetPalData){clearInterval(iv);res(window.PetPalData);}else if(Date.now()-t0>ms){clearInterval(iv);rej(new Error("timeout"));}},50);});}
+function injectData(){document.querySelectorAll("script[data-petpal]").forEach(s=>s.remove());const s=document.createElement("script");s.src="./petpal-data.js?r="+Date.now();s.dataset.petpal="1";document.head.appendChild(s);}
+const now=()=>{const d=new Date();return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+const TABS=[
+ {k:"today",name:"tabToday",d:"M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z",d2:""},
+ {k:"diary",name:"tabDiary",d:"M6 3h10l3 3v15H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",d2:"M9 10h6M9 14h6M9 18h3"},
+ {k:"health",name:"tabHealth",d:"M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z",d2:""},
+ {k:"act",name:"tabAct",d:"M3 12h4l2-5 4 10 2-5h6",d2:""},
+ {k:"more",name:"more",d:"M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z",d2:"M14 14h6v6h-6z"},
+ {k:"near",name:"tabNear",d:"M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z",d2:"M12 8.5a1.5 1.5 0 1 0 0 3a1.5 1.5 0 1 0 0-3"}];
+const CHANNELS=[{k:"line",n:"LINE",c:"#06C755",fg:"#fff",g:"LINE",fs:"12px"},{k:"fb",n:"Facebook",c:"#1877F2",fg:"#fff",g:"f",fs:"24px"},{k:"threads",n:"Threads",c:"#101010",fg:"#fff",g:"@",fs:"22px"},{k:"ig",n:"Instagram",c:"#D62976",fg:"#fff",g:"IG",fs:"15px"},{k:"wa",n:"WhatsApp",c:"#25D366",fg:"#fff",g:"WA",fs:"15px"},{k:"copy",n:"copyLink",c:"#EFE4D4",fg:"#3B2F28",g:"URL",fs:"12px"},{k:"more",n:"more",c:"#EFE4D4",fg:"#3B2F28",g:"···",fs:"16px"}];
+const PRO_TOOLS=["ai","report","docs","expense","meds","supplies","groom","devices","scan","sitter","meet","miles"],PLKEY="petpal.plan",RENEW="2026/11/24";
+function loadPlan(){try{const p=JSON.parse(localStorage.getItem(PLKEY)||"null");if(p&&(p.tier==="pro"||p.tier==="free"))return p;}catch(e){}return{tier:"free"};}
+const HEALTH_TOOLS=["ai","sos","toxic","lost","meds","report","docs","expense"];
+const MORE_GROUPS=[["gHealth",["ai","sos","toxic","lost","meds","report","docs"]],["gLife",["expense","supplies","groom","devices","scan"]],["gOut",["care","places","sitter","meet"]],["gMem",["miles","learn"]]];
+const TILE_COLORS=["#F8E7BF","#F6DCCF","#E3EBDD","#DDE6EE","#EEE0F0","#E6E2C8","#D7E7E4"];
+const INVITE_URL="https://petpal.app/join/DOU-8K2F";
+function compressImage(file){return new Promise(res=>{const r=new FileReader();r.onerror=()=>res(null);r.onload=()=>{const img=new Image();img.onerror=()=>res(null);img.onload=()=>{const k=Math.min(1,900/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",0.72));};img.src=r.result;};r.readAsDataURL(file);});}
+const chip=on=>({bg:on?"#3B2F28":"#FFFCF7",fg:on?"#F7F0E6":"#3B2F28",border:on?"#3B2F28":"#EADDCB"});
+const fmt=(n,d)=>{const s=Number(n).toFixed(d||0);return d?s.replace(/\.?0+$/,""):s;};
+
+class Component extends DCLogic {
+  state={ready:false,error:false,lang:this.props.lang??"zh-TW",store:null,tab:this.props.startTab??"today",petId:"dou",sheet:null,formId:null,vals:{},tried:false,toast:null,running:false,elapsed:0,cat:"all",q:"",article:null,seg:"near",pf:"all",openH:null,profile:false,tool:null,plan:loadPlan(),payReason:null,prefs:loadPrefs(),actor:"me",diaryDay:null,diaryFilter:"all",editId:null,shareId:null,inviteRole:"roleEditor"};
+  componentDidMount(){this.boot();}
+  componentWillUnmount(){clearInterval(this.iv);clearTimeout(this.tt);clearTimeout(this.jt);}
+  componentDidUpdate(pp,ps){
+    if(pp&&pp.lang!==undefined&&this.props.lang&&pp.lang!==this.props.lang)this.setLang(this.props.lang);
+  }
+  boot(){
+    this.setState({error:false});
+    const ok=D=>{
+      this.D=D;let lang=this.state.lang;
+      try{const l=localStorage.getItem(LKEY);if(l)lang=l;}catch(e){}
+      if(!D.LANGS.some(x=>x.k===lang))lang="zh-TW";
+      let store=null;
+      try{const raw=localStorage.getItem(SKEY);if(raw){const s=JSON.parse(raw);if(D.isValidStore(s))store=s;else localStorage.removeItem(SKEY);}}catch(e){try{localStorage.removeItem(SKEY);}catch(_){}}
+      const st=store||D.seed();this.save(st);this.setState({ready:true,lang,store:st});
+    };
+    waitData(4000).catch(()=>{injectData();return waitData(6000);}).then(ok).catch(()=>this.setState({error:true}));
+  }
+  savePrefs(p){try{localStorage.setItem(PKEY,JSON.stringify(p));}catch(e){}}
+  setPrefs(fn){this.setState(s=>{const p=fn({...s.prefs,order:[...s.prefs.order],hidden:{...s.prefs.hidden}});this.savePrefs(p);return{prefs:p};});}
+  setLang(k){this.setState({lang:k,sheet:null});try{localStorage.setItem(LKEY,k);}catch(e){}}
+  tr=(k,v)=>{const TL=window.PetPalTools;if(TL&&TL.S[k]){const a=TL.S[k];let s=a[{"zh-TW":0,"zh-CN":1,en:2,ja:3,es:4}[this.state.lang]]??a[0];if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s;}return this.D.tr(this.state.lang,k,v);};
+  isPro(){const f=this.props.forcePlan;return f==="pro"||(f!=="free"&&this.state.plan.tier==="pro");}
+  setPlan(p){try{localStorage.setItem(PLKEY,JSON.stringify(p));}catch(e){}this.setState({plan:p});}
+  openPaywall=(reason)=>this.setState({sheet:"paywall",payReason:reason||null});
+  openTool=k=>{if(k==="learn")return this.setState({tool:null,tab:"learn"});if(PRO_TOOLS.includes(k)&&!this.isPro())return this.openPaywall(k);this.setState({tool:k,sheet:null,profile:false,article:null});};
+  toolUpd=fn=>this.upd(st=>fn(st));
+  val=x=>this.D.val(this.state.lang,x);
+  flash=t=>{clearTimeout(this.tt);this.setState({toast:t});this.tt=setTimeout(()=>this.setState({toast:null}),2400);};
+  save(st){try{localStorage.setItem(SKEY,JSON.stringify(st));return true;}catch(e){return false;}}
+  upd(fn){this.setState(s=>{const st=JSON.parse(JSON.stringify(s.store));fn(st,st.pets[s.petId]);if(!this.save(st))setTimeout(()=>this.flash(this.tr("storageFull")),0);return{store:st};});}
+  petName(id){const D=this.D,p=D.PETS.find(x=>x.id===id)||D.FRIEND_PETS.find(x=>x.id===id);return p?p.name:id;}
+  addPhotos(f,e){const max=(this.isPro()||f.free)?(f.max||4):1,cur=this.state.vals[f.id]||[];const files=[...((e.target&&e.target.files)||[])].filter(x=>(x.type||"").indexOf("image/")===0).slice(0,Math.max(0,max-cur.length));if(e.target)e.target.value="";
+    Promise.all(files.map(compressImage)).then(urls=>this.setVal(f.id,[...(this.state.vals[f.id]||[]),...urls.filter(Boolean)].slice(0,max)));}
+  copyText(t){
+    const fallback=()=>{try{const ta=document.createElement("textarea");ta.value=t;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;top:0;left:0;opacity:0;pointer-events:none";document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,t.length);const ok=document.execCommand("copy");ta.remove();return ok;}catch(e){return false;}};
+    if(fallback())return;
+    try{if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).catch(()=>{});}catch(e){}
+  }
+  inFrame(){try{return window.self!==window.top;}catch(e){return true;}}
+  makeCard(kind){return new Promise(res=>{
+    const D=this.D,s=this.state,tr=this.tr,val=this.val,c=document.createElement("canvas");c.width=1080;c.height=1350;const g=c.getContext("2d");
+    const SJ=kind==="entry"&&s.store.journal.find(j=>j.id===s.shareId);
+    const pet=SJ?(D.PETS.find(p=>p.id===SJ.petId)||D.FRIEND_PETS.find(p=>p.id===SJ.petId)):null;
+    const photo=SJ?(SJ.v.photos||[]).find(p=>typeof p==="string"):null;
+    const title=SJ?val(SJ.v.title):tr("inviteText"),meta=SJ?(pet?pet.name:"")+" · "+SJ.at.slice(0,10):"petpal.app/join/DOU-8K2F";
+    const rr=(x,y,w,h,r)=>{g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);};
+    const draw=img=>{
+      g.fillStyle="#F7F0E6";g.fillRect(0,0,1080,1350);
+      g.save();rr(60,60,960,880,48);g.clip();g.fillStyle=pet?pet.color:"#F6DCCF";g.fillRect(60,60,960,880);
+      if(img){const k=Math.max(960/img.width,880/img.height),w=img.width*k,h2=img.height*k;g.drawImage(img,60+(960-w)/2,60+(880-h2)/2,w,h2);}
+      else{g.fillStyle="#3B2F28";g.textAlign="center";g.textBaseline="middle";g.font="600 260px Huninn, 'Noto Sans TC', sans-serif";g.fillText(pet?pet.name[0]:"PetPal".slice(0,1),540,500);}
+      g.restore();g.textAlign="left";g.textBaseline="alphabetic";
+      g.fillStyle="#3B2F28";g.font="600 60px Huninn, 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans JP', sans-serif";
+      const toks=title.indexOf(" ")>=0?title.split(" ").map((t,i,a)=>i<a.length-1?t+" ":t):[...title];let line="",y=1040,lines=0;
+      for(const t of toks){if(g.measureText(line+t).width>940&&line){g.fillText(line,70,y);y+=78;line=t;if(++lines>=2)break;}else line+=t;}
+      if(lines<2&&line)g.fillText(line,70,y);
+      g.fillStyle="#7A685B";g.font="500 36px 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans JP', sans-serif";g.fillText(meta,70,y+66);
+      g.fillStyle="#C4602F";g.font="600 44px Fredoka, sans-serif";g.fillText("PetPal Diary",70,1290);
+      try{res(c.toDataURL("image/png"));}catch(e){res(null);}
+    };
+    if(photo){const im=new Image();im.onload=()=>draw(im);im.onerror=()=>draw(null);im.src=photo;}else draw(null);});}
+  doShare(ch,text,url,kind){
+    const enc=encodeURIComponent,tr=this.tr,full=text+" "+url,framed=this.inFrame();
+    const links={line:"https://social-plugins.line.me/lineit/share?url="+enc(url)+"&text="+enc(text),fb:"https://www.facebook.com/sharer/sharer.php?u="+enc(url),threads:"https://www.threads.net/intent/post?text="+enc(full),wa:"https://wa.me/?text="+enc(full)};
+    const names={line:"LINE",fb:"Facebook",threads:"Threads",wa:"WhatsApp",ig:"Instagram"};
+    const after=()=>{if(kind==="invite")this.simulateJoin();};
+    if(links[ch]){
+      if(framed){this.setState({sheet:"out",out:{ch,name:names[ch],text:full,link:links[ch],card:null}});}
+      else{window.open(links[ch],"_blank","noopener");this.setState({sheet:null});this.flash(kind==="invite"?tr("inviteSent"):tr("openedOn",{x:names[ch]}));}
+      after();return;
+    }
+    if(ch==="ig"){
+      this.copyText(full);this.flash(tr("making"));
+      this.makeCard(kind).then(card=>{
+        let shared=false;
+        if(card&&!framed&&navigator.canShare){try{const bin=atob(card.split(",")[1]),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+          const file=new File([arr],"petpal-diary.png",{type:"image/png"});if(navigator.canShare({files:[file]})){navigator.share({files:[file],text:full}).catch(()=>{});shared=true;}}catch(e){}}
+        if(shared)this.setState({sheet:null});
+        else this.setState({sheet:"out",out:{ch:"ig",name:"Instagram",text:full,link:"https://www.instagram.com/",card}});
+        this.setState({toast:null});
+      });
+      after();return;
+    }
+    if(ch==="more"&&navigator.share&&!framed){navigator.share({title:"PetPal Diary",text:text,url:url}).catch(()=>{});}
+    else{this.copyText(full);this.flash(tr("linkCopied"));}
+    this.setState({sheet:null});after();
+  }
+  simulateJoin(){if(this.state.store.members.some(m=>m.id==="yun"))return;const role=this.state.inviteRole;clearTimeout(this.jt);
+    this.jt=setTimeout(()=>{this.upd(st=>{if(st.members.some(m=>m.id==="yun"))return;st.members.push({id:"yun",role:role});
+      st.journal.unshift({id:"j"+Date.now(),author:"yun",petId:"pudding",at:this.D.TODAY+" "+now(),likedBy:[],v:{mood:"happy",acts:["iPlay"],title:{k:"jT7"},body:{k:"po3"},photos:[{slot:"jp-yun-0"}],vis:"visMembers"}});});
+      this.flash(this.tr("joined",{x:"小芸"}));},2800);}
+  stopTimer(){clearInterval(this.iv);this.iv=null;}
+  startTimer(){const sp=(this.props.fastTimer??true)?20:1;this.iv=setInterval(()=>this.setState(s=>({elapsed:s.elapsed+sp})),1000);}
+  setPet(id){this.stopTimer();this.setState({petId:id,running:false,elapsed:0,openH:null});}
+  ctx(){const D=this.D,s=this.state,pet=D.PETS.find(p=>p.id===s.petId);const g=s.store.pets[pet.id].entries.filter(e=>e.form==="growth").sort((a,b)=>a.at<b.at?-1:1);
+    const house=D.HOUSEHOLD.includes(s.actor),pets=house?D.PETS:D.FRIEND_PETS.filter(p=>p.owner===s.actor);
+    return{pet,latest:g.length?g[g.length-1].v:{weight:1,length:10},petOptions:pets.map(p=>({v:p.id,label:p.name})),defaultPet:house?pet.id:(pets[0]?pets[0].id:null)};}
+  openForm=(id,entry)=>{
+    const F=this.D.FORMS[id];if(!F)return;const c=this.ctx(),vals={};
+    F.fields.forEach(f=>{let d=typeof f.def==="function"?f.def(c):f.def;if(f.dyn){const dy=f.dyn(vals);if(dy)d=dy.def;}
+      vals[f.id]=Array.isArray(d)?[...d]:d!==undefined?d:(f.kind==="text"||f.kind==="textarea"?"":null);});
+    if(entry){Object.keys(entry.v).forEach(k=>{const x=entry.v[k];vals[k]=Array.isArray(x)?[...x]:(x&&typeof x==="object"&&x.k)?this.val(x):x;});if(entry.petId)vals.pet=entry.petId;}
+    this.setState({sheet:"form",formId:id,vals,tried:false,editId:entry?entry.id:null,dup:null,dupOk:false});
+  };
+  setVal(id,x){
+    const c=this.ctx();
+    this.setState(s=>{const F=this.D.FORMS[s.formId];const nv={...s.vals,[id]:x};
+      F.fields.forEach(f=>{if(f.dyn){const a=f.dyn(s.vals),b=f.dyn(nv);if((a&&a.unit)!==(b&&b.unit))nv[f.id]=b?b.def:(typeof f.def==="function"?f.def(c):f.def);}});
+      return{vals:nv,dup:null,dupOk:false};});
+  }
+  submitForm(){
+    const D=this.D,s=this.state,F=D.FORMS[s.formId],v=s.vals,{pet}=this.ctx();
+    const vis=F.fields.filter(f=>!f.showIf||f.showIf(v));
+    if(vis.some(f=>D.fieldError(f,v,s.lang)))return this.setState({tried:true});
+    const clean={};vis.forEach(f=>{clean[f.id]=typeof v[f.id]==="string"?v[f.id].trim():v[f.id];});
+    if(F.id==="reminder")clean.date=clean.date.replace(/-/g,"/");
+    if(F.target==="journal"){const pid=clean.pet;delete clean.pet;const eid=s.editId;
+      this.upd(st=>{if(eid){const j=st.journal.find(x=>x.id===eid);if(j){j.petId=pid;j.v=clean;j.editedBy=s.actor;}}
+        else st.journal.unshift({id:"j"+Date.now(),author:s.actor,petId:pid,at:D.TODAY+" "+now(),likedBy:[],v:clean});});
+      this.setState({sheet:null,editId:null,tab:"diary",diaryDay:null,profile:false});this.flash(this.tr(eid?"diaryUpdated":"diarySaved"));return;}
+    const slot=tm=>{const hh=Number(tm.slice(0,2));return hh<11?0:hh<16?1:2;},nt=now();
+    if(F.id==="feed"&&!["water","treat"].includes(clean.food)&&!s.dupOk&&!s.editId){
+      const prev=s.store.pets[pet.id].entries.filter(e=>e.form==="feed"&&e.v.food===clean.food&&e.at.startsWith(D.TODAY)&&slot(e.at.slice(11,16))===slot(nt)).sort((a,b)=>a.at<b.at?1:-1)[0];
+      if(prev)return this.setState({dup:{who:prev.who,time:prev.at.slice(11,16),food:clean.food}});}
+    const FT={tBreakfastDry:"dry",tBreakfastWet:"wet",tDinnerDry:"dry",tHay:"hay",tVeg:"veg",tWater:"water"};
+    const entry={id:"u"+Date.now(),form:F.id,at:D.TODAY+" "+nt,who:"me",v:clean};
+    this.upd((st,p)=>{
+      if(F.id==="contact"&&clean.primary)p.entries.forEach(e=>{if(e.form==="contact")e.v.primary=false;});
+      p.entries.unshift(entry);
+      if(F.id==="feed"){const tk=p.tasks.find(x=>!x.done&&FT[x.key]===clean.food&&slot(x.time)===slot(nt));if(tk)tk.done="me";}
+      if(F.id==="diary"&&clean.share)st.posts.unshift({id:entry.id,author:{k:"meName"},pet:pet.name,breed:pet.breed,color:pet.color,ago:0,text:clean.body||clean.title,likes:0,comments:0});
+    });
+    this.setState({sheet:null,dup:null,dupOk:false});
+    this.flash(this.tr(F.toast,{names:this.tr("momName")+this.tr("and")+this.tr("jieName")}));
+  }
+  diaryVals(tr,val,T,tl,wd){
+    const s=this.state,D=this.D,st=s.store;
+    const ppl=id=>D.PEOPLE[id]||{name:id,c:"#9C8B7E"},pName=id=>{const p=ppl(id);return p.key?tr(p.key):p.name;},pInit=id=>{const n=pName(id);return /^[小阿]/.test(n)&&n.length>1?n[1]:n[0];};
+    const petInfo=id=>D.PETS.find(p=>p.id===id)||D.FRIEND_PETS.find(p=>p.id===id)||{name:id,breed:"",color:"#EFE4D4"};
+    const meM=st.members.find(m=>m.id===s.actor)||{role:"roleViewer"},canWrite=meM.role!=="roleViewer",isOwner=s.actor==="me";
+    const houseIds=D.PETS.map(p=>p.id);
+    const days=[18,19,20,21,22,23,24].map(n=>"2026/10/"+n);
+    const vis=st.journal.filter(j=>j.v.vis!=="visPrivate"||j.author===s.actor);
+    const list=vis.filter(j=>(s.diaryFilter==="all"||(s.diaryFilter==="mine"?houseIds.includes(j.petId):!houseIds.includes(j.petId)))&&(!s.diaryDay||j.at.startsWith(s.diaryDay))).sort((a,b)=>a.at<b.at?1:-1);
+    const SJ=s.shareId&&st.journal.find(j=>j.id===s.shareId);
+    const shareText=SJ?tr("shareText",{title:val(SJ.v.title),pet:petInfo(SJ.petId).name}):"",shareUrl=SJ?"https://petpal.app/d/"+SJ.id:"";
+    const chans=(kind,text,url)=>CHANNELS.map(c=>({...c,n:c.k==="copy"||c.k==="more"?tr(c.n):c.n,select:()=>this.doShare(c.k,text,url,kind)}));
+    const inviteText=tr("inviteText");
+    return{
+      memberDots:st.members.slice(0,5).map(m=>({color:ppl(m.id).c,initial:pInit(m.id)})),
+      membersText:tr("membersText",{n:st.members.length}),
+      openMembers:()=>this.setState({sheet:"members"}),openInvite:()=>this.setState({sheet:"invite"}),
+      actorBanner:{show:s.actor!=="me",text:tr("previewAs",{x:pName(s.actor)})+" · "+tr(meM.role),back:()=>this.setState({actor:"me"})},
+      dayStrip:days.map((d,i)=>{const on=s.diaryDay===d,has=vis.some(j=>j.at.startsWith(d));return{wd:wd[i],num:d.slice(8),bg:on?"#3B2F28":"#FFFCF7",fg:on?"#F7F0E6":"#3B2F28",border:on?"#3B2F28":"#EADDCB",dot:has?(on?"#F2C66D":"#C4602F"):"transparent",select:()=>this.setState({diaryDay:on?null:d})};}),
+      diaryFilters:[["all","all"],["mine","fMine"],["friends","fFriends"]].map(([k,n])=>({name:tr(n),...chip(s.diaryFilter===k),select:()=>this.setState({diaryFilter:k})})),
+      journal:list.map(j=>{const pet=petInfo(j.petId),ph=j.v.photos||[],n=ph.length,liked=(j.likedBy||[]).includes(s.actor);
+        return{author:pName(j.author),initial:pInit(j.author),color:ppl(j.author).c,meta:pet.name+(pet.breed?" · "+tr(pet.breed):"")+" · "+tl(j.at),
+          isPrivate:j.v.vis==="visPrivate",title:val(j.v.title),body:val(j.v.body),hasBody:!!val(j.v.body),
+          tags:[tr(j.v.mood),...(j.v.acts||[]).map(a=>tr(a))],hasPhotos:n>0,
+          photos:ph.map((p,i)=>({isImg:typeof p==="string",isSlot:typeof p!=="string",src:"",bg:typeof p==="string"?"url(\""+p+"\")":"none",slotId:p&&p.slot?p.slot:"",slotLabel:tr("demoPhoto"),
+            span:n===1||(n===3&&i===0)?"1 / -1":"auto",h:n===1?"230px":n===2?"170px":n===3?(i===0?"190px":"120px"):"130px"})),
+          hasEdited:!!j.editedBy,edited:j.editedBy?tr("editedBy",{who:pName(j.editedBy)}):"",
+          likes:(j.likedBy||[]).length,likeBg:liked?"#F6DCCF":"transparent",likeFg:liked?"#A0442A":"#3B2F28",likeBorder:liked?"#F6DCCF":"#EADDCB",heartFill:liked?"#C4602F":"none",
+          like:()=>this.upd(x=>{const jj=x.journal.find(y=>y.id===j.id);jj.likedBy=liked?jj.likedBy.filter(a=>a!==s.actor):[...(jj.likedBy||[]),s.actor];}),
+          share:()=>this.setState({sheet:"share",shareId:j.id}),
+          canEdit:canWrite,edit:()=>this.openForm("diary",j),
+          canDelete:isOwner||j.author===s.actor,del:()=>{this.upd(x=>{x.journal=x.journal.filter(y=>y.id!==j.id);});this.flash(tr("deleted"));}};}),
+      noJournal:list.length===0,showAllDays:()=>this.setState({diaryDay:null,diaryFilter:"all"}),
+      isDiaryFab:s.tab==="diary"&&!s.article&&!s.profile,fabOpacity:canWrite?1:0.5,
+      newEntry:()=>canWrite?this.openForm("diary"):this.flash(tr("viewerNoPost")),
+      isShare:s.sheet==="share"&&!!SJ,
+      sharePreview:SJ?{color:petInfo(SJ.petId).color,initial:petInfo(SJ.petId).name[0],title:val(SJ.v.title),meta:pName(SJ.author)+" · "+petInfo(SJ.petId).name+" · "+SJ.at.slice(0,10)}:{},
+      shareChannels:chans("entry",shareText,shareUrl),shareUrl,copyShare:()=>{this.copyText(shareText+" "+shareUrl);this.flash(tr("linkCopied"));},
+      isInvite:s.sheet==="invite",inviteUrl:INVITE_URL,copyInvite:()=>{this.copyText(inviteText+" "+INVITE_URL);this.flash(tr("linkCopied"));this.simulateJoin();},
+      inviteRoles:["roleEditor","roleViewer"].map(r=>{const on=s.inviteRole===r;return{name:tr(r),desc:tr(r+"D"),border:on?"#3B2F28":"#EADDCB",bg:on?"#F7F0E6":"#FFFCF7",dot:on?"#3B2F28":"transparent",select:()=>this.setState({inviteRole:r})};}),
+      inviteChannels:chans("invite",inviteText,INVITE_URL),
+      isOut:s.sheet==="out"&&!!s.out,
+      out:s.out?{text:s.out.text,hasCard:!!s.out.card,cardBg:s.out.card?"url(\""+s.out.card+"\")":"none",card:s.out.card||"",hasLink:!!s.out.link&&s.out.ch!=="ig",link:s.out.link||"",
+        openLabel:tr("openIn",{x:s.out.name}),note:tr("outNote",{x:s.out.name}),isIg:s.out.ch==="ig",showNote:s.out.ch!=="ig",
+        steps:s.out.ch==="ig"?["igStep1","igStep2","igStep3"].map((k,i)=>({n:i+1,text:tr(k)})):[],
+        copy:()=>{this.copyText(s.out.text);this.flash(tr("textCopied"));}}:{steps:[]},
+      isMembers:s.sheet==="members",
+      membersList:st.members.map((m,i)=>{const house=D.HOUSEHOLD.includes(m.id),pets=house?D.PETS:D.FRIEND_PETS.filter(p=>p.owner===m.id),act=s.actor===m.id,own=m.role==="roleOwner";
+        return{name:pName(m.id),initial:pInit(m.id),color:ppl(m.id).c,pets:pets.map(p=>p.name).join(tr("listSep"))||"—",role:tr(m.role),
+          roleBg:own?"#F8E7BF":m.role==="roleEditor"?"#E3EBDD":"#F4EBDF",roleBorder:"transparent",sep:i?"1.5px solid #F0E5D6":"none",rowBg:act?"#F7F0E6":"#FFFCF7",
+          cycleRole:()=>{if(own||s.actor!=="me")return;this.upd(x=>{const mm=x.members.find(y=>y.id===m.id);mm.role=mm.role==="roleEditor"?"roleViewer":"roleEditor";});},
+          previewLabel:act?"✓":tr("previewBtn"),previewOp:act?0.5:1,preview:()=>this.setState({actor:m.id,sheet:null,tab:"diary"})};})
+    };
+  }
+  renderVals(){
+    const s=this.state,D=this.D;
+    if(!s.ready){const L=LOADTXT[s.lang]||LOADTXT["zh-TW"];return{ready:false,notReady:true,loading:!s.error,loadError:s.error,loadTxt:{loading:L[0],error:L[1],retry:L[2]},retry:()=>{injectData();this.boot();}};}
+    const tr=this.tr,val=this.val,T=Object.fromEntries([...Object.keys(D.U),...Object.keys((window.PetPalTools&&window.PetPalTools.S)||{})].map(k=>[k,tr(k)]));
+    const pet=D.PETS.find(p=>p.id===s.petId),P=s.store.pets[pet.id],ACT=D.ACT[pet.kind];
+    const famName=k=>tr(D.FAM[k].key),famInit=k=>{const n=famName(k);return /^[小阿]/.test(n)&&n.length>1?n[1]:n[0];};
+    const tl=at=>{const d=at.slice(0,10),t=at.slice(11,16);return d===D.TODAY?t:d===D.YESTERDAY?tr("yesterday"):d.slice(5);};
+    const summary=e=>e.form==="activity"?`${tr(ACT.label)} · ${e.v.min} ${tr("min")}`:D.FORMS[e.form].summary(e.v,tr,val);
+    const desc=(a,b)=>a.at<b.at?1:-1,byForm=f=>P.entries.filter(e=>e.form===f);
+    const petChips=D.PETS.map(p=>({id:p.id,name:p.name,color:p.color,initial:p.name[0],ring:p.id===s.petId?"#3B2F28":"transparent",...chip(p.id===s.petId),select:()=>this.setPet(p.id)}));
+    const tasks=P.tasks.map((t,i)=>{const w=t.done||t.who;return{title:tr(t.key),sep:i?"1.5px solid #F0E5D6":"none",
+      ring:t.done?"#7E9C78":"#CDBBA6",fill:t.done?"#7E9C78":"transparent",check:t.done?"✓":"",color:t.done?"#9C8B7E":"#3B2F28",deco:t.done?"line-through":"none",
+      meta:t.done?tr("doneBy",{who:famName(t.done)}):tr("turnOf",{time:t.time,who:famName(t.who)}),whoN:famInit(w),whoColor:D.FAM[w].c,
+      toggle:()=>{if(t.done&&t.done!=="me")return this.flash(tr("taskAlready",{who:famName(t.done)}));this.upd((st,p)=>{const x=p.tasks[i];x.done=x.done?null:"me";});}};});
+    const nIdx=P.tasks.map((t,i)=>({t,i})).filter(x=>!x.t.done).sort((a,b)=>a.t.time<b.t.time?-1:1)[0];
+    const nextUp=nIdx?{label:tr("nextUp"),has:true,title:tr(nIdx.t.key),meta:tr("turnOf",{time:nIdx.t.time,who:famName(nIdx.t.who)}),done:()=>{this.upd((st,p)=>{p.tasks[nIdx.i].done="me";});this.flash(tr("doneBy",{who:famName("me")}));}}
+      :{label:tr("nextUp"),has:false,title:tr("allDoneToday"),meta:"",done:()=>{}};
+    const dup=s.dup?{has:true,title:tr("dupTitle",{who:famName(s.dup.who),time:s.dup.time,food:tr(s.dup.food)}),confirm:()=>this.setState({dupOk:true,dup:null},()=>this.submitForm())}:{has:false};
+    const doneCount=P.tasks.filter(t=>t.done).length;
+    const rems=byForm("reminder").map(e=>({e,days:D.daysBetween(D.TODAY,e.v.date)}));
+    const up=rems.filter(r=>r.days>=0).sort((a,b)=>a.days-b.days),past=rems.filter(r=>r.days<0).sort((a,b)=>b.days-a.days);
+    const next=up[0];
+    const reminders=[...up,...past].map((r,i)=>{const st=r.days<0?[tr("completed"),"#E3EBDD","#4E6B49"]:r.days===0?[tr("todayDue"),"#F6DCCF","#A0442A"]:r.days<=7?[tr("inDays",{n:r.days}),"#F8E7BF","#7A5A12"]:[tr("inDays",{n:r.days}),"#F4EBDF","#5E4E42"];
+      return{title:val(r.e.v.title),sub:r.e.v.date+" · "+tr(r.e.v.repeat),label:st[0],bg:st[1],fg:st[2],sep:i?"1.5px solid #F0E5D6":"none"};});
+    const G=byForm("growth").sort((a,b)=>a.at<b.at?-1:1).slice(-7),W=G.map(g=>Number(g.v.weight));
+    const lo=Math.min(...W),hi=Math.max(...W),pad=(hi-lo)*0.2||0.1,mn=lo-pad,mx=hi+pad;
+    const pts=W.map((w,i)=>({x:+(10+i*(280/Math.max(1,W.length-1))).toFixed(1),y:+(90-(w-mn)/(mx-mn)*80).toFixed(1)}));
+    const wPoints=pts.map(p=>p.x+","+p.y).join(" "),dl=W.length>1?W[W.length-1]-W[W.length-2]:0;
+    const tip=D.ARTICLES.find(a=>a.id===D.TIPS[pet.kind]);
+    const openArt=id=>this.setState({article:id});
+    const q=s.q.trim().toLowerCase();
+    const arts=D.ARTICLES.filter(a=>(s.cat==="all"||a.cat===s.cat)&&(!q||[tr(a.id+"t"),tr(a.id+"l"),...a.s.map((_,i)=>tr(a.id+"s"+i))].join(" ").toLowerCase().includes(q)));
+    const A=s.article&&D.ARTICLES.find(a=>a.id===s.article);
+    const goal=ACT.goal*60,mm=Math.floor(s.elapsed/60),ss=s.elapsed%60;
+    const todayMin=byForm("activity").filter(e=>e.at.startsWith(D.TODAY)).reduce((a,e)=>a+e.v.min,0);
+    const wk=[...P.week6,todayMin],wmax=Math.max(ACT.goal,...wk),wd=tr("weekdays").split(",");
+    const places=D.PLACES.filter(p=>s.pf==="all"||(s.pf==="exotic"?p.exotic:p.type===s.pf));
+    const lang=D.LANGS.find(l=>l.k===s.lang);
+    const F=s.sheet==="form"&&D.FORMS[s.formId];let fields=[];
+    if(F){const v=s.vals,c=this.ctx();
+      fields=F.fields.filter(f=>!f.showIf||f.showIf(v)).map(f=>{
+        const dy=(f.dyn&&f.dyn(v))||{},step=dy.step??(typeof f.step==="function"?f.step(c):f.step),min=dy.min??f.min??0,unit=dy.unit??f.unit;
+        const err=s.tried?D.fieldError(f,v,s.lang):null,hk=f.hint&&f.hint(v);
+        let optsL=(typeof f.options==="function"?f.options(c):(f.options||[])).map(o=>typeof o==="object"?o:{v:o,label:tr(o)});
+        if(f.kind==="segment"&&v[f.id]!=null&&optsL.length&&!optsL.some(o=>o.v===v[f.id]))optsL=[...optsL,{v:v[f.id],label:this.petName(v[f.id])}];
+        const opts=optsL.map(oo=>{const o=oo.v,on=f.kind==="chips"?(v[f.id]||[]).includes(o):v[f.id]===o;
+          return{name:oo.label,...chip(on),select:()=>this.setVal(f.id,f.kind==="chips"?(on?(v[f.id]||[]).filter(x=>x!==o):[...(v[f.id]||[]),o]):o)};});
+        const pl=f.kind==="photos"?(v[f.id]||[]):[];
+        const round=n=>Math.round(n*1000)/1000;
+        return{label:tr(f.label),required:!!f.required,showLabel:f.kind!=="toggle",
+          isOptions:f.kind==="segment"||f.kind==="chips",isStepper:f.kind==="stepper",isText:f.kind==="text",isTextarea:f.kind==="textarea",isDate:f.kind==="date",isToggle:f.kind==="toggle",
+          opts,display:f.kind==="stepper"?fmt(v[f.id],f.decimals):"",unit:unit?tr(unit):"",
+          up:()=>this.setVal(f.id,round(Number(v[f.id])+step)),down:()=>this.setVal(f.id,Math.max(min,round(Number(v[f.id])-step))),
+          value:typeof v[f.id]==="string"?v[f.id]:"",onInput:e=>this.setVal(f.id,e.target.value),ph:f.ph?tr(f.ph):"",inputMode:f.inputMode||"text",
+          border:err?"#A0442A":"#EADDCB",trackBg:v[f.id]?"#7E9C78":"#E0D2BF",knobX:v[f.id]?"20px":"0px",toggle:()=>this.setVal(f.id,!v[f.id]),
+          hasHint:!!hk,hint:hk?tr(hk):"",hasError:!!err,error:err||"",
+          isPhotos:f.kind==="photos",photos:pl.map((p,i)=>({isImg:typeof p==="string",isSlot:typeof p!=="string",src:"",bg:typeof p==="string"?"url(\""+p+"\")":"none",slotLabel:tr("demoPhoto"),remove:()=>this.setVal(f.id,pl.filter((_,j)=>j!==i))})),
+          canAddPhoto:f.kind==="photos"&&pl.length<((this.isPro()||f.free)?(f.max||4):1),photoMax:tr("photoMax",{n:(this.isPro()||f.free)?(f.max||4):1}),upsell:f.kind==="photos"&&!this.isPro()&&!f.free,openPaywall:()=>this.openPaywall(),addPhotoLabel:tr("addPhoto"),onFiles:e=>this.addPhotos(f,e)};});}
+    return {
+      ready:true,notReady:false,T,lang:s.lang,store:s.store,petId:s.petId,
+      isToday:s.tab==="today",isDiary:s.tab==="diary",isMore:s.tab==="more",
+      tool:s.tool,showHealthTool:!!s.tool&&HEALTH_TOOLS.includes(s.tool),showLifeTool:!!s.tool&&!HEALTH_TOOLS.includes(s.tool),
+      closeTool:()=>this.setState({tool:null}),openTool:this.openTool,toolUpd:this.toolUpd,openSos:()=>this.openTool("sos"),
+      moreTitle:tr("moreTitle"),
+      moreGroups:MORE_GROUPS.map(([g,ks])=>({name:tr(g),items:ks.map((k,i)=>({name:tr("t_"+k),desc:tr("d_"+k),locked:PRO_TOOLS.includes(k)&&!this.isPro(),c:TILE_COLORS[(i+g.length)%TILE_COLORS.length],open:()=>this.openTool(k)}))})),
+      planCard:this.isPro()?{bg:"#3B2F28",fg:"#F7F0E6",badge:"PRO",badgeBg:"#F2C66D",badgeFg:"#3B2F28",text:s.plan.canceled?tr("proCanceled",{d:s.plan.renew||RENEW}):tr("proActive",{d:s.plan.renew||RENEW}),open:()=>this.openPaywall()}
+        :{bg:"#F8E7BF",fg:"#5E4512",badge:tr("freePlan"),badgeBg:"#FFFCF7",badgeFg:"#7A5A12",text:tr("upgradeBanner"),open:()=>this.openPaywall()},
+      isPaywall:s.sheet==="paywall",
+      pw:(()=>{const pro=this.isPro(),Y="✓",N="—";const rows=[["f_basic",Y],["f_safety",Y],["f_learn",Y],["f_diary",Y],["f_photos","1","4"],["f_ai",N],["f_records",N],["f_life",N],["f_social",N],["f_theme",N]];
+        return{hasReason:!!s.payReason,reason:s.payReason?tr("lockedTool",{x:tr("t_"+s.payReason)}):"",
+          rows:rows.map(([k,f,p])=>({name:tr(k),free:f,pro:p||Y,freeColor:f===N?"#CDBBA6":"#4E6B49"})),
+          isPro:pro,showBuy:!pro||!!s.plan.canceled,buyLabel:pro?tr("resubscribe"):tr("subscribe"),canCancel:pro&&!s.plan.canceled&&s.plan.tier==="pro",
+          status:s.plan.canceled?tr("proCanceled",{d:s.plan.renew||RENEW}):tr("proActive",{d:s.plan.renew||RENEW}),
+          subscribe:()=>{const r=s.payReason;this.setPlan({tier:"pro",renew:RENEW,canceled:false});this.setState({sheet:null,payReason:null});this.flash(tr("subscribed"));if(r)setTimeout(()=>this.openTool(r),50);},
+          cancel:()=>{this.setPlan({...s.plan,canceled:true});this.flash(tr("canceled",{d:s.plan.renew||RENEW}));},
+          restore:()=>this.flash(pro?tr("subscribed"):tr("restored"))};})(),isHealth:s.tab==="health",isAct:s.tab==="act",isLearn:s.tab==="learn",isNear:s.tab==="near",
+      showTips:this.props.showTips??true,langShort:lang.short,openLang:()=>this.setState({sheet:"lang"}),
+      greeting:tr("greet",{name:pet.name}),caregivers:tr("caregivers",{n:3}),
+      pet,petSub:`${tr(pet.breed)} · ${tr(pet.age)} · ${tr(pet.sex)}`,petChips,
+      family:Object.keys(D.FAM).map(k=>({c:D.FAM[k].c,initial:famInit(k)})),
+      heroSlots:D.PETS.map(p=>({id:p.id,color:p.color,display:p.id===s.petId?"block":"none"})),
+      addPet:()=>this.flash(tr("addPetSoon")),
+      openProfile:()=>this.setState({profile:true}),closeProfile:()=>this.setState({profile:false}),showProfile:s.profile,
+      openForm:this.openForm,flash:this.flash,
+      tasks,nextUp,dup,doneCount,taskCount:P.tasks.length,progressW:Math.round(doneCount/P.tasks.length*100)+"%",
+      reminder:next?{days:next.days,title:val(next.e.v.title),date:next.e.v.date}:{days:"–",title:tr("noUpcoming"),date:""},
+      goHealth:()=>this.setState({tab:"health"}),
+      tip:{title:tr(tip.id+"t"),lead:tr(tip.id+"l"),open:()=>openArt(tip.id)},
+      recent:P.entries.filter(e=>["feed","health","activity","growth"].includes(e.form)).sort(desc).slice(0,4).map(e=>({time:tl(e.at),text:summary(e),who:famName(e.who)})),
+      openPicker:()=>this.setState({sheet:"picker"}),
+      formTiles:D.FORM_ORDER.map(id=>({title:tr(D.FORMS[id].title),desc:tr(D.FORMS[id].desc),color:D.FORMS[id].color,open:()=>this.openForm(id)})),
+      latestW:W.length?fmt(W[W.length-1],2):"–",deltaW:(dl>=0?"↑ ":"↓ ")+fmt(Math.abs(dl),2)+" kg · "+tr("vsLastTime"),
+      wPoints,wArea:`10,100 ${wPoints} 290,100`,wDots:pts.map((p,i)=>({...p,r:i===pts.length-1?6:4})),
+      wLabels:G.map(g=>g.at.startsWith(D.TODAY)?tr("todayDue"):g.at.slice(5,10)),
+      openGrowth:()=>this.openForm("growth"),openReminder:()=>this.openForm("reminder"),openHealthForm:()=>this.openForm("health"),
+      reminders,
+      healthList:byForm("health").sort(desc).slice(0,5).map((e,i)=>{const note=val(e.v.note),open=s.openH===e.id&&!!note;
+        const dcs=(e.v.docs||[]).filter(x=>typeof x==="string");
+        return{title:summary(e),time:tl(e.at),sub:famName(e.who)+(dcs.length?" · "+tr("docsCount",{n:dcs.length}):"")+(note?" · "+(open?tr("collapse"):tr("showNotes")):""),note,open,hasDocs:dcs.length>0,docs:dcs.map(u=>({bg:"url(\""+u+"\")"})),toggle:()=>this.setState(st=>({openH:st.openH===e.id?null:e.id}))};}),
+      act:{label:tr(ACT.label),goalText:tr("goal",{n:ACT.goal})},
+      ringOffset:(603.2*(1-Math.min(1,s.elapsed/goal))).toFixed(1),
+      timerText:String(mm).padStart(2,"0")+":"+String(ss).padStart(2,"0"),
+      timerState:s.running?tr("running"):s.elapsed?tr("paused"):tr("readyQ"),
+      timerMainLabel:s.running?tr("pause"):s.elapsed?tr("resume"):tr(ACT.start),canFinish:s.elapsed>0,
+      timerMain:()=>{if(s.running){this.stopTimer();this.setState({running:false});}else{this.startTimer();this.setState({running:true});}},
+      timerFinish:()=>{this.stopTimer();const m=Math.max(1,Math.round(s.elapsed/60));
+        this.upd((st,p)=>p.entries.unshift({id:"u"+Date.now(),form:"activity",at:D.TODAY+" "+now(),who:"me",v:{min:m}}));
+        this.setState({running:false,elapsed:0});this.flash(tr("actSaved",{n:m,x:tr(ACT.label)}));},
+      weekTotal:tr("totalMin",{n:wk.reduce((a,b)=>a+b,0)}),
+      weekBars:wk.map((v,i)=>({v,h:Math.max(6,Math.round(v/wmax*72))+"px",label:wd[i],bg:i===6?"#C4602F":v>=ACT.goal?"#7E9C78":"#E5D8C6",fg:i===6?"#3B2F28":"#7A685B",fw:i===6?700:400})),
+      actHistory:byForm("activity").sort(desc).slice(0,4).map(e=>({when:tl(e.at),min:e.v.min+" "+tr("min"),who:famName(e.who)})),
+      q:s.q,setQ:e=>this.setState({q:e.target.value}),
+      cats:D.CATS.map(c=>({name:tr(c),...chip(c===s.cat),select:()=>this.setState({cat:c})})),
+      articles:arts.map(a=>({title:tr(a.id+"t"),color:a.color,glyph:tr(a.cat)[0],meta:tr(a.cat)+" · "+tr("minRead",{n:a.mins}),open:()=>openArt(a.id)})),noArticles:arts.length===0,
+      hasArticle:!!A,closeArticle:()=>this.setState({article:null}),
+      article:A?{color:A.color,meta:tr(A.cat)+" · "+tr("minRead",{n:A.mins}),title:tr(A.id+"t"),lead:tr(A.id+"l"),steps:A.s.map((_,i)=>({n:i+1,text:tr(A.id+"s"+i)})),
+        saveLabel:s.store.saved[A.id]?tr("savedArticle"):tr("saveArticle"),
+        save:()=>{const was=!!s.store.saved[A.id];this.upd(st=>{st.saved[A.id]=!was;});if(!was)this.flash(tr("savedToast"));}}:{steps:[]},
+      segs:["near","feed"].map(n=>({name:tr(n==="near"?"segNear":"segFeed"),bg:n===s.seg?"#FFFCF7":"transparent",fw:n===s.seg?700:500,shadow:n===s.seg?"0 2px 6px rgba(59,47,40,.1)":"none",select:()=>this.setState({seg:n})})),
+      isPlaces:s.seg==="near",isFeed:s.seg==="feed",
+      placeFilters:["all","hospital","shop","exotic"].map(c=>({name:tr(c),...chip(c===s.pf),select:()=>this.setState({pf:c})})),
+      places:places.map(p=>({name:tr(p.name),dist:p.dist,hours:tr(p.hours.k,{t:p.hours.t}),openColor:p.open?"#4E6B49":"#A0442A",tags:p.tags.map(t=>tr(t)),
+        nav:()=>this.flash(tr("navTo",{x:tr(p.name)})),call:()=>this.flash(tr("callTo",{x:tr(p.name)}))})),
+      posts:s.store.posts.map(p=>{const on=!!s.store.liked[p.id],au=val(p.author);
+        return{id:p.id,author:au,initial:au[0],color:p.color,meta:`${p.pet} · ${tr(p.breed)} · ${p.ago===0?tr("justNow"):p.ago<24?tr("hoursAgo",{n:p.ago}):tr("yesterday")}`,
+          text:val(p.text),likes:p.likes+(on?1:0),comments:tr("comments",{n:p.comments}),
+          likeBg:on?"#F6DCCF":"transparent",likeFg:on?"#A0442A":"#3B2F28",likeBorder:on?"#F6DCCF":"#EADDCB",heartFill:on?"#C4602F":"none",
+          like:()=>this.upd(st=>{st.liked[p.id]=!on;})};}),
+      tabs:TABS.map(t=>{const on=t.k===s.tab||(t.k==="more"&&s.tab==="learn");return{d:t.d,d2:t.d2,name:tr(t.name),bg:on?"#F7F0E6":"transparent",fg:on?"#3B2F28":"#D8C8B4",select:()=>this.setState({tab:t.k,article:null,profile:false,tool:null})};}),
+      sheetOpen:!!s.sheet,isPicker:s.sheet==="picker",isLang:s.sheet==="lang",isForm:!!F,
+      sheetTitle:s.sheet==="paywall"?tr("proTitle"):s.sheet==="out"&&s.out?tr("outTitle",{x:s.out.name}):F?(s.editId?tr("edit")+" · "+tr(F.title):tr(F.title)):tr(({lang:"language",custom:"customize",share:"shareTitle",invite:"inviteTitle",members:"members"})[s.sheet]||"chooseForm"),
+      sheetSub:s.sheet==="paywall"?tr("proSub"):s.sheet==="lang"?"Language · 语言 · 言語 · Idioma":tr(({out:"shareSub",custom:"customizeSub",share:"shareSub",invite:"inviteSub",members:"membersSub"})[s.sheet]||"logFor",{name:pet.name}),
+      closeSheet:()=>this.setState({sheet:null}),
+      langs:D.LANGS.map((l,i)=>({name:l.name,check:l.k===s.lang?"✓":"",bg:l.k===s.lang?"#F7F0E6":"#FFFCF7",fw:l.k===s.lang?700:500,sep:i?"1.5px solid #F0E5D6":"none",select:()=>this.setLang(l.k)})),
+      fields,formTip:F&&F.tip?tr(F.tip,{name:pet.name}):"",submitLabel:F?tr(F.submit):"",submitForm:()=>this.submitForm(),
+      ...this.diaryVals(tr,val,T,tl,wd),
+      hasToast:!!s.toast,toast:s.toast,
+      appBg:this.isPro()?(THEMES.find(t=>t.k===s.prefs.bg)||THEMES[0]).c:THEMES[0].c,
+      ord:Object.fromEntries(s.prefs.order.map((k,i)=>[k,i+1])),
+      disp:Object.fromEntries(SECTIONS.map(x=>[x.k,s.prefs.hidden[x.k]||(x.k==="tip"&&!(this.props.showTips??true))?"none":"flex"])),
+      openCustom:()=>this.setState({sheet:"custom"}),isCustom:s.sheet==="custom",
+      themes:THEMES.map(t=>{const on=t.k===s.prefs.bg,lk=t.k!=="cream"&&!this.isPro();return{color:t.c,name:lk?tr(t.n)+" · Pro":tr(t.n),check:on?"✓":"",fw:on?700:400,ring:on?"0 0 0 3px #FFFCF7, 0 0 0 5px #3B2F28":"none",select:()=>lk?this.openPaywall():this.setPrefs(p=>({...p,bg:t.k}))};}),
+      resetLayout:()=>this.setPrefs(p=>({...DEFAULT_PREFS(),bg:p.bg})),
+      layoutRows:s.prefs.order.map((k,i,arr)=>{const sec=SECTIONS.find(x=>x.k===k),hid=!!s.prefs.hidden[k];
+        const mv=d=>this.setPrefs(p=>{const j=i+d;if(j<0||j>=p.order.length)return p;[p.order[i],p.order[j]]=[p.order[j],p.order[i]];return p;});
+        return{n:i+1,name:tr(sec.n),color:hid?"#9C8B7E":"#3B2F28",sep:i?"1.5px solid #F0E5D6":"none",up:()=>mv(-1),down:()=>mv(1),upOp:i===0?0.3:1,downOp:i===arr.length-1?0.3:1,
+          trackBg:hid?"#E0D2BF":"#7E9C78",knobX:hid?"0px":"20px",toggle:()=>this.setPrefs(p=>{p.hidden[k]=!hid;return p;})};})};
+  }
+}
+</script>
+</body>
+</html>

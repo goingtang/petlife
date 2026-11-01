@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<script src="./petpal-data.js" data-petpal="1"></script>
+<style>body{margin:0;background:#F7F0E6;color:#3B2F28}a{color:#C4602F;text-decoration:none}a:hover{color:#9E4A22}</style>
+</helmet>
+<div style="position:absolute;inset:0;background:{{ bg }};overflow-y:auto;scrollbar-width:none;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28">
+<sc-if value="{{ notReady }}" hint-placeholder-val="{{ false }}">
+<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:40px;text-align:center">
+<span style="font-size:14px;color:#7A685B">{{ loadMsg }}</span>
+<sc-if value="{{ loadError }}" hint-placeholder-val="{{ false }}"><button onClick="{{ retry }}" style="height:44px;padding:0 20px;border-radius:22px;border:none;background:#C4602F;color:#fff;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">Retry</button></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:18px;padding:58px 20px 120px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+<button onClick="{{ back }}" style="height:44px;padding:0 16px 0 12px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.back }}</button>
+<span style="font-size:13px;font-weight:700;color:#7A685B">{{ T.profile }}</span>
+</div>
+
+<div style="height:220px;flex:none;position:relative">
+<image-slot id="hero-{{ pet.id }}" shape="rounded" radius="28" placeholder="Photo" style="width:100%;height:220px;background:{{ pet.color }}"></image-slot>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:30px;line-height:1.2">{{ pet.name }}</span>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{ badges }}" as="b" hint-placeholder-count="4"><span style="padding:5px 11px;border-radius:12px;background:#FFFCF7;border:1.5px solid #EADDCB;font-size:13px;font-weight:500">{{ b }}</span></sc-for>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<sc-for list="{{ stats }}" as="st" hint-placeholder-count="3">
+<button onClick="{{ st.onClick }}" style="display:flex;flex-direction:column;gap:4px;padding:14px 12px;border-radius:20px;border:none;background:{{ st.bg }};text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="display:flex;align-items:baseline;gap:3px"><span style="font-family:'Fredoka',sans-serif;font-weight:600;font-size:24px;line-height:1.1">{{ st.value }}</span><span style="font-size:12px;color:#5E4E42">{{ st.unit }}</span></span>
+<span style="font-size:12px;color:#5E4E42;line-height:1.3">{{ st.label }}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.basicInfo }}</span>
+<div style="background:#FFFCF7;border-radius:24px;border:1.5px solid #EADDCB;overflow:hidden">
+<sc-for list="{{ basics }}" as="r" hint-placeholder-count="3">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:52px;padding:0 16px;border-top:{{ r.sep }}">
+<span style="font-size:14px;color:#7A685B">{{ r.k }}</span>
+<span style="font-family:'Fredoka','Noto Sans TC',sans-serif;font-size:15px;font-weight:500;text-align:right">{{ r.v }}</span>
+</div>
+</sc-for>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.contacts }}</span>
+<button onClick="{{ addContact }}" style="height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addPet }}</button>
+</div>
+<sc-for list="{{ contacts }}" as="c" hint-placeholder-count="2">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;border-radius:22px;background:#FFFCF7;border:1.5px solid {{ c.border }}">
+<span style="flex:1;display:flex;flex-direction:column;gap:4px;min-width:0">
+<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+<span style="font-size:15px;font-weight:700">{{ c.name }}</span>
+<span style="padding:2px 8px;border-radius:8px;background:#F4EBDF;font-size:11px;color:#5E4E42">{{ c.rel }}</span>
+<sc-if value="{{ c.primary }}" hint-placeholder-val="{{ false }}"><span style="padding:2px 8px;border-radius:8px;background:#C4602F;font-size:11px;font-weight:700;color:#fff">{{ c.primaryLabel }}</span></sc-if>
+</span>
+<span style="font-family:'Fredoka',sans-serif;font-size:14px;color:#7A685B">{{ c.phone }}</span>
+</span>
+<a href="{{ c.tel }}" onClick="{{ c.onCall }}" style="flex:none;height:44px;padding:0 16px;border-radius:22px;background:#3B2F28;color:#F7F0E6;font-size:14px;font-weight:700;display:flex;align-items:center">{{ T.call }}</a>
+</div>
+</sc-for>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.diary }}</span>
+<button onClick="{{ addDiary }}" style="height:36px;padding:0 14px;border-radius:18px;border:none;background:#C4602F;color:#fff;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.writeDiary }}</button>
+</div>
+<sc-for list="{{ diary }}" as="d" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+<span style="padding:3px 10px;border-radius:10px;background:#EEE0F0;font-size:12px;font-weight:700;color:#5B3F60">{{ d.mood }}</span>
+<span style="font-family:'Fredoka',sans-serif;font-size:13px;color:#7A685B">{{ d.date }}</span>
+</div>
+<span style="font-size:16px;font-weight:700">{{ d.title }}</span>
+<sc-if value="{{ d.hasBody }}" hint-placeholder-val="{{ true }}"><span style="font-size:14px;line-height:1.65;color:#4F4239;text-wrap:pretty">{{ d.body }}</span></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;petId&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dou&quot;,&quot;mochi&quot;,&quot;bai&quot;],&quot;default&quot;:&quot;dou&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh-TW&quot;,&quot;zh-CN&quot;,&quot;en&quot;,&quot;ja&quot;,&quot;es&quot;],&quot;default&quot;:&quot;zh-TW&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;bg&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;options&quot;:[&quot;#F7F0E6&quot;,&quot;#E9EFE3&quot;,&quot;#F8E8E0&quot;,&quot;#E6EDF1&quot;,&quot;#EEE3D0&quot;],&quot;default&quot;:&quot;#F7F0E6&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;store&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;onBack&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;},&quot;onOpenForm&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(formId: string) =&gt; void&quot;},&quot;onToast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(msg: string) =&gt; void&quot;}}">
+function waitData(ms){return new Promise((res,rej)=>{if(window.PetPalData)return res(window.PetPalData);const t0=Date.now();const iv=setInterval(()=>{if(window.PetPalData){clearInterval(iv);res(window.PetPalData);}else if(Date.now()-t0>ms){clearInterval(iv);rej(new Error("timeout"));}},50);});}
+function injectData(){document.querySelectorAll("script[data-petpal]").forEach(s=>s.remove());const s=document.createElement("script");s.src="./petpal-data.js?r="+Date.now();s.dataset.petpal="1";document.head.appendChild(s);}
+
+class Component extends DCLogic {
+  state={D:window.PetPalData||null,ownStore:null,error:false};
+  componentDidMount(){this.load();}
+  load(){
+    this.setState({error:false});
+    waitData(4000).catch(()=>{injectData();return waitData(6000);}).then(D=>{
+      let st=null;
+      if(!this.props.store){try{const s=JSON.parse(localStorage.getItem("petpal.store.v2")||"null");if(D.isValidStore(s))st=s;}catch(e){}if(!st)st=D.seed();}
+      this.setState({D,ownStore:st});
+    }).catch(()=>this.setState({error:true}));
+  }
+  renderVals(){
+    const D=this.state.D,store=this.props.store||this.state.ownStore;
+    if(!D||!store)return{bg:this.props.bg||"#F7F0E6",ready:false,notReady:true,loadError:this.state.error,loadMsg:this.state.error?"Couldn't load data":"…",retry:()=>{injectData();this.load();}};
+    const lang=this.props.lang||"zh-TW",tr=(k,v)=>D.tr(lang,k,v),val=x=>D.val(lang,x);
+    const pet=D.PETS.find(p=>p.id===(this.props.petId||"dou"))||D.PETS[0],P=store.pets[pet.id];
+    const T=Object.fromEntries(["back","profile","basicInfo","contacts","call","addPet","diary","writeDiary"].map(k=>[k,tr(k)]));
+    const open=id=>this.props.onOpenForm?this.props.onOpenForm(id):null;
+    const G=P.entries.filter(e=>e.form==="growth").sort((a,b)=>a.at<b.at?-1:1),lw=G.length?G[G.length-1].v.weight:"–";
+    const contacts=P.entries.filter(e=>e.form==="contact").sort((a,b)=>(b.v.primary?1:0)-(a.v.primary?1:0)||(a.at<b.at?1:-1));
+    return {
+      bg:this.props.bg||"#F7F0E6",ready:true,notReady:false,T,pet,
+      back:()=>this.props.onBack&&this.props.onBack(),
+      badges:[tr(pet.breed),tr(pet.age),tr(pet.sex),...(pet.neutered?[tr("neutered")]:[])],
+      stats:[
+        {value:String(lw),unit:"kg",label:tr("currentWeight"),bg:"#E3EBDD",onClick:()=>open("growth")},
+        {value:String(D.daysBetween(pet.adopted,D.TODAY)),unit:"",label:tr("daysTogether"),bg:"#F8E7BF",onClick:()=>{}},
+        {value:String(P.entries.filter(e=>e.at.startsWith(D.TODAY)).length),unit:"",label:tr("logsToday"),bg:"#F6DCCF",onClick:()=>open("feed")}],
+      basics:[[tr("birthday"),pet.birthday],[tr("chip"),pet.chip],[tr("allergy"),tr(pet.allergy)]].map(([k,v],i)=>({k,v,sep:i?"1.5px solid #F0E5D6":"none"})),
+      contacts:contacts.map(e=>({name:val(e.v.name),rel:tr(e.v.rel),phone:e.v.phone,tel:"tel:"+e.v.phone.replace(/[^0-9+]/g,""),primary:!!e.v.primary,primaryLabel:tr("primary"),border:e.v.primary?"#E7B49A":"#EADDCB",
+        onCall:ev=>{ev.preventDefault();this.props.onToast&&this.props.onToast(tr("callTo",{x:val(e.v.name)}));}})),
+      addContact:()=>open("contact"),addDiary:()=>open("diary"),
+      diary:(store.journal||[]).filter(j=>j.petId===pet.id).sort((a,b)=>a.at<b.at?1:-1).map(e=>{const body=val(e.v.body);return{mood:tr(e.v.mood),date:e.at.slice(0,10),title:val(e.v.title),body,hasBody:!!body};})
+    };
+  }
+}
+</script>
+</body>
+</html>

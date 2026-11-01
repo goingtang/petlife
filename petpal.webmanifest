@@ -1,0 +1,16 @@
+{
+ "name": "PetPal Diary 寵物生活紀錄",
+ "short_name": "PetPal",
+ "start_url": ".",
+ "display": "standalone",
+ "background_color": "#F7F0E6",
+ "theme_color": "#F7F0E6",
+ "icons": [
+  {
+   "src": "petpal-icon.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any maskable"
+  }
+ ]
+}

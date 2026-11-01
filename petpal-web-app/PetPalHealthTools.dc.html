@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fredoka:wght@500;600&display=swap" rel="stylesheet">
+<script src="./petpal-data.js" data-petpal="1"></script>
+<script src="./petpal-tools.js"></script>
+<style>body{margin:0;background:#F7F0E6;color:#3B2F28}a{color:#C4602F;text-decoration:none}a:hover{color:#9E4A22}</style>
+</helmet>
+<div style="position:absolute;inset:0;background:{{ bg }};overflow-y:auto;scrollbar-width:none;font-family:'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28">
+<sc-if value="{{ notReady }}" hint-placeholder-val="{{ false }}">
+<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:14px;color:#7A685B">…</div>
+</sc-if>
+<sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:16px;padding:58px 20px 120px">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+<button onClick="{{ back }}" style="height:44px;padding:0 16px 0 12px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.back }}</button>
+<span style="font-size:13px;font-weight:700;color:#7A685B">{{ T.moreTitle }}</span>
+</div>
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:27px;line-height:1.25">{{ title }}</span>
+<span style="font-size:13px;color:#7A685B">{{ subtitle }}</span>
+</div>
+<sc-if value="{{ showPets }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px">
+<sc-for list="{{ petChips }}" as="p" hint-placeholder-count="3">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 16px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:{{ p.fg }};font:500 15px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.color }};color:#3B2F28;display:flex;align-items:center;justify-content:center;font-family:'Huninn',sans-serif;font-size:14px">{{ p.initial }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isAi }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.aiProvider }}</span>
+<div style="display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:-6px -20px 0;padding:0 20px">
+<sc-for list="{{ ai.providers }}" as="p" hint-placeholder-count="4">
+<button onClick="{{ p.select }}" style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 14px 0 6px;border-radius:22px;border:1.5px solid {{ p.border }};background:{{ p.bg }};color:#3B2F28;font:500 14px 'Noto Sans TC',sans-serif;cursor:pointer">
+<span style="width:32px;height:32px;border-radius:50%;background:{{ p.c }};color:#fff;display:flex;align-items:center;justify-content:center;font:700 14px 'Fredoka',sans-serif">{{ p.g }}</span>{{ p.name }}
+</button>
+</sc-for>
+</div>
+<sc-if value="{{ ai.hasApi }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;padding:4px;border-radius:22px;background:#EFE4D4">
+<sc-for list="{{ ai.modes }}" as="m" hint-placeholder-count="2">
+<button onClick="{{ m.select }}" style="flex:1;min-height:38px;border-radius:19px;border:none;background:{{ m.bg }};color:#3B2F28;font:{{ m.fw }} 13px 'Noto Sans TC',sans-serif;cursor:pointer;box-shadow:{{ m.shadow }};padding:0 8px">{{ m.name }}</button>
+</sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ ai.keyMode }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:20px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:700">{{ T.aiSettings }}</span><span style="font-size:12px;font-weight:700;color:{{ ai.statusColor }}">{{ ai.status }}</span></div>
+<input type="password" value="{{ ai.keyDraft }}" onChange="{{ ai.setKey }}" placeholder="{{ T.apiKeyPh }}" style="height:44px;border-radius:14px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 14px;font:14px 'Fredoka','Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<div style="display:flex;gap:8px;align-items:center">
+<span style="font-size:12px;color:#7A685B;flex:none">{{ T.model }}</span>
+<input value="{{ ai.model }}" onChange="{{ ai.setModel }}" style="flex:1;min-width:0;height:40px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 12px;font:14px 'Fredoka',sans-serif;color:#3B2F28;outline:none">
+<button onClick="{{ ai.saveKey }}" style="flex:none;height:40px;padding:0 14px;border-radius:20px;border:none;background:#3B2F28;color:#F7F0E6;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.saveBtn }}</button>
+</div>
+</div>
+</sc-if>
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB;min-height:220px">
+<div style="align-self:flex-start;max-width:88%;padding:10px 14px;border-radius:18px 18px 18px 6px;background:#F4EBDF;font-size:14px;line-height:1.6">{{ ai.intro }}</div>
+<sc-for list="{{ ai.msgs }}" as="m" hint-placeholder-count="0">
+<div style="display:flex;flex-direction:column;align-items:{{ m.align }};gap:6px">
+<div style="max-width:88%;padding:10px 14px;border-radius:{{ m.radius }};background:{{ m.bg }};color:{{ m.fg }};font-size:14px;line-height:1.6;white-space:pre-wrap;display:flex;flex-direction:column;gap:8px">
+<sc-if value="{{ m.hasTri }}" hint-placeholder-val="{{ false }}"><span style="align-self:flex-start;padding:4px 10px;border-radius:10px;background:{{ m.triBg }};color:{{ m.triFg }};font-size:12px;font-weight:700">{{ m.tri }}</span></sc-if>
+<span>{{ m.text }}</span>
+</div>
+<sc-if value="{{ m.urgent }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:8px">
+<a href="tel:0227001234" style="height:38px;padding:0 14px;border-radius:19px;background:#A0442A;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center">{{ T.callNow }}</a>
+<button onClick="{{ goSos }}" style="height:38px;padding:0 14px;border-radius:19px;border:1.5px solid #A0442A;background:transparent;color:#A0442A;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.t_sos }}</button>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{ ai.busy }}" hint-placeholder-val="{{ false }}"><div style="align-self:flex-start;padding:10px 14px;border-radius:18px;background:#F4EBDF;font-size:14px;color:#7A685B">{{ T.thinking }}</div></sc-if>
+</div>
+<sc-if value="{{ ai.hasHandoff }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:20px;background:#DDE6EE">
+<span style="font-size:15px;font-weight:700;color:#2F4A60">{{ ai.handoffTitle }}</span>
+<span style="font-size:13px;line-height:1.6;color:#2F4A60">{{ ai.handoffNote }}</span>
+<div style="display:flex;gap:8px">
+<a href="{{ ai.handoffLink }}" target="_blank" rel="noopener noreferrer" style="flex:1;min-height:44px;border-radius:22px;background:#2F4A60;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ ai.openLabel }}</a>
+<button onClick="{{ ai.copyPrompt }}" style="flex:1;min-height:44px;border-radius:22px;border:1.5px solid #2F4A60;background:transparent;color:#2F4A60;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.copyPrompt }}</button>
+</div>
+</div>
+</sc-if>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<sc-for list="{{ ai.quick }}" as="q" hint-placeholder-count="5"><button onClick="{{ q.add }}" style="height:34px;padding:0 12px;border-radius:17px;border:1.5px solid #EADDCB;background:#FFFCF7;color:#3B2F28;font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ q.name }}</button></sc-for>
+</div>
+<div style="display:flex;gap:8px;align-items:flex-end">
+<textarea value="{{ ai.input }}" onChange="{{ ai.setInput }}" placeholder="{{ T.aiPh }}" rows="2" style="flex:1;min-width:0;border-radius:18px;border:1.5px solid #EADDCB;background:#FFFCF7;padding:10px 14px;font:15px/1.5 'Noto Sans TC','Noto Sans SC','Noto Sans JP',sans-serif;color:#3B2F28;outline:none;resize:none"></textarea>
+<button onClick="{{ ai.send }}" style="flex:none;height:52px;padding:0 18px;border-radius:26px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer;opacity:{{ ai.sendOp }}">{{ T.send }}</button>
+</div>
+<div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+<span style="font-size:11px;color:#9C8B7E;line-height:1.5">{{ T.aiDisclaimer }}</span>
+<button onClick="{{ ai.clear }}" style="flex:none;border:none;background:transparent;color:#C4602F;font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.clearChat }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSos }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;flex-direction:column;gap:12px;padding:18px;border-radius:26px;background:#A0442A;color:#fff">
+<span style="font-size:13px;font-weight:700;opacity:.9">{{ T.erNearest }}</span>
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:22px">{{ sos.er }}</span><span style="font:600 16px 'Fredoka',sans-serif">350 m</span></div>
+<div style="display:flex;gap:8px">
+<a href="tel:0227001234" style="flex:1;min-height:52px;border-radius:26px;background:#fff;color:#A0442A;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ T.callNow }}</a>
+<button onClick="{{ sos.nav }}" style="flex:1;min-height:52px;border-radius:26px;border:2px solid #fff;background:transparent;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.navigate }}</button>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:0;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;overflow:hidden">
+<span style="padding:14px 16px 8px;font-size:13px;font-weight:700;color:#7A685B">{{ T.forVet }}</span>
+<sc-for list="{{ sos.info }}" as="r" hint-placeholder-count="5">
+<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1.5px solid #F0E5D6"><span style="font-size:13px;color:#7A685B;flex:none">{{ r.k }}</span><span style="font-size:14px;font-weight:500;text-align:right">{{ r.v }}</span></div>
+</sc-for>
+</div>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.firstAid }}</span>
+<sc-for list="{{ sos.aid }}" as="a" hint-placeholder-count="4">
+<div style="border-radius:20px;border:1.5px solid #EADDCB;background:#FFFCF7;overflow:hidden">
+<button onClick="{{ a.toggle }}" style="width:100%;min-height:54px;display:flex;justify-content:space-between;align-items:center;padding:0 16px;border:none;background:transparent;font:700 15px 'Noto Sans TC',sans-serif;color:#3B2F28;cursor:pointer">{{ a.name }}<span style="color:#7A685B">{{ a.icon }}</span></button>
+<sc-if value="{{ a.open }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 16px">
+<sc-for list="{{ a.steps }}" as="s" hint-placeholder-count="3"><div style="display:flex;gap:10px"><span style="width:24px;height:24px;flex:none;border-radius:12px;background:#A0442A;color:#fff;font:600 12px 'Fredoka',sans-serif;display:flex;align-items:center;justify-content:center">{{ s.n }}</span><span style="font-size:14px;line-height:1.6">{{ s.text }}</span></div></sc-for>
+</div>
+</sc-if>
+</div>
+</sc-for>
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.quickTools }}</span>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<sc-for list="{{ sos.links }}" as="l" hint-placeholder-count="3"><button onClick="{{ l.open }}" style="min-height:56px;border-radius:18px;border:none;background:{{ l.c }};color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer;padding:6px">{{ l.name }}</button></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isToxic }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<input value="{{ tx.q }}" onChange="{{ tx.setQ }}" placeholder="{{ T.toxicPh }}" style="height:46px;border-radius:23px;border:1.5px solid #EADDCB;background:#FFFCF7;padding:0 18px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<div style="display:flex;padding:4px;border-radius:22px;background:#EFE4D4">
+<sc-for list="{{ tx.species }}" as="s" hint-placeholder-count="4"><button onClick="{{ s.select }}" style="flex:1;height:38px;border-radius:19px;border:none;background:{{ s.bg }};color:#3B2F28;font:{{ s.fw }} 14px 'Noto Sans TC',sans-serif;cursor:pointer;box-shadow:{{ s.shadow }}">{{ s.name }}</button></sc-for>
+</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<sc-for list="{{ tx.cats }}" as="c" hint-placeholder-count="5"><button onClick="{{ c.select }}" style="height:34px;padding:0 12px;border-radius:17px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for>
+</div>
+<sc-for list="{{ tx.items }}" as="it" hint-placeholder-count="5">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0">
+<span style="font-size:15px;font-weight:700">{{ it.name }}</span>
+<span style="font-size:12px;color:#7A685B;line-height:1.5">{{ it.note }}</span>
+<span style="display:flex;gap:4px;margin-top:2px">
+<sc-for list="{{ it.dots }}" as="d" hint-placeholder-count="4"><span style="padding:1px 6px;border-radius:6px;background:{{ d.bg }};color:{{ d.fg }};font-size:10px;font-weight:700">{{ d.sp }}</span></sc-for>
+</span>
+</span>
+<span style="flex:none;padding:5px 10px;border-radius:11px;background:{{ it.bg }};color:{{ it.fg }};font-size:12px;font-weight:700">{{ it.level }}</span>
+</div>
+</sc-for>
+<button onClick="{{ goSos }}" style="min-height:48px;border-radius:24px;border:1.5px solid #A0442A;background:transparent;color:#A0442A;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.ateIt }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isLost }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<sc-if value="{{ lost.idle }}" hint-placeholder-val="{{ true }}">
+<div style="padding:16px;border-radius:22px;background:#E3EBDD;font-size:15px;font-weight:700;color:#3F5A3B">{{ lost.safeText }}</div>
+</sc-if>
+<sc-if value="{{ lost.active }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-radius:22px;background:#A0442A;color:#fff">
+<span style="font-size:15px;font-weight:700">{{ T.lostActive }} · {{ lost.place }}</span>
+<button onClick="{{ lost.found }}" style="flex:none;height:38px;padding:0 14px;border-radius:19px;border:none;background:#fff;color:#A0442A;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ lost.foundLabel }}</button>
+</div>
+<sc-if value="{{ lost.hasPoster }}" hint-placeholder-val="{{ false }}">
+<div style="width:70%;align-self:center;aspect-ratio:1080/1528;border-radius:16px;background-image:{{ lost.posterBg }};background-size:cover;box-shadow:0 8px 24px rgba(59,47,40,.2)"></div>
+<a href="{{ lost.poster }}" download="lost-poster.png" style="min-height:50px;border-radius:25px;background:#C4602F;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ T.downloadPoster }}</a>
+</sc-if>
+<button onClick="{{ lost.alert }}" style="min-height:50px;border-radius:25px;border:1.5px solid #3B2F28;background:{{ lost.alertBg }};color:{{ lost.alertFg }};font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ lost.alertLabel }}</button>
+<sc-if value="{{ lost.hasSightings }}" hint-placeholder-val="{{ false }}">
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px">{{ T.sightings }}</span>
+<sc-for list="{{ lost.sightings }}" as="s" hint-placeholder-count="1">
+<div style="display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:18px;background:#FFFCF7;border:1.5px solid #EADDCB"><span style="font:600 13px 'Fredoka',sans-serif;color:#7A685B;flex:none">{{ s.time }}</span><span style="font-size:14px">{{ s.text }}</span></div>
+</sc-for>
+</sc-if>
+</sc-if>
+<sc-if value="{{ lost.idle }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.lostPhoto }}</span>
+<div style="display:flex;gap:10px;align-items:center">
+<div style="width:72px;height:72px;flex:none;border-radius:18px;background:{{ lost.photoBg }};background-color:{{ lost.petColor }};background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font:20px 'Huninn',sans-serif">{{ lost.photoInitial }}</div>
+<label style="height:44px;padding:0 16px;border-radius:22px;border:1.5px dashed #CDBBA6;display:flex;align-items:center;cursor:pointer;font-size:14px;color:#5E4E42">{{ T.lostPhoto }} ＋<input type="file" accept="image/*" onChange="{{ lost.onPhoto }}" style="display:none"></label>
+</div>
+<sc-for list="{{ lost.fields }}" as="f" hint-placeholder-count="5">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ f.label }}</span>
+<input value="{{ f.value }}" onChange="{{ f.onInput }}" placeholder="{{ f.ph }}" inputMode="{{ f.mode }}" style="height:46px;border-radius:14px;border:1.5px solid {{ f.border }};background:#F7F0E6;padding:0 14px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+</div>
+</sc-for>
+<button onClick="{{ lost.report }}" style="min-height:52px;border-radius:26px;border:none;background:#A0442A;color:#fff;font:700 16px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.reportLost }} · {{ T.makePoster }}</button>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isMeds }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;gap:16px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="position:relative;width:84px;height:84px;flex:none">
+<svg viewBox="0 0 84 84" style="width:84px;height:84px;transform:rotate(-90deg)"><circle cx="42" cy="42" r="34" fill="none" stroke="#F0E5D6" stroke-width="10"></circle><circle cx="42" cy="42" r="34" fill="none" stroke="#7E9C78" stroke-width="10" stroke-linecap="round" stroke-dasharray="213.6" stroke-dashoffset="{{ meds.ringOff }}"></circle></svg>
+<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:600 20px 'Fredoka',sans-serif">{{ meds.pct }}</span>
+</div>
+<span style="display:flex;flex-direction:column;gap:4px"><span style="font-size:15px;font-weight:700">{{ T.adherence }}</span><span style="font-size:13px;color:#7A685B">{{ meds.pctText }}</span></span>
+</div>
+<span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.todayDoses }}</span>
+<div style="border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;overflow:hidden">
+<sc-for list="{{ meds.today }}" as="d" hint-placeholder-count="3">
+<div style="display:flex;align-items:center;gap:10px;min-height:62px;padding:8px 10px 8px 14px;border-top:{{ d.sep }}">
+<span style="font:600 14px 'Fredoka',sans-serif;width:46px;flex:none">{{ d.time }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:15px;font-weight:500;text-decoration:{{ d.deco }};color:{{ d.color }}">{{ d.name }}</span><span style="font-size:12px;color:#7A685B">{{ d.sub }}</span></span>
+<sc-if value="{{ d.pending }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ d.skip }}" style="flex:none;height:38px;padding:0 12px;border-radius:19px;border:1.5px solid #EADDCB;background:transparent;color:#7A685B;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.skip }}</button>
+<button onClick="{{ d.take }}" style="flex:none;height:38px;padding:0 14px;border-radius:19px;border:none;background:#7E9C78;color:#fff;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.markTaken }}</button>
+</sc-if>
+<sc-if value="{{ d.done }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ d.undo }}" style="flex:none;height:34px;padding:0 12px;border-radius:17px;border:none;background:{{ d.badgeBg }};color:{{ d.badgeFg }};font:700 12px 'Noto Sans TC',sans-serif;cursor:pointer">{{ d.status }}</button>
+</sc-if>
+</div>
+</sc-for>
+<sc-if value="{{ meds.noToday }}" hint-placeholder-val="{{ false }}"><div style="padding:18px;font-size:14px;color:#7A685B;text-align:center">{{ T.noDoses }}</div></sc-if>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.allMeds }}</span><button onClick="{{ meds.toggleAdd }}" style="height:36px;padding:0 14px;border-radius:18px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addMed }}</button></div>
+<sc-if value="{{ meds.showAdd }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<input value="{{ meds.draft.name }}" onChange="{{ meds.setName }}" placeholder="{{ T.medName }}" style="height:46px;border-radius:14px;border:1.5px solid {{ meds.nameBorder }};background:#F7F0E6;padding:0 14px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<input value="{{ meds.draft.dose }}" onChange="{{ meds.setDose }}" placeholder="{{ T.dose }}" style="height:46px;border-radius:14px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 14px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<span style="font-size:13px;color:#7A685B">{{ T.times }}</span>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ meds.timeOpts }}" as="o" hint-placeholder-count="6"><button onClick="{{ o.select }}" style="height:38px;padding:0 12px;border-radius:19px;border:1.5px solid {{ o.border }};background:{{ o.bg }};color:{{ o.fg }};font:600 13px 'Fredoka',sans-serif;cursor:pointer">{{ o.t }}</button></sc-for></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:6px;border-radius:22px;background:#F7F0E6">
+<button onClick="{{ meds.durDown }}" style="width:40px;height:40px;border-radius:20px;border:none;background:#FFFCF7;font-size:18px;cursor:pointer">−</button>
+<span style="font-size:14px"><span style="font:600 22px 'Fredoka',sans-serif">{{ meds.durText }}</span></span>
+<button onClick="{{ meds.durUp }}" style="width:40px;height:40px;border-radius:20px;border:none;background:#FFFCF7;font-size:18px;cursor:pointer">＋</button>
+</div>
+<button onClick="{{ meds.save }}" style="min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.saveBtn }}</button>
+</div>
+</sc-if>
+<sc-for list="{{ meds.list }}" as="m" hint-placeholder-count="2">
+<div style="display:flex;flex-direction:column;gap:4px;padding:14px 16px;border-radius:20px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:15px;font-weight:700">{{ m.name }}</span><span style="font-size:12px;color:#7A685B">{{ m.pet }}</span></span>
+<span style="font-size:13px;color:#5E4E42">{{ m.sub }}</span>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ isReport }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;padding:4px;border-radius:22px;background:#EFE4D4">
+<sc-for list="{{ rep.ranges }}" as="r" hint-placeholder-count="3"><button onClick="{{ r.select }}" style="flex:1;height:38px;border-radius:19px;border:none;background:{{ r.bg }};color:#3B2F28;font:{{ r.fw }} 13px 'Noto Sans TC',sans-serif;cursor:pointer;box-shadow:{{ r.shadow }}">{{ r.name }}</button></sc-for>
+</div>
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.includeSec }}</span>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ rep.secs }}" as="s" hint-placeholder-count="6"><button onClick="{{ s.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ s.border }};background:{{ s.bg }};color:{{ s.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ s.name }}</button></sc-for></div>
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.preview }}</span>
+<div style="display:flex;flex-direction:column;gap:14px;padding:18px;border-radius:16px;background:#fff;border:1.5px solid #EADDCB;box-shadow:0 4px 14px rgba(59,47,40,.06)">
+<div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #3B2F28;padding-bottom:8px"><span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:18px">{{ rep.heading }}</span><span style="font:600 12px 'Fredoka',sans-serif;color:#C4602F">PetPal Diary</span></div>
+<sc-for list="{{ rep.blocks }}" as="b" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:4px">
+<span style="font-size:12px;font-weight:700;color:#C4602F">{{ b.title }}</span>
+<sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="2"><div style="display:flex;justify-content:space-between;gap:10px;font-size:12px;line-height:1.5;border-bottom:1px solid #F0E5D6;padding:3px 0"><span>{{ r.k }}</span><span style="color:#5E4E42;text-align:right">{{ r.v }}</span></div></sc-for>
+</div>
+</sc-for>
+<span style="font-size:11px;color:#9C8B7E">{{ rep.footer }}</span>
+</div>
+<div style="display:flex;gap:8px">
+<button onClick="{{ rep.download }}" style="flex:1;min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.downloadReport }}</button>
+<button onClick="{{ rep.copy }}" style="flex:1;min-height:50px;border-radius:25px;border:1.5px solid #3B2F28;background:transparent;color:#3B2F28;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.sendVet }}</button>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDocs }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ docs.cats }}" as="c" hint-placeholder-count="6"><button onClick="{{ c.select }}" style="height:34px;padding:0 12px;border-radius:17px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for></div>
+<button onClick="{{ docs.toggleAdd }}" style="min-height:46px;border-radius:23px;border:1.5px dashed #CDBBA6;background:transparent;color:#5E4E42;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.upload }}</button>
+<sc-if value="{{ docs.showAdd }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<label style="min-height:46px;border-radius:14px;border:1.5px dashed #CDBBA6;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;font-size:14px;color:#5E4E42;padding:0 12px;text-align:center">{{ docs.fileLabel }}<input type="file" accept="image/*,application/pdf" onChange="{{ docs.onFile }}" style="display:none"></label>
+<input value="{{ docs.draft.title }}" onChange="{{ docs.setTitle }}" placeholder="{{ T.docTitle }}" style="height:46px;border-radius:14px;border:1.5px solid {{ docs.titleBorder }};background:#F7F0E6;padding:0 14px;font:15px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ docs.draftCats }}" as="c" hint-placeholder-count="5"><button onClick="{{ c.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#7A685B">{{ T.docDate }}<input type="date" value="{{ docs.draft.date }}" onChange="{{ docs.setDate }}" style="height:42px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 10px;font:14px 'Fredoka',sans-serif;color:#3B2F28"></label>
+<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#7A685B">{{ T.docExpiry }}<input type="date" value="{{ docs.draft.exp }}" onChange="{{ docs.setExp }}" style="height:42px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 10px;font:14px 'Fredoka',sans-serif;color:#3B2F28"></label>
+</div>
+<button onClick="{{ docs.save }}" style="min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.saveBtn }}</button>
+</div>
+</sc-if>
+<sc-for list="{{ docs.list }}" as="d" hint-placeholder-count="3">
+<button onClick="{{ d.open }}" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:20px;background:#FFFCF7;border:1.5px solid #EADDCB;text-align:left;cursor:pointer;font-family:inherit;color:#3B2F28">
+<span style="width:52px;height:64px;flex:none;border-radius:10px;background-color:{{ d.thumbColor }};background-image:{{ d.thumb }};background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;font:700 11px 'Fredoka',sans-serif;color:#5E4E42">{{ d.thumbText }}</span>
+<span style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:15px;font-weight:700">{{ d.title }}</span><span style="font-size:12px;color:#7A685B">{{ d.sub }}</span></span>
+<sc-if value="{{ d.hasBadge }}" hint-placeholder-val="{{ false }}"><span style="flex:none;padding:4px 9px;border-radius:10px;background:{{ d.badgeBg }};color:{{ d.badgeFg }};font-size:11px;font-weight:700">{{ d.badge }}</span></sc-if>
+</button>
+</sc-for>
+<sc-if value="{{ docs.hasOpen }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ docs.close }}" style="position:fixed;inset:0;background:rgba(59,47,40,.55);z-index:80;display:flex;align-items:center;justify-content:center;padding:24px">
+<div style="width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:24px;background:#FFFCF7">
+<div style="height:300px;border-radius:14px;background-color:#F4EBDF;background-image:{{ docs.open.img }};background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;font-size:14px;color:#7A685B">{{ docs.open.placeholder }}</div>
+<span style="font-size:16px;font-weight:700">{{ docs.open.title }}</span>
+<span style="font-size:13px;color:#7A685B">{{ docs.open.sub }}</span>
+<button onClick="{{ docs.close }}" style="min-height:46px;border-radius:23px;border:none;background:#3B2F28;color:#F7F0E6;font:700 14px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.close }}</button>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{ isExpense }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:center;justify-content:space-between">
+<button onClick="{{ ex.prev }}" style="width:44px;height:44px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;font-size:16px;cursor:pointer;opacity:{{ ex.prevOp }}">‹</button>
+<span style="font:600 18px 'Fredoka',sans-serif">{{ ex.month }}</span>
+<button onClick="{{ ex.next }}" style="width:44px;height:44px;border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;font-size:16px;cursor:pointer;opacity:{{ ex.nextOp }}">›</button>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;padding:18px;border-radius:26px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.thisMonth }}</span>
+<span style="font:600 36px 'Fredoka',sans-serif;line-height:1.1">{{ ex.total }}</span>
+<div style="height:10px;border-radius:5px;background:#F0E5D6;overflow:hidden"><div style="height:100%;width:{{ ex.budgetW }};background:{{ ex.budgetColor }};border-radius:5px"></div></div>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#7A685B">
+<span style="color:{{ ex.budgetColor }};font-weight:700">{{ ex.budgetText }}</span>
+<span style="display:flex;align-items:center;gap:6px">{{ T.budget }}
+<button onClick="{{ ex.budDown }}" style="width:28px;height:28px;border-radius:14px;border:1.5px solid #EADDCB;background:transparent;cursor:pointer">−</button>
+<span style="font:600 13px 'Fredoka',sans-serif;color:#3B2F28">{{ ex.budget }}</span>
+<button onClick="{{ ex.budUp }}" style="width:28px;height:28px;border-radius:14px;border:1.5px solid #EADDCB;background:transparent;cursor:pointer">＋</button></span>
+</div>
+</div>
+<div style="display:flex;gap:16px;align-items:center;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<svg viewBox="0 0 140 140" style="width:128px;height:128px;flex:none;transform:rotate(-90deg)">
+<circle cx="70" cy="70" r="54" fill="none" stroke="#F0E5D6" stroke-width="20"></circle>
+<sc-for list="{{ ex.segs }}" as="s" hint-placeholder-count="4"><circle cx="70" cy="70" r="54" fill="none" stroke="{{ s.c }}" stroke-width="20" stroke-dasharray="{{ s.dash }}" stroke-dashoffset="{{ s.off }}"></circle></sc-for>
+</svg>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+<sc-for list="{{ ex.legend }}" as="l" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:6px;font-size:12px"><span style="width:10px;height:10px;border-radius:3px;background:{{ l.c }};flex:none"></span><span style="flex:1">{{ l.name }}</span><span style="font:600 12px 'Fredoka',sans-serif">{{ l.amt }}</span></div></sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:24px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<span style="font-size:13px;color:#7A685B;font-weight:500">{{ T.trend6 }}</span>
+<div style="display:flex;align-items:flex-end;gap:10px;height:120px">
+<sc-for list="{{ ex.trend }}" as="b" hint-placeholder-count="6"><div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><span style="font:500 10px 'Fredoka',sans-serif;color:#7A685B">{{ b.v }}</span><div style="width:100%;max-width:30px;height:{{ b.h }};border-radius:8px;background:{{ b.bg }}"></div><span style="font:500 11px 'Fredoka',sans-serif;color:#7A685B">{{ b.m }}</span></div></sc-for>
+</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:'Huninn','Noto Sans TC',sans-serif;font-size:19px">{{ T.records }}</span><button onClick="{{ ex.toggleAdd }}" style="height:36px;padding:0 14px;border-radius:18px;border:none;background:#C4602F;color:#fff;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.addExpense }}</button></div>
+<sc-if value="{{ ex.showAdd }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:22px;background:#FFFCF7;border:1.5px solid #EADDCB">
+<div style="display:flex;align-items:center;gap:8px;height:56px;padding:0 16px;border-radius:16px;background:#F7F0E6;border:1.5px solid {{ ex.amtBorder }}"><span style="font:600 16px 'Fredoka',sans-serif;color:#7A685B">NT$</span><input inputMode="numeric" value="{{ ex.draft.amt }}" onChange="{{ ex.setAmt }}" placeholder="0" style="flex:1;min-width:0;border:none;background:transparent;font:600 26px 'Fredoka',sans-serif;color:#3B2F28;outline:none"></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ ex.draftCats }}" as="c" hint-placeholder-count="6"><button onClick="{{ c.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ ex.draftPets }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.select }}" style="height:36px;padding:0 12px;border-radius:18px;border:1.5px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font:500 13px 'Noto Sans TC',sans-serif;cursor:pointer">{{ c.name }}</button></sc-for></div>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px">
+<input type="date" value="{{ ex.draft.date }}" onChange="{{ ex.setDate }}" style="height:44px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 10px;font:14px 'Fredoka',sans-serif;color:#3B2F28">
+<input value="{{ ex.draft.note }}" onChange="{{ ex.setNote }}" placeholder="{{ T.note }}" style="min-width:0;height:44px;border-radius:12px;border:1.5px solid #EADDCB;background:#F7F0E6;padding:0 12px;font:14px 'Noto Sans TC',sans-serif;color:#3B2F28;outline:none">
+</div>
+<button onClick="{{ ex.save }}" style="min-height:50px;border-radius:25px;border:none;background:#C4602F;color:#fff;font:700 15px 'Noto Sans TC',sans-serif;cursor:pointer">{{ T.saveBtn }}</button>
+</div>
+</sc-if>
+<div style="border-radius:22px;border:1.5px solid #EADDCB;background:#FFFCF7;overflow:hidden">
+<sc-for list="{{ ex.rows }}" as="r" hint-placeholder-count="4">
+<div style="display:flex;align-items:center;gap:10px;min-height:56px;padding:6px 14px;border-top:{{ r.sep }}">
+<span style="width:10px;height:10px;border-radius:3px;background:{{ r.c }};flex:none"></span>
+<span style="flex:1;display:flex;flex-direction:column;min-width:0"><span style="font-size:14px;font-weight:500">{{ r.title }}</span><span style="font-size:12px;color:#7A685B">{{ r.sub }}</span></span>
+<span style="font:600 15px 'Fredoka',sans-serif">{{ r.amt }}</span>
+</div>
+</sc-for>
+<sc-if value="{{ ex.noRows }}" hint-placeholder-val="{{ false }}"><div style="padding:18px;text-align:center;font-size:14px;color:#7A685B">{{ T.noData }}</div></sc-if>
+</div>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{ hasLocalToast }}" hint-placeholder-val="{{ false }}"><div style="position:fixed;top:60px;left:20px;right:20px;display:flex;justify-content:center;z-index:90;pointer-events:none"><div style="padding:12px 18px;border-radius:22px;background:#3B2F28;color:#F7F0E6;font-size:14px">{{ localToast }}</div></div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:402,&quot;height&quot;:874},&quot;tool&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ai&quot;,&quot;sos&quot;,&quot;toxic&quot;,&quot;lost&quot;,&quot;meds&quot;,&quot;report&quot;,&quot;docs&quot;,&quot;expense&quot;],&quot;default&quot;:&quot;ai&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;zh-TW&quot;,&quot;zh-CN&quot;,&quot;en&quot;,&quot;ja&quot;,&quot;es&quot;],&quot;default&quot;:&quot;zh-TW&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;petId&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dou&quot;,&quot;mochi&quot;,&quot;bai&quot;],&quot;default&quot;:&quot;dou&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;bg&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;options&quot;:[&quot;#F7F0E6&quot;,&quot;#E9EFE3&quot;,&quot;#F8E8E0&quot;,&quot;#E6EDF1&quot;],&quot;default&quot;:&quot;#F7F0E6&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;store&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;onBack&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;() =&gt; void&quot;},&quot;onToast&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(m: string) =&gt; void&quot;},&quot;onUpdate&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(fn) =&gt; void&quot;},&quot;onOpenTool&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(tool: string) =&gt; void&quot;}}">
+const IDX={"zh-TW":0,"zh-CN":1,en:2,ja:3,es:4},LNAME={"zh-TW":"Traditional Chinese (Taiwan)","zh-CN":"Simplified Chinese","en":"English","ja":"Japanese","es":"Spanish"};
+const TODAY="2026/10/24",KEYS="petpal.aikeys";
+function waitAll(ms){return new Promise((res,rej)=>{const ok=()=>window.PetPalData&&window.PetPalTools;if(ok())return res();const t0=Date.now();const iv=setInterval(()=>{if(ok()){clearInterval(iv);res();}else if(Date.now()-t0>ms){clearInterval(iv);rej();}},50);});}
+function compressImage(file,max){return new Promise(res=>{const r=new FileReader();r.onerror=()=>res(null);r.onload=()=>{const img=new Image();img.onerror=()=>res(null);img.onload=()=>{const k=Math.min(1,(max||900)/Math.max(img.width,img.height));const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext("2d").drawImage(img,0,0,c.width,c.height);res(c.toDataURL("image/jpeg",0.72));};img.src=r.result;};r.readAsDataURL(file);});}
+const chip=on=>({bg:on?"#3B2F28":"#FFFCF7",fg:on?"#F7F0E6":"#3B2F28",border:on?"#3B2F28":"#EADDCB"});
+const seg=on=>({bg:on?"#FFFCF7":"transparent",fw:on?700:500,shadow:on?"0 2px 6px rgba(59,47,40,.1)":"none"});
+const LV=[["#4E6B49","#E3EBDD"],["#7A5A12","#F8E7BF"],["#B4561F","#FBE0CF"],["#fff","#A0442A"]];
+const money=n=>"NT$"+Math.round(n).toLocaleString("en-US");
+const dIso=d=>(d||"").replace(/\//g,"-"),dSlash=d=>(d||"").replace(/-/g,"/");
+const addDays=(d,n)=>{const [y,m,dd]=d.split("/").map(Number);const t=new Date(y,m-1,dd+n);return t.getFullYear()+"/"+String(t.getMonth()+1).padStart(2,"0")+"/"+String(t.getDate()).padStart(2,"0");};
+const KIND={dog:"spDog",cat:"spCat",rabbit:"spRabbit"};
+
+class Component extends DCLogic {
+  state={ready:!!(window.PetPalData&&window.PetPalTools),own:null,pet:this.props.petId||"dou",lt:null,
+    aiInput:"",aiBusy:false,keyDraft:null,handoff:null,faOpen:"fa_poison",txQ:"",txSp:null,txCat:"all",
+    lostDraft:{},lostTried:false,poster:null,
+    medAdd:false,medDraft:{name:"",dose:"",times:["08:00"],days:7},medTried:false,
+    repRange:"r6m",repSecs:{basicInfo:true,remindersTitle:true,weight:true,allMeds:true,healthRecords:true,secSymptoms:true},
+    docCat:"all",docAdd:false,docDraft:{title:"",cat:"dcVax",date:"2026-10-24",exp:"",file:null,fileName:""},docTried:false,docOpen:null,
+    month:"2026/10",exPet:"all",exAdd:false,exDraft:{amt:"",cat:"ecFood",pet:"all",date:"2026-10-24",note:""},exTried:false};
+  componentDidMount(){waitAll(8000).then(()=>{const D=window.PetPalData;let own=null;if(!this.props.store){try{const s=JSON.parse(localStorage.getItem("petpal.store.v2")||"null");if(D.isValidStore(s))own=s;}catch(e){}if(!own)own=D.seed();}this.setState({ready:true,own});}).catch(()=>{});}
+  componentWillUnmount(){clearTimeout(this.tt);clearTimeout(this.st);}
+  componentDidUpdate(pp){if(pp.petId!==this.props.petId&&this.props.petId)this.setState({pet:this.props.petId});}
+  get store(){return this.props.store||this.state.own;}
+  tools(){return (this.store&&this.store.tools)||window.PetPalTools.seedTools();}
+  upd(fn){const TL=window.PetPalTools,wrap=st=>{if(!st.tools)st.tools=TL.seedTools();fn(st,st.tools);};
+    if(this.props.onUpdate)this.props.onUpdate(wrap);else this.setState(s=>{const st=JSON.parse(JSON.stringify(s.own));wrap(st);return{own:st};});}
+  toast(m){if(this.props.onToast)this.props.onToast(m);else{this.setState({lt:m});clearTimeout(this.tt);this.tt=setTimeout(()=>this.setState({lt:null}),2200);}}
+  lang(){return this.props.lang||"zh-TW";}
+  tr=(k,v)=>{const TL=window.PetPalTools;if(TL.S[k]){const a=TL.S[k];let s=a[IDX[this.lang()]]??a[0];if(v)for(const x in v)s=s.split("{"+x+"}").join(v[x]);return s;}return window.PetPalData.tr(this.lang(),k,v);};
+  pick(a){return Array.isArray(a)?(a[IDX[this.lang()]]??a[0]):a;}
+  val=x=>window.PetPalData.val(this.lang(),x);
+  copyText(t){try{const ta=document.createElement("textarea");ta.value=t;ta.style.cssText="position:fixed;opacity:0;top:0;left:0";document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();}catch(e){}try{navigator.clipboard&&navigator.clipboard.writeText(t).catch(()=>{});}catch(e){}}
+  download(name,href){try{const a=document.createElement("a");a.href=href;a.download=name;document.body.appendChild(a);a.click();a.remove();}catch(e){}}
+  keys(){try{return JSON.parse(localStorage.getItem(KEYS)||"{}")||{};}catch(e){return{};}}
+  petObj(){const D=window.PetPalData;return D.PETS.find(p=>p.id===this.state.pet)||D.PETS[0];}
+  latestWeight(pid){const g=this.store.pets[pid].entries.filter(e=>e.form==="growth").sort((a,b)=>a.at<b.at?-1:1);return g.length?g[g.length-1].v.weight:"–";}
+  profileText(pet){const D=window.PetPalData,tr=this.tr,L=this.lang(),P=this.store.pets[pet.id];
+    const recent=P.entries.filter(e=>e.form==="health").sort((a,b)=>a.at<b.at?1:-1).slice(0,3).map(e=>e.at.slice(0,10)+" "+D.FORMS.health.summary(e.v,k=>D.tr(L,k),x=>D.val(L,x)));
+    const meds=this.tools().meds.filter(m=>m.pet===pet.id).map(m=>this.val(m.name)+" "+this.val(m.dose));
+    return [pet.name,tr(KIND[pet.kind]),tr(pet.breed),tr(pet.age),tr(pet.sex),this.latestWeight(pet.id)+" kg",tr("allergy")+": "+tr(pet.allergy),"Recent: "+(recent.join("; ")||"-"),"Meds: "+(meds.join(", ")||"-")].join(" | ");}
+  sysPrompt(pet){return "You are a veterinary triage assistant inside the PetPal Diary app, helping a first-time pet owner. Reply in "+LNAME[this.lang()]+". Start your reply with exactly one line: TRIAGE:EMERGENCY, TRIAGE:SOON or TRIAGE:HOME. Then give at most 4 short bullet points: likely causes, what to check at home, and when to see a vet. Keep it under 110 words. This is not a diagnosis. Pet profile: "+this.profileText(pet);}
+  aiSend(text){
+    const t=(text||this.state.aiInput).trim();if(!t||this.state.aiBusy)return;
+    const TL=window.PetPalTools,pet=this.petObj(),tl=this.tools(),pv=TL.PROVIDERS.find(p=>p.k===tl.ai.provider)||TL.PROVIDERS[0];
+    const mode=(tl.ai.mode||{})[pv.k]||"app",key=this.keys()[pv.k],sys=this.sysPrompt(pet);
+    if(pv.k!=="builtin"&&!(pv.api&&mode==="key"&&key)){
+      const prompt=sys+"\n\nOwner's question: "+t;this.copyText(prompt);
+      this.setState({handoff:{name:pv.n,prompt,link:pv.app.replace("{q}",encodeURIComponent(prompt))},aiInput:""});this.toast(this.tr("promptCopied"));return;}
+    const hist=((tl.ai.chats||{})[pet.id]||[]).slice(-8);
+    this.upd((st,T)=>{T.ai.chats=T.ai.chats||{};(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"user",text:t});});
+    this.setState({aiBusy:true,aiInput:"",handoff:null});
+    const all=[...hist,{role:"user",text:t}];
+    let p;
+    if(pv.k==="builtin"){
+      const conv=all.map(m=>(m.role==="user"?"Owner: ":"Assistant: ")+m.text).join("\n");
+      p=window.claude&&window.claude.complete?window.claude.complete(sys+"\n\nConversation:\n"+conv+"\nAssistant:"):Promise.reject(new Error("built-in AI unavailable"));
+    }else if(pv.k==="chatgpt"){
+      p=fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},body:JSON.stringify({model:(tl.ai.model||{}).chatgpt||"gpt-4o-mini",messages:[{role:"system",content:sys},...all.map(m=>({role:m.role==="user"?"user":"assistant",content:m.text}))]})})
+        .then(r=>r.json()).then(j=>{if(j.error)throw new Error(j.error.message);return j.choices[0].message.content;});
+    }else{
+      p=fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent((tl.ai.model||{}).gemini||"gemini-2.0-flash")+":generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:all.map(m=>({role:m.role==="user"?"user":"model",parts:[{text:m.text}]}))})})
+        .then(r=>r.json()).then(j=>{if(j.error)throw new Error(j.error.message);return j.candidates[0].content.parts.map(x=>x.text).join("");});
+    }
+    Promise.resolve(p).then(out=>{const s=String(out||"");const m=s.match(/TRIAGE:(EMERGENCY|SOON|HOME)/);const body=s.replace(/TRIAGE:(EMERGENCY|SOON|HOME)\s*/,"").trim();
+      this.upd((st,T)=>{(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"ai",text:body,tri:m?m[1]:null});});this.setState({aiBusy:false});})
+    .catch(e=>{this.upd((st,T)=>{(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"ai",text:this.tr("aiError",{e:(e&&e.message)||"error"}),tri:null,err:true});});this.setState({aiBusy:false});});
+  }
+  makePoster(info,pet){return new Promise(res=>{const c=document.createElement("canvas");c.width=1080;c.height=1528;const g=c.getContext("2d"),tr=this.tr;
+    const draw=img=>{g.fillStyle="#FFFCF7";g.fillRect(0,0,1080,1528);g.fillStyle="#A0442A";g.fillRect(0,0,1080,220);
+      g.fillStyle="#fff";g.textAlign="center";g.font="700 110px Huninn, 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans JP', sans-serif";g.fillText(tr("posterLost"),540,150);
+      g.save();g.beginPath();if(g.roundRect)g.roundRect(90,270,900,720,40);else g.rect(90,270,900,720);g.clip();g.fillStyle=pet.color;g.fillRect(90,270,900,720);
+      if(img){const k=Math.max(900/img.width,720/img.height),w=img.width*k,h=img.height*k;g.drawImage(img,90+(900-w)/2,270+(720-h)/2,w,h);}else{g.fillStyle="#3B2F28";g.font="300px Huninn, sans-serif";g.textBaseline="middle";g.fillText(pet.name[0],540,640);g.textBaseline="alphabetic";}
+      g.restore();g.fillStyle="#3B2F28";g.font="700 96px Huninn, 'Noto Sans TC', sans-serif";g.fillText(pet.name,540,1110);
+      g.font="500 38px 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans JP', sans-serif";g.fillStyle="#5E4E42";
+      g.fillText(tr(pet.breed)+" · "+tr(pet.sex)+" · "+tr(pet.age),540,1175);
+      g.textAlign="left";g.font="500 36px 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans JP', sans-serif";g.fillStyle="#3B2F28";
+      [[tr("lastSeen"),info.place+(info.time?" · "+info.time:"")],[tr("features"),info.features||"—"],[tr("reward"),info.reward?money(info.reward):"—"]].forEach(([k,v],i)=>{g.fillStyle="#A0442A";g.fillText(k,110,1260+i*58);g.fillStyle="#3B2F28";g.fillText(String(v).slice(0,26),360,1260+i*58);});
+      g.fillStyle="#A0442A";g.fillRect(0,1430,1080,98);g.fillStyle="#fff";g.textAlign="center";g.font="700 50px Fredoka, 'Noto Sans TC', sans-serif";g.fillText(tr("contact")+"  "+(info.phone||""),540,1495);
+      try{res(c.toDataURL("image/png"));}catch(e){res(null);}};
+    if(info.photo){const im=new Image();im.onload=()=>draw(im);im.onerror=()=>draw(null);im.src=info.photo;}else draw(null);});}
+  renderVals(){
+    if(!this.state.ready||!this.store)return{ready:false,notReady:true,bg:this.props.bg||"#F7F0E6"};
+    const s=this.state,D=window.PetPalData,TL=window.PetPalTools,tr=this.tr,val=this.val,tl=this.tools(),tool=this.props.tool||"ai";
+    const T={};Object.keys(D.U).forEach(k=>T[k]=tr(k));Object.keys(TL.S).forEach(k=>T[k]=tr(k));
+    const pet=this.petObj(),P=this.store.pets[pet.id];
+    const base={ready:true,notReady:false,T,bg:this.props.bg||"#F7F0E6",title:tr("t_"+tool),subtitle:tr("d_"+tool),
+      back:()=>this.props.onBack&&this.props.onBack(),goSos:()=>this.props.onOpenTool&&this.props.onOpenTool("sos"),
+      showPets:["ai","lost","meds","report","docs","sos"].includes(tool),
+      petChips:D.PETS.map(p=>({name:p.name,color:p.color,initial:p.name[0],...chip(p.id===s.pet),select:()=>this.setState({pet:p.id,handoff:null,poster:null,lostTried:false,lostDraft:{}})})),
+      isAi:tool==="ai",isSos:tool==="sos",isToxic:tool==="toxic",isLost:tool==="lost",isMeds:tool==="meds",isReport:tool==="report",isDocs:tool==="docs",isExpense:tool==="expense",
+      hasLocalToast:!!s.lt,localToast:s.lt||""};
+    if(tool==="ai"){
+      const pv=TL.PROVIDERS.find(p=>p.k===tl.ai.provider)||TL.PROVIDERS[0],mode=(tl.ai.mode||{})[pv.k]||"app",keys=this.keys();
+      const kd=s.keyDraft!=null?s.keyDraft:(keys[pv.k]||"");
+      const TRI={EMERGENCY:["triEmergency","#fff","#A0442A"],SOON:["triSoon","#7A5A12","#F8E7BF"],HOME:["triHome","#4E6B49","#E3EBDD"]};
+      base.ai={providers:TL.PROVIDERS.map(p=>({c:p.c,g:p.g,name:p.k==="builtin"?tr(p.n):p.n,bg:p.k===pv.k?"#FFFCF7":"transparent",border:p.k===pv.k?"#3B2F28":"#EADDCB",
+          select:()=>{this.upd((st,X)=>{X.ai.provider=p.k;});this.setState({handoff:null,keyDraft:null});}})),
+        hasApi:pv.api,keyMode:pv.api&&mode==="key",
+        modes:[["app","modeApp"],["key","modeKey"]].map(([k,n])=>({name:tr(n),...seg(mode===k),select:()=>this.upd((st,X)=>{X.ai.mode=X.ai.mode||{};X.ai.mode[pv.k]=k;})})),
+        keyDraft:kd,setKey:e=>this.setState({keyDraft:e.target.value}),model:(tl.ai.model||{})[pv.k]||"",setModel:e=>{const v=e.target.value;this.upd((st,X)=>{X.ai.model=X.ai.model||{};X.ai.model[pv.k]=v;});},
+        saveKey:()=>{const k=this.keys();k[pv.k]=(kd||"").trim();try{localStorage.setItem(KEYS,JSON.stringify(k));}catch(e){}this.setState({keyDraft:null});this.toast(tr(k[pv.k]?"connected":"notConnected"));},
+        status:keys[pv.k]?tr("connected"):tr("notConnected"),statusColor:keys[pv.k]?"#4E6B49":"#A0442A",
+        intro:tr("aiIntro",{name:pet.name}),
+        msgs:((tl.ai.chats||{})[pet.id]||[]).map(m=>{const t=m.tri&&TRI[m.tri];const u=m.role==="user";
+          return{text:m.text,align:u?"flex-end":"flex-start",radius:u?"18px 18px 6px 18px":"18px 18px 18px 6px",bg:u?"#C4602F":(m.err?"#F6DCCF":"#F4EBDF"),fg:u?"#fff":"#3B2F28",
+            hasTri:!!t,tri:t?tr(t[0]):"",triFg:t?t[1]:"",triBg:t?t[2]:"",urgent:m.tri==="EMERGENCY"};}),
+        busy:s.aiBusy,input:s.aiInput,setInput:e=>this.setState({aiInput:e.target.value}),send:()=>this.aiSend(),sendOp:s.aiBusy?0.5:1,
+        quick:["vomit","diarrhea","noAppetite","itch","limp","ateSth","lethargy"].map(k=>({name:tr(k),add:()=>this.setState(st=>({aiInput:(st.aiInput?st.aiInput+"、":"")+tr(k)}))})),
+        clear:()=>{this.upd((st,X)=>{if(X.ai.chats)X.ai.chats[pet.id]=[];});this.setState({handoff:null});},
+        hasHandoff:!!s.handoff,handoffTitle:s.handoff?tr("handoffTitle",{x:s.handoff.name}):"",handoffNote:s.handoff?tr("handoffNote",{name:pet.name,x:s.handoff.name}):"",
+        handoffLink:s.handoff?s.handoff.link:"",openLabel:s.handoff?tr("openApp",{x:s.handoff.name}):"",copyPrompt:()=>{if(s.handoff){this.copyText(s.handoff.prompt);this.toast(tr("promptCopied"));}}};
+    }
+    if(tool==="sos"){
+      const meds=tl.meds.filter(m=>m.pet===pet.id&&(!m.end||m.end>=TODAY)).map(m=>val(m.name)).join(tr("listSep"))||tr("none");
+      base.sos={er:tr("plAnxin"),nav:()=>this.toast(tr("navTo",{x:tr("plAnxin")})),
+        info:[[tr("profile"),pet.name+" · "+tr(pet.breed)+" · "+tr(pet.age)+" · "+tr(pet.sex)],[tr("weight"),this.latestWeight(pet.id)+" kg"],[tr("allergy"),tr(pet.allergy)],[tr("medsNow"),meds],[tr("chip"),pet.chip]].map(([k,v])=>({k,v})),
+        aid:TL.FIRST_AID.map(k=>{const open=s.faOpen===k;return{name:tr(k),open,icon:open?"−":"＋",toggle:()=>this.setState({faOpen:open?null:k}),steps:[0,1,2].map(i=>({n:i+1,text:tr(k+i)}))};}),
+        links:[["toxic","#F8E7BF"],["ai","#DDE6EE"],["lost","#F6DCCF"]].map(([k,c])=>({name:tr("t_"+k),c,open:()=>this.props.onOpenTool&&this.props.onOpenTool(k)}))};
+    }
+    if(tool==="toxic"){
+      const SP=["spDog","spCat","spRabbit","spBird"],def={dog:0,cat:1,rabbit:2}[pet.kind]??0,sp=s.txSp??def,q=s.txQ.trim().toLowerCase();
+      const items=TL.TOXIC.filter(it=>(s.txCat==="all"||it.cat===s.txCat)&&(!q||it.n.join(" ").toLowerCase().includes(q))).sort((a,b)=>b.lv[sp]-a.lv[sp]);
+      base.tx={q:s.txQ,setQ:e=>this.setState({txQ:e.target.value}),
+        species:SP.map((k,i)=>({name:tr(k),...seg(i===sp),select:()=>this.setState({txSp:i})})),
+        cats:["all","cFood","cPlant","cHome","cDrug"].map(c=>({name:tr(c),...chip(s.txCat===c),select:()=>this.setState({txCat:c})})),
+        items:items.map(it=>({name:this.pick(it.n),note:this.pick(it.note),level:tr("lv"+it.lv[sp]),fg:LV[it.lv[sp]][0],bg:LV[it.lv[sp]][1],
+          dots:SP.map((k,i)=>({sp:tr(k),fg:LV[it.lv[i]][0],bg:LV[it.lv[i]][1]}))}))};
+    }
+    if(tool==="lost"){
+      const L=(tl.lost||{})[pet.id]||{},active=!!L.active,primary=P.entries.find(e=>e.form==="contact"&&e.v.primary);
+      const dr={place:"",time:"",features:"",reward:"",phone:"",...s.lostDraft};
+      const F=[["place","lastSeen","lastSeenPh","text",true],["time","lastTime","","text",false],["features","features","featuresPh","text",false],["reward","reward","","numeric",false],["phone","contact",primary?primary.v.phone:"","tel",true]];
+      const phone=dr.phone||(primary?primary.v.phone:"");
+      base.lost={idle:!active,active,safeText:tr("lostOff",{name:pet.name}),place:L.place||"",petColor:pet.color,
+        photoBg:dr.photo?"url(\""+dr.photo+"\")":"none",photoInitial:dr.photo?"":pet.name[0],
+        onPhoto:e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(f)compressImage(f,900).then(u=>u&&this.setState(st=>({lostDraft:{...st.lostDraft,photo:u}})));},
+        fields:F.map(([k,l,ph,mode,req])=>({label:tr(l),value:dr[k]||"",ph:ph?(ph.indexOf("-")>0?ph:tr(ph)):"",mode,border:s.lostTried&&req&&!(k==="phone"?phone:dr[k])?"#A0442A":"#EADDCB",onInput:e=>{const v=e.target.value;this.setState(st=>({lostDraft:{...st.lostDraft,[k]:v}}));}})),
+        report:()=>{if(!dr.place.trim()||!phone)return this.setState({lostTried:true});const info={...dr,phone,time:dr.time||"",active:true,alerted:0,sightings:[]};
+          this.upd((st,X)=>{X.lost=X.lost||{};X.lost[pet.id]=info;});this.makePoster(info,pet).then(p=>this.setState({poster:p}));},
+        hasPoster:active&&!!s.poster,poster:s.poster||"",posterBg:s.poster?"url(\""+s.poster+"\")":"none",
+        alertLabel:L.alerted?tr("alerted",{n:L.alerted}):tr("alertNearby"),alertBg:L.alerted?"#3B2F28":"transparent",alertFg:L.alerted?"#F7F0E6":"#3B2F28",
+        alert:()=>{if(L.alerted)return;this.upd((st,X)=>{X.lost[pet.id].alerted=46;});this.toast(tr("alerted",{n:46}));clearTimeout(this.st);
+          this.st=setTimeout(()=>this.upd((st,X)=>{const l=X.lost[pet.id];if(l&&l.active)l.sightings.unshift({time:new Date().toTimeString().slice(0,5),p:tr("plDaily")});}),3500);},
+        hasSightings:active&&(L.sightings||[]).length>0,sightings:(L.sightings||[]).map(x=>({time:x.time,text:tr("sight1",{p:x.p,name:pet.name})})),
+        foundLabel:tr("markFound",{name:pet.name}),found:()=>{this.upd((st,X)=>{X.lost[pet.id]={active:false};});this.setState({poster:null,lostDraft:{}});this.toast(tr("foundToast"));}};
+      if(active&&!s.poster&&!this.posterBusy){this.posterBusy=true;this.makePoster(L,pet).then(p=>{this.posterBusy=false;this.setState({poster:p});});}
+    }
+    if(tool==="meds"){
+      const mine=tl.meds.filter(m=>m.pet===pet.id),activeOn=(m,d)=>m.start<=d&&(!m.end||m.end>=d);
+      const days=[-6,-5,-4,-3,-2,-1,0].map(n=>addDays(TODAY,n));let sch=0,tk=0;
+      days.forEach(d=>mine.filter(m=>activeOn(m,d)).forEach(m=>m.times.forEach(t=>{const st=tl.doses[d+"|"+m.id+"|"+t];if(d<TODAY||st){sch++;if(st==="taken")tk++;}})));
+      const pct=sch?Math.round(tk/sch*100):100;
+      const today=[];mine.filter(m=>activeOn(m,TODAY)).forEach(m=>m.times.forEach(t=>today.push({m,t})));today.sort((a,b)=>a.t<b.t?-1:1);
+      const setDose=(m,t,v)=>this.upd((st,X)=>{const k=TODAY+"|"+m.id+"|"+t;if(v)X.doses[k]=v;else delete X.doses[k];});
+      const dr=s.medDraft;
+      base.meds={pct:pct+"%",pctText:tk+" / "+sch,ringOff:(213.6*(1-pct/100)).toFixed(1),
+        today:today.map((x,i)=>{const st=tl.doses[TODAY+"|"+x.m.id+"|"+x.t];return{time:x.t,name:val(x.m.name),sub:val(x.m.dose),sep:i?"1.5px solid #F0E5D6":"none",pending:!st,done:!!st,
+          status:st==="taken"?tr("taken"):tr("skipped"),badgeBg:st==="taken"?"#E3EBDD":"#F4EBDF",badgeFg:st==="taken"?"#4E6B49":"#7A685B",deco:st==="skip"?"line-through":"none",color:st?"#7A685B":"#3B2F28",
+          take:()=>setDose(x.m,x.t,"taken"),skip:()=>setDose(x.m,x.t,"skip"),undo:()=>setDose(x.m,x.t,null)};}),noToday:today.length===0,
+        list:mine.map(m=>({name:val(m.name),pet:pet.name,sub:val(m.dose)+" · "+m.times.join(" / ")+" · "+(m.end?tr("untilDate",{d:m.end.slice(5)}):tr("ongoing"))})),
+        showAdd:s.medAdd,toggleAdd:()=>this.setState({medAdd:!s.medAdd,medTried:false}),draft:dr,nameBorder:s.medTried&&!dr.name.trim()?"#A0442A":"#EADDCB",
+        setName:e=>{const v=e.target.value;this.setState(st=>({medDraft:{...st.medDraft,name:v}}));},setDose:e=>{const v=e.target.value;this.setState(st=>({medDraft:{...st.medDraft,dose:v}}));},
+        timeOpts:["08:00","09:00","12:00","18:00","20:00","21:00"].map(t=>{const on=dr.times.includes(t);return{t,...chip(on),select:()=>this.setState(st=>({medDraft:{...st.medDraft,times:on?st.medDraft.times.filter(x=>x!==t):[...st.medDraft.times,t].sort()}}))};}),
+        durText:dr.days?dr.days+" "+tr("duration"):tr("ongoing"),durUp:()=>this.setState(st=>({medDraft:{...st.medDraft,days:st.medDraft.days+1}})),durDown:()=>this.setState(st=>({medDraft:{...st.medDraft,days:Math.max(0,st.medDraft.days-1)}})),
+        save:()=>{if(!dr.name.trim()||!dr.times.length)return this.setState({medTried:true});
+          this.upd((st,X)=>X.meds.push({id:"m"+Date.now(),pet:pet.id,name:dr.name.trim(),dose:dr.dose.trim(),times:dr.times,start:TODAY,end:dr.days?addDays(TODAY,dr.days-1):null}));
+          this.setState({medAdd:false,medDraft:{name:"",dose:"",times:["08:00"],days:7}});this.toast(tr("medSaved"));}};
+    }
+    if(tool==="report"){
+      const from={r3m:"2026/07/24",r6m:"2026/04/24",r1y:"2025/10/24"}[s.repRange],inR=at=>at.slice(0,10)>=from;
+      const L=this.lang(),hs=k=>D.FORMS.health.summary;
+      const blocks=[];const on=k=>s.repSecs[k];
+      if(on("basicInfo"))blocks.push({title:tr("basicInfo"),rows:[[tr("profile"),pet.name+" · "+tr(pet.breed)],[tr("birthday"),pet.birthday],[tr("chip"),pet.chip],[tr("allergy"),tr(pet.allergy)],[tr("weight"),this.latestWeight(pet.id)+" kg"]]});
+      if(on("remindersTitle"))blocks.push({title:tr("remindersTitle"),rows:P.entries.filter(e=>e.form==="reminder").sort((a,b)=>a.v.date<b.v.date?-1:1).map(e=>[val(e.v.title),e.v.date+" · "+(e.v.date<=TODAY?tr("completed"):tr("inDays",{n:D.daysBetween(TODAY,e.v.date)}))])});
+      if(on("weight"))blocks.push({title:tr("weight"),rows:P.entries.filter(e=>e.form==="growth"&&inR(e.at)).sort((a,b)=>a.at<b.at?-1:1).map(e=>[e.at.slice(0,10),e.v.weight+" kg · "+e.v.length+" cm"])});
+      if(on("allMeds"))blocks.push({title:tr("allMeds"),rows:tl.meds.filter(m=>m.pet===pet.id).map(m=>[val(m.name),val(m.dose)+" · "+m.times.join("/")])});
+      const H=P.entries.filter(e=>e.form==="health"&&inR(e.at)).sort((a,b)=>a.at<b.at?1:-1),sum=e=>D.FORMS.health.summary(e.v,tr,val);
+      if(on("healthRecords"))blocks.push({title:tr("healthRecords"),rows:H.filter(e=>e.v.hType!=="symptom").map(e=>[e.at.slice(0,10),sum(e)+(val(e.v.note)?" · "+val(e.v.note):"")])});
+      if(on("secSymptoms"))blocks.push({title:tr("secSymptoms"),rows:H.filter(e=>e.v.hType==="symptom").map(e=>[e.at.slice(0,10),sum(e)])});
+      blocks.forEach(b=>{b.rows=b.rows.length?b.rows.map(([k,v])=>({k,v})):[{k:tr("noData"),v:""}];});
+      const heading=pet.name+" · "+tr("t_report"),footer=tr("generatedOn")+" "+TODAY+" · "+tr("reportRange")+" "+tr(s.repRange);
+      const esc=x=>String(x).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+      base.rep={ranges:["r3m","r6m","r1y"].map(k=>({name:tr(k),...seg(s.repRange===k),select:()=>this.setState({repRange:k})})),
+        secs:Object.keys(s.repSecs).map(k=>({name:tr(k),...chip(s.repSecs[k]),select:()=>this.setState(st=>({repSecs:{...st.repSecs,[k]:!st.repSecs[k]}}))})),
+        heading,blocks,footer,
+        download:()=>{const html="<!doctype html><meta charset='utf-8'><title>"+esc(heading)+"</title><style>body{font-family:system-ui,'Noto Sans TC',sans-serif;max-width:720px;margin:40px auto;color:#3B2F28}h1{border-bottom:2px solid #3B2F28;padding-bottom:8px}h2{color:#C4602F;font-size:15px;margin-top:24px}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:13px}</style><h1>"+esc(heading)+"</h1>"+blocks.map(b=>"<h2>"+esc(b.title)+"</h2><table>"+b.rows.map(r=>"<tr><td>"+esc(r.k)+"</td><td>"+esc(r.v)+"</td></tr>").join("")+"</table>").join("")+"<p style='color:#999;font-size:12px'>"+esc(footer)+" · PetPal Diary</p>";
+          try{this.download(pet.name+"-health-report.html",URL.createObjectURL(new Blob([html],{type:"text/html"})));}catch(e){}this.toast(tr("reportReady"));},
+        copy:()=>{this.copyText(heading+"\n"+blocks.map(b=>"\n["+b.title+"]\n"+b.rows.map(r=>r.k+"  "+r.v).join("\n")).join("\n")+"\n\n"+footer);this.toast(tr("textCopied"));}};
+    }
+    if(tool==="docs"){
+      const C=["dcVax","dcLab","dcId","dcIns","dcRcpt"],dr=s.docDraft;
+      const list=tl.docs.filter(d=>d.pet===pet.id&&(s.docCat==="all"||d.cat===s.docCat)).sort((a,b)=>a.date<b.date?1:-1);
+      const badge=d=>{if(!d.exp)return null;const n=D.daysBetween(TODAY,d.exp);return n<0?[tr("expired"),"#A0442A","#fff"]:n<=30?[tr("expiringSoon"),"#F8E7BF","#7A5A12"]:null;};
+      const O=s.docOpen&&tl.docs.find(d=>d.id===s.docOpen);
+      base.docs={cats:["all",...C].map(c=>({name:tr(c),...chip(s.docCat===c),select:()=>this.setState({docCat:c})})),
+        showAdd:s.docAdd,toggleAdd:()=>this.setState({docAdd:!s.docAdd,docTried:false}),draft:dr,titleBorder:s.docTried&&!dr.title.trim()?"#A0442A":"#EADDCB",
+        fileLabel:dr.fileName||tr("chooseFile"),
+        onFile:e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const nm=f.name;
+          if((f.type||"").indexOf("image/")===0)compressImage(f,1200).then(u=>this.setState(st=>({docDraft:{...st.docDraft,file:u,fileName:nm,title:st.docDraft.title||nm.replace(/\.[^.]+$/,"")}})));
+          else this.setState(st=>({docDraft:{...st.docDraft,file:null,fileName:nm,title:st.docDraft.title||nm.replace(/\.[^.]+$/,"")}}));},
+        setTitle:e=>{const v=e.target.value;this.setState(st=>({docDraft:{...st.docDraft,title:v}}));},setDate:e=>{const v=e.target.value;this.setState(st=>({docDraft:{...st.docDraft,date:v}}));},setExp:e=>{const v=e.target.value;this.setState(st=>({docDraft:{...st.docDraft,exp:v}}));},
+        draftCats:C.map(c=>({name:tr(c),...chip(dr.cat===c),select:()=>this.setState(st=>({docDraft:{...st.docDraft,cat:c}}))})),
+        save:()=>{if(!dr.title.trim())return this.setState({docTried:true});
+          this.upd((st,X)=>X.docs.push({id:"d"+Date.now(),pet:pet.id,cat:dr.cat,title:dr.title.trim(),date:dSlash(dr.date),exp:dr.exp?dSlash(dr.exp):null,file:dr.file,fileName:dr.fileName}));
+          this.setState({docAdd:false,docDraft:{title:"",cat:"dcVax",date:"2026-10-24",exp:"",file:null,fileName:""}});this.toast(tr("docSaved"));},
+        list:list.map(d=>{const b=badge(d);return{title:val(d.title),sub:tr(d.cat)+" · "+d.date+(d.exp?" · "+tr("expires",{d:d.exp}):""),hasBadge:!!b,badge:b?b[0]:"",badgeBg:b?b[1]:"",badgeFg:b?b[2]:"",
+          thumb:d.file?"url(\""+d.file+"\")":"none",thumbColor:d.file?"#F4EBDF":"#EFE4D4",thumbText:d.file?"":(d.fileName&&/pdf$/i.test(d.fileName)?"PDF":"DOC"),open:()=>this.setState({docOpen:d.id})};}),
+        hasOpen:!!O,open:O?{img:O.file?"url(\""+O.file+"\")":"none",placeholder:O.file?"":(O.fileName||tr("noFile")),title:val(O.title),sub:tr(O.cat)+" · "+O.date+(O.exp?" · "+tr("expires",{d:O.exp}):"")}:{},
+        close:()=>this.setState({docOpen:null})};
+    }
+    if(tool==="expense"){
+      const months=["2026/05","2026/06","2026/07","2026/08","2026/09","2026/10"],mi=months.indexOf(s.month);
+      const rowsAll=tl.expenses.filter(x=>s.exPet==="all"||x.pet===s.exPet),inM=rowsAll.filter(x=>x.date.startsWith(s.month)).sort((a,b)=>a.date<b.date?1:-1);
+      const total=inM.reduce((a,x)=>a+x.amt,0),bud=tl.budget||5000,C=339.29;let cum=0;
+      const byC=TL.EXP_CATS.map(([k,c])=>({k,c,amt:inM.filter(x=>x.cat===k).reduce((a,x)=>a+x.amt,0)})).filter(x=>x.amt>0);
+      const tots=months.map(m=>rowsAll.filter(x=>x.date.startsWith(m)).reduce((a,x)=>a+x.amt,0)),tmax=Math.max(1,...tots);
+      const dr=s.exDraft,petName=id=>id==="all"?tr("allPets"):(D.PETS.find(p=>p.id===id)||{name:id}).name,cc=k=>(TL.EXP_CATS.find(x=>x[0]===k)||[0,"#B9A894"])[1];
+      base.showPets=false;
+      base.ex={month:s.month,prev:()=>mi>0&&this.setState({month:months[mi-1]}),next:()=>mi<months.length-1&&this.setState({month:months[mi+1]}),prevOp:mi>0?1:0.35,nextOp:mi<months.length-1?1:0.35,
+        total:money(total),budget:money(bud),budgetW:Math.min(100,Math.round(total/bud*100))+"%",budgetColor:total>bud?"#A0442A":"#7E9C78",budgetText:total>bud?tr("overBudget",{x:money(total-bud)}):tr("budgetLeft",{x:money(bud-total)}),
+        budUp:()=>this.upd((st,X)=>{X.budget=(X.budget||5000)+500;}),budDown:()=>this.upd((st,X)=>{X.budget=Math.max(500,(X.budget||5000)-500);}),
+        segs:byC.map(x=>{const len=total?x.amt/total*C:0,o={c:x.c,dash:len.toFixed(2)+" "+(C-len).toFixed(2),off:(-cum).toFixed(2)};cum+=len;return o;}),
+        legend:byC.map(x=>({c:x.c,name:tr(x.k)+" "+Math.round(x.amt/total*100)+"%",amt:money(x.amt)})),
+        trend:months.map((m,i)=>({m:m.slice(5),v:tots[i]?Math.round(tots[i]/100)/10+"k":"",h:Math.max(4,Math.round(tots[i]/tmax*80))+"px",bg:m===s.month?"#C4602F":"#E5D8C6"})),
+        rows:inM.map((x,i)=>({c:cc(x.cat),title:tr(x.cat)+(x.note?" · "+x.note:""),sub:x.date.slice(5)+" · "+petName(x.pet),amt:money(x.amt),sep:i?"1.5px solid #F0E5D6":"none"})),noRows:inM.length===0,
+        showAdd:s.exAdd,toggleAdd:()=>this.setState({exAdd:!s.exAdd,exTried:false}),draft:dr,amtBorder:s.exTried&&!(Number(dr.amt)>0)?"#A0442A":"transparent",
+        setAmt:e=>{const v=e.target.value.replace(/[^0-9.]/g,"");this.setState(st=>({exDraft:{...st.exDraft,amt:v}}));},setDate:e=>{const v=e.target.value;this.setState(st=>({exDraft:{...st.exDraft,date:v}}));},setNote:e=>{const v=e.target.value;this.setState(st=>({exDraft:{...st.exDraft,note:v}}));},
+        draftCats:TL.EXP_CATS.map(([k])=>({name:tr(k),...chip(dr.cat===k),select:()=>this.setState(st=>({exDraft:{...st.exDraft,cat:k}}))})),
+        draftPets:["all",...D.PETS.map(p=>p.id)].map(id=>({name:petName(id),...chip(dr.pet===id),select:()=>this.setState(st=>({exDraft:{...st.exDraft,pet:id}}))})),
+        save:()=>{const a=Number(dr.amt);if(!(a>0))return this.setState({exTried:true});
+          this.upd((st,X)=>X.expenses.push({id:"x"+Date.now(),date:dSlash(dr.date),cat:dr.cat,amt:a,pet:dr.pet,note:dr.note.trim()}));
+          this.setState({exAdd:false,month:dSlash(dr.date).slice(0,7),exDraft:{amt:"",cat:"ecFood",pet:"all",date:"2026-10-24",note:""}});this.toast(tr("expenseSaved"));}};
+      base.petChips=[];
+    }
+    return base;
+  }
+}
+</script>
+</body>
+</html>
