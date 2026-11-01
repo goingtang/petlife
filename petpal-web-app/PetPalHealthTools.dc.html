@@ -439,7 +439,10 @@ class Component extends DCLogic {
     let p;
     if(pv.k==="builtin"){
       const conv=all.map(m=>(m.role==="user"?"Owner: ":"Assistant: ")+m.text).join("\n");
-      p=window.claude&&window.claude.complete?window.claude.complete(sys+"\n\nConversation:\n"+conv+"\nAssistant:"):Promise.reject(new Error("built-in AI unavailable"));
+      const BMSG={not_granted:"你尚未允許此頁面使用 Claude。重新整理頁面後，在跳出的視窗按「允許」即可。",sampling_disabled:"你的帳號目前無法使用 Claude。",rate_limited:"使用太頻繁或已達用量上限，請稍後再試。",session_expired:"登入已過期，請重新登入 claude.ai。",refused:"AI 無法回答這個問題，請換個方式描述症狀。"};
+      const cl=window.claude&&window.claude.use?window.claude.use("sample"):Promise.resolve(null);
+      p=cl.then(sample=>{if(!sample)throw new Error("內建 AI 只能在 claude.ai 開啟此頁面時使用，或改選上方其他 AI。");
+        return sample(sys+"\n\nConversation:\n"+conv+"\nAssistant:",{cache:false}).then(r=>r.text,e=>{throw new Error((e&&BMSG[e.code])||"暫時無法連線，請稍後再試。");});});
     }else if(pv.k==="chatgpt"){
       p=fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},body:JSON.stringify({model:(tl.ai.model||{}).chatgpt||"gpt-4o-mini",messages:[{role:"system",content:sys},...all.map(m=>({role:m.role==="user"?"user":"assistant",content:m.text}))]})})
         .then(r=>r.json()).then(j=>{if(j.error)throw new Error(j.error.message);return j.choices[0].message.content;});
@@ -449,7 +452,7 @@ class Component extends DCLogic {
     }
     Promise.resolve(p).then(out=>{const s=String(out||"");const m=s.match(/TRIAGE:(EMERGENCY|SOON|HOME)/);const body=s.replace(/TRIAGE:(EMERGENCY|SOON|HOME)\s*/,"").trim();
       this.upd((st,T)=>{(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"ai",text:body,tri:m?m[1]:null});});this.setState({aiBusy:false});})
-    .catch(e=>{this.upd((st,T)=>{(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"ai",text:this.tr("aiError",{e:(e&&e.message)||"error"}),tri:null,err:true});});this.setState({aiBusy:false});});
+    .catch(e=>{this.upd((st,T)=>{(T.ai.chats[pet.id]=T.ai.chats[pet.id]||[]).push({role:"ai",text:pv.k==="builtin"?((e&&e.message)||"暫時無法連線，請稍後再試。"):this.tr("aiError",{e:(e&&e.message)||"error"}),tri:null,err:true});});this.setState({aiBusy:false});});
   }
   makePoster(info,pet){return new Promise(res=>{const c=document.createElement("canvas");c.width=1080;c.height=1528;const g=c.getContext("2d"),tr=this.tr;
     const draw=img=>{g.fillStyle="#FFFCF7";g.fillRect(0,0,1080,1528);g.fillStyle="#A0442A";g.fillRect(0,0,1080,220);
