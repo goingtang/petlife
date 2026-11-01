@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "PetPal",
+    "slug": "petpal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F0E6"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "tw.petpal.app"
+    },
+    "android": {
+      "package": "tw.petpal.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#C4602F",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "PetPal 會用你的位置尋找附近的動物醫院、寵物用品店與公園。" }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PetPal 需要存取照片，讓你加入寵物照片、日記照片與文件。",
+          "cameraPermission": "PetPal 需要使用相機，讓你拍攝寵物照片、收據與文件。"
+        }
+      ],
+      [
+        "expo-notifications",
+        { "color": "#C4602F" }
+      ]
+    ]
+  }
+}
