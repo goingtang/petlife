@@ -1,0 +1,174 @@
+import { CONTENT } from './content';
+
+// Taiwan-specific starter guides. General, conservative guidance — always defer to the vet and official notices.
+
+export interface Article {
+  id: string;
+  cat: string;
+  color: string;
+  mins: number;
+  title: string;
+  lead: string;
+  steps: string[];
+  source?: string;
+  updated?: string; // YYYY-MM
+  kinds?: string[]; // pet kinds this applies to (dog, cat, rabbit, bird); empty = all
+}
+
+const minsOf = (a: Omit<Article, 'mins'>) => Math.max(1, Math.round((a.title + a.lead + a.steps.join('')).length / 400));
+
+const OFFICIAL = '行政院農業部動植物防疫檢疫署、各縣市動物保護處公開資訊';
+
+const RAW: Omit<Article, 'mins'>[] = [
+  {
+    id: 'tw1',
+    cat: '法規與登記',
+    color: '#DDE6EE',
+    kinds: ['dog', 'cat'],
+    title: '寵物登記與晶片：養狗養貓必做',
+    lead: '依動物保護法，犬、貓要辦理寵物登記並植入晶片。晶片能讓走失的毛孩被找回，未登記也可能被處罰鍰。',
+    steps: [
+      '幼犬、幼貓在規定期限內（一般為出生後 4 個月內），帶到有登記服務的動物醫院植入晶片並辦理登記。',
+      '帶身分證件辦理，完成後會拿到寵物登記證明，請和疫苗證明一起保存（可以拍照存在「文件夾」）。',
+      '搬家、換手機號碼、轉讓或寵物過世時，要辦理變更或註銷，資料才會正確。',
+      '可在「寵物登記管理資訊網」（pet.gov.tw）查詢晶片資料是否正確。',
+      '多數縣市對絕育的寵物有登記費減免或絕育補助，詳情請洽當地動保處。',
+    ],
+    source: OFFICIAL,
+    updated: '2026-11',
+  },
+  {
+    id: 'tw2',
+    cat: '健康預防',
+    color: '#F6DCCF',
+    kinds: ['dog', 'cat'],
+    title: '狂犬病疫苗：每年都要打',
+    lead: '台灣規定犬、貓每年要施打一次狂犬病疫苗。狂犬病一旦發病幾乎都會致死，按時施打是保護毛孩也保護家人。',
+    steps: [
+      '幼犬、幼貓約 3 個月大可以打第一劑，之後每年追加一次。',
+      '施打後會拿到注射證明或頸牌，請妥善保存，出國、住宿或寵物美容時常會被要求出示。',
+      '在 PetPal 新增「狂犬病疫苗」提醒，設定「每年」重複，到期前會通知你。',
+      '各縣市每年常有平價或免費的狂犬病疫苗注射站，可留意動保處公告。',
+      '若被來源不明的動物咬傷，請立即用肥皂和大量清水沖洗傷口 15 分鐘並就醫。',
+    ],
+    source: OFFICIAL,
+    updated: '2026-11',
+  },
+  {
+    id: 'tw3',
+    cat: '健康預防',
+    color: '#E3EBDD',
+    kinds: ['dog', 'cat'],
+    title: '心絲蟲與焦蟲：台灣一年四季都要預防',
+    lead: '台灣氣候溫暖潮濕，蚊子和壁蝨（俗稱牛蜱）整年都有。蚊子會傳染心絲蟲，壁蝨會傳染焦蟲等血液寄生蟲，兩者都可能致命。',
+    steps: [
+      '心絲蟲預防藥通常每月一次，請依獸醫建議選擇口服、滴劑或注射型，並在「用藥打卡」設定每月提醒。',
+      '開始預防前，成犬建議先抽血檢查是否已感染心絲蟲。',
+      '壁蝨常躲在耳朵、腳趾縫、腋下，散步回家後用手仔細摸一遍，發現時請用夾子貼近皮膚夾出，不要硬拔。',
+      '焦蟲感染可能出現發燒、沒精神、牙齦蒼白、尿液變深色，出現這些情況請盡快就醫。',
+      '除蚤除蝨產品依體重與物種而不同，狗用產品絕對不能用在貓身上。',
+    ],
+    source: '一般獸醫照護建議；用藥請依獸醫師指示',
+    updated: '2026-11',
+  },
+  {
+    id: 'tw4',
+    cat: '季節與天氣',
+    color: '#F8E7BF',
+    title: '夏天預防中暑',
+    lead: '狗和貓幾乎不會流汗，散熱比人差很多。短吻犬（法鬥、巴哥）、胖胖的、老年和幼年的寵物特別容易中暑。',
+    steps: [
+      '避開上午 10 點到下午 4 點散步，改在清晨或傍晚。出門前用手背貼地面 7 秒，覺得燙就不要出門。',
+      '絕對不要把寵物留在車內，即使開窗或只離開幾分鐘也很危險。',
+      '家裡保持通風或開冷氣，隨時備好乾淨的水；兔子和鳥類也要放在陰涼處。',
+      '中暑徵兆：急促喘氣、流大量口水、牙齦發紅或發紫、走路不穩、嘔吐。',
+      '發現疑似中暑：移到陰涼處，用常溫水（不要冰水）沾濕腳掌和腹部，同時聯絡醫院並盡快就醫。',
+    ],
+    source: '一般獸醫照護建議',
+    updated: '2026-11',
+  },
+  {
+    id: 'tw5',
+    cat: '季節與天氣',
+    color: '#D7E7E4',
+    title: '颱風天要準備什麼',
+    lead: '颱風可能停水停電，也可能讓寵物受到驚嚇。提前準備，風雨來時就不會手忙腳亂。',
+    steps: [
+      '準備至少 3–7 天的飼料、飲水、貓砂或尿布墊，以及長期吃的藥。',
+      '把外出籠或推車放在容易拿到的地方，萬一需要撤離可以馬上帶走。',
+      '把院子或陽台的寵物帶進室內，關好門窗，避免受驚嚇後跑出去。',
+      '確認項圈名牌、晶片資料上的電話是正確的。',
+      '颱風天後外出散步，注意掉落的電線、積水與尖銳雜物。',
+    ],
+    source: '各縣市防災與動物保護處宣導資訊',
+    updated: '2026-11',
+  },
+  {
+    id: 'tw6',
+    cat: '季節與天氣',
+    color: '#EEE0F0',
+    title: '過年鞭炮與煙火：幫毛孩減少驚嚇',
+    lead: '每年過年、跨年和元宵前後，是寵物走失通報最多的時候。巨大的爆炸聲會讓寵物驚慌逃跑。',
+    steps: [
+      '這段時間盡量讓寵物待在室內，關好門窗、拉上窗簾，開電視或音樂蓋過外面的聲音。',
+      '準備一個安靜、有牠熟悉氣味的角落或外出籠，讓牠可以躲起來。',
+      '外出散步一定要用牽繩，並確認胸背帶或項圈不會被掙脫。',
+      '寵物害怕時陪在旁邊、保持平靜即可，不要責罵。',
+      '如果每年都嚴重恐慌，可以提早請獸醫評估是否需要輔助的藥物。',
+    ],
+    source: '一般獸醫照護建議',
+    updated: '2026-11',
+  },
+  {
+    id: 'tw7',
+    cat: '生活',
+    color: '#E6E2C8',
+    title: '寵物保險怎麼選',
+    lead: '寵物看病沒有健保，一次手術可能就要好幾萬元。寵物保險能分擔意外與疾病的費用，但各家保障差異很大。',
+    steps: [
+      '比較保障範圍：門診、住院、手術是否都有；每次與每年的理賠上限是多少。',
+      '注意自負額（自己要先付的比例或金額）與等待期（投保後多久才開始理賠）。',
+      '看清楚不保的項目，例如投保前就有的疾病、先天性疾病、預防性醫療（疫苗、結紮）。',
+      '確認投保年齡上限與續保條件，年紀大後保費可能大幅提高。',
+      '有些保單附帶「賠償責任險」（寵物咬傷別人或弄壞東西），對狗狗特別實用。',
+      '看診時請醫院開立收據與診斷證明，並拍照存在「文件夾」，申請理賠會比較順利。',
+    ],
+    source: '一般消費資訊；投保前請詳閱保單條款',
+    updated: '2026-11',
+  },
+  {
+    id: 'tw8',
+    cat: '法規與登記',
+    color: '#F4C7B5',
+    kinds: ['dog'],
+    title: '動保法與遛狗規矩：牽繩、清便',
+    lead: '帶狗狗出門，除了安全，也有法律規定要遵守。做好這些事，大家都能更友善地看待毛孩。',
+    steps: [
+      '依動物保護法，寵物出入公共場所要有人伴同並採取適當防護措施，最基本的就是使用牽繩。',
+      '具攻擊性的狗出門要戴口罩、使用牽繩，並由成年人伴同。',
+      '狗狗在公共場所排便要立刻清理，各縣市對未清理可依法開罰。',
+      '不要讓狗狗靠近不認識的人、小孩或其他狗，先詢問對方是否同意。',
+      '許多公園、餐廳有各自的寵物規定，進入前先確認告示。',
+    ],
+    source: OFFICIAL,
+    updated: '2026-11',
+  },
+];
+
+export const TW_ARTICLES: Article[] = RAW.map((a) => ({ ...a, mins: minsOf(a) }));
+
+const CAT_KIND: Record<string, string[]> = { 狗: ['dog'], 貓: ['cat'], 兔子: ['rabbit'], 鳥: ['bird'], 爬蟲: ['other'], 水族: ['other'], 小型哺乳類: ['other'] };
+
+let cached: Article[] | null = null;
+
+/** Starter guides from the prototype plus the Taiwan guides above. */
+export function allArticles(): Article[] {
+  if (cached) return cached;
+  const base: Article[] = CONTENT.articles.map((a) => {
+    const steps = [...a.steps];
+    const mins = Math.max(1, Math.round((a.title + a.lead + steps.join('')).length / 400));
+    return { id: a.id, cat: a.cat, color: a.color, mins, title: a.title, lead: a.lead, steps, kinds: CAT_KIND[a.cat] ?? [], source: 'PetPal 編輯整理的一般照護建議' };
+  });
+  cached = [...TW_ARTICLES, ...base];
+  return cached;
+}

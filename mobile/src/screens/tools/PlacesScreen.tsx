@@ -1,23 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Linking, Platform, Pressable, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import { Screen, Card, Btn, Chip, ChipRow, Field, Segment, PetChips, Row, Badge, Banner, Empty, Sub, Label } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
-import { mapsSearch, phoneHref } from '../../lib/domain';
+import { mapsSearch } from '../../lib/domain';
 import { openUrl, callPhone } from '../../lib/files';
 import { useNav } from '../../nav';
+import { uid } from '../../lib/seed';
+import type { FavPlace } from '../../lib/types';
+import MapPreview from './MapPreview';
 
-type Cat = 'all' | 'vet' | 'shop' | 'groom' | 'park';
+type Cat = 'all' | 'vet' | 'exotic' | 'shop' | 'groom' | 'dogpark' | 'park' | 'fav';
 const CATS: { value: Cat; label: string }[] = [
-  { value: 'all', label: '全部' }, { value: 'vet', label: '動物醫院' }, { value: 'shop', label: '用品店' }, { value: 'groom', label: '美容' }, { value: 'park', label: '狗狗公園' },
+  { value: 'all', label: '全部' }, { value: 'vet', label: '動物醫院' }, { value: 'exotic', label: '異寵醫院' }, { value: 'shop', label: '用品店' },
+  { value: 'groom', label: '美容' }, { value: 'dogpark', label: '狗狗公園' }, { value: 'park', label: '公園' }, { value: 'fav', label: '收藏' },
 ];
-const FILTERS: Record<Cat, string[]> = {
+const FILTERS: Record<Exclude<Cat, 'fav'>, string[]> = {
   all: ['amenity=veterinary', 'shop=pet', 'shop=pet_grooming', 'leisure=dog_park'],
   vet: ['amenity=veterinary'],
+  exotic: ['amenity=veterinary'],
   shop: ['shop=pet'],
   groom: ['shop=pet_grooming'],
-  park: ['leisure=dog_park', 'leisure=park'],
+  dogpark: ['leisure=dog_park'],
+  park: ['leisure=park'],
 };
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -27,10 +33,12 @@ const ENDPOINTS = [
 const FALLBACK = [
   ['附近動物醫院', '動物醫院'], ['24 小時急診', '24小時 動物醫院 急診'], ['寵物友善餐廳', '寵物友善餐廳'], ['寵物友善住宿', '寵物友善住宿'],
 ];
+const EXOTIC = /異寵|特寵|特殊寵物|兔|鳥|爬蟲|exotic/i;
+const TOTAL_CAP_MS = 30000;
 
 interface Place {
   id: string; name: string; lat: number; lon: number; dist: number; kind: string;
-  addr: string; phone: string; hours: string; website: string; h24: boolean;
+  addr: string; phone: string; hours: string; website: string; h24: boolean; exotic: boolean;
 }
 
 function haversine(a: number, b: number, c: number, d: number) {
@@ -51,8 +59,47 @@ function kindOf(t: any): string {
   return '地點';
 }
 
-async function fetchJson(url: string, ms: number, headers?: Record<string, string>): Promise<any> {
+const DAY: Record<string, string> = { Mo: '一', Tu: '二', We: '三', Th: '四', Fr: '五', Sa: '六', Su: '日', PH: '國定假日' };
+/** Make common OpenStreetMap opening_hours readable in Chinese. */
+export function zhHours(s: string): string {
+  if (!s) return '';
+  if (s.trim() === '24/7') return '24 小時營業';
+  return s
+    .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)-(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, (_, a, b) => `週${DAY[a]}至週${DAY[b]}`)
+    .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su|PH)\b/g, (d) => (d === 'PH' ? DAY.PH : `週${DAY[d]}`))
+    .replace(/\boff\b/gi, '休息')
+    .replace(/\bclosed\b/gi, '休息')
+    .replace(/;\s*/g, '；')
+    .replace(/,\s*/g, '、');
+}
+const is24 = (h: string) => /24\/7/.test(h) || /00:00\s*-\s*24:00/.test(h);
+
+/** Nominatim's display_name ("名稱, 95, 信安街95巷, 景勤里, 大安區, 臺北市, 106, 臺灣") → "臺北市大安區景勤里信安街95巷95號". */
+export function addrFromDisplay(display: string): string {
+  const parts = String(display || '').split(',').map((s) => s.trim()).filter(Boolean);
+  let arr = parts.slice(1);
+  if (arr.length && /臺灣|台灣|Taiwan/i.test(arr[arr.length - 1])) arr = arr.slice(0, -1);
+  if (arr.length && /^\d{3}(\d{2,3})?$/.test(arr[arr.length - 1])) arr = arr.slice(0, -1);
+  let house = '';
+  if (arr.length && /^\d+[\d\-之]*$/.test(arr[0])) house = arr.shift() as string;
+  return arr.reverse().join('') + (house ? `${house}號` : '');
+}
+
+// ---------- network (module level so throttling and cache survive re-renders and screen visits) ----------
+
+let lastNominatim = 0;
+const cache = new Map<string, { at: number; elements: any[] }>();
+const CACHE_MS = 10 * 60 * 1000;
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((res, rej) => {
+    const t = setTimeout(res, ms);
+    signal.addEventListener('abort', () => { clearTimeout(t); rej(new Error('aborted')); });
+  });
+
+async function fetchJson(url: string, ms: number, signal: AbortSignal, headers?: Record<string, string>): Promise<any> {
   const ctl = new AbortController();
+  const onAbort = () => ctl.abort();
+  signal.addEventListener('abort', onAbort);
   const timer = setTimeout(() => ctl.abort(), ms);
   try {
     const res = await fetch(url, { signal: ctl.signal, headers });
@@ -60,84 +107,109 @@ async function fetchJson(url: string, ms: number, headers?: Record<string, strin
     return await res.json();
   } finally {
     clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
   }
 }
 
-/** Ask every Overpass mirror at once and use whichever answers first (public servers are often busy). */
-function fetchOverpass(query: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    let left = ENDPOINTS.length;
-    const fail = () => {
-      left -= 1;
-      if (left === 0) reject(new Error('all overpass endpoints failed'));
-    };
-    ENDPOINTS.forEach((ep) =>
-      fetchJson(`${ep}?data=${encodeURIComponent(query)}`, 25000)
-        .then((j) => (j && Array.isArray(j.elements) ? resolve(j) : fail()))
-        .catch(fail),
-    );
-  });
+/** Try Overpass mirrors one at a time; an empty answer or a server remark counts as a failure. */
+async function fetchOverpass(query: string, signal: AbortSignal): Promise<any[]> {
+  for (let i = 0; i < ENDPOINTS.length; i++) {
+    if (signal.aborted) throw new Error('aborted');
+    try {
+      const j = await fetchJson(`${ENDPOINTS[i]}?data=${encodeURIComponent(query)}`, i === 0 ? 10000 : 8000, signal);
+      if (j && Array.isArray(j.elements) && j.elements.length && !j.remark) return j.elements;
+    } catch {
+      // try the next mirror
+    }
+  }
+  throw new Error('overpass failed');
 }
 
-// Backup source: OpenStreetMap's own search service (Nominatim). One request per second, per its usage policy.
-const NOMINATIM_QUERIES: Record<Cat, string[]> = {
+const NOMINATIM_QUERIES: Record<Exclude<Cat, 'fav'>, string[]> = {
   all: ['amenity=veterinary', 'q=動物醫院', 'q=寵物用品', 'q=寵物美容'],
   vet: ['amenity=veterinary', 'q=動物醫院'],
+  exotic: ['q=異寵 動物醫院', 'q=動物醫院'],
   shop: ['q=寵物用品', 'q=寵物店'],
   groom: ['q=寵物美容'],
-  park: ['q=狗公園', 'q=寵物公園'],
+  dogpark: ['q=狗公園', 'q=寵物公園'],
+  park: ['q=公園'],
 };
 const NOMINATIM_TYPES: Record<string, Record<string, string>> = {
-  veterinary: { amenity: 'veterinary' },
-  pet: { shop: 'pet' },
-  pet_grooming: { shop: 'pet_grooming' },
-  dog_park: { leisure: 'dog_park' },
-  park: { leisure: 'park' },
+  veterinary: { amenity: 'veterinary' }, pet: { shop: 'pet' }, pet_grooming: { shop: 'pet_grooming' }, dog_park: { leisure: 'dog_park' }, park: { leisure: 'park' },
 };
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchNominatim(cat: Cat, r: number, lat: number, lon: number): Promise<any[]> {
+/** Backup source: OpenStreetMap's Nominatim. Never more than one request per 1.1 s across the whole app. */
+async function fetchNominatim(cat: Exclude<Cat, 'fav'>, r: number, lat: number, lon: number, signal: AbortSignal): Promise<any[]> {
   const dLat = r / 111000;
   const dLon = r / (111000 * Math.cos((lat * Math.PI) / 180));
   const viewbox = `${lon - dLon},${lat + dLat},${lon + dLon},${lat - dLat}`;
+  const headers = Platform.OS === 'web' ? undefined : { 'User-Agent': 'PetPal/1.0 (pet care app)', 'Accept-Language': 'zh-TW' };
   const out: any[] = [];
-  const qs = NOMINATIM_QUERIES[cat];
-  for (let i = 0; i < qs.length; i++) {
-    if (i) await sleep(1100);
-    const [k, v] = qs[i].split('=');
+  for (const q of NOMINATIM_QUERIES[cat]) {
+    const wait = lastNominatim + 1100 - Date.now();
+    if (wait > 0) await sleep(wait, signal);
+    lastNominatim = Date.now();
+    const [k, v] = q.split('=');
     const url = `https://nominatim.openstreetmap.org/search?${k}=${encodeURIComponent(v)}&format=jsonv2&viewbox=${viewbox}&bounded=1&limit=40&extratags=1&accept-language=zh-TW`;
     try {
-      const arr = await fetchJson(url, 15000, { 'Accept-Language': 'zh-TW' });
+      const arr = await fetchJson(url, 10000, signal, headers);
       for (const x of Array.isArray(arr) ? arr : []) {
         const base = NOMINATIM_TYPES[x.type] ?? (/動物醫院|獸醫/.test(x.name || '') ? NOMINATIM_TYPES.veterinary : /寵物/.test(x.name || '') ? NOMINATIM_TYPES.pet : null);
         if (!base || !x.name) continue;
         const e = x.extratags || {};
-        // display_name is "名稱, 路, 里, 區, 市, 郵遞區號, 臺灣" → "市區里路"
-        const addr = String(x.display_name || '').split(',').map((s: string) => s.trim()).slice(1, 5).reverse().filter((s: string) => !/^\d+$/.test(s)).join('');
-        out.push({ type: 'n', id: x.place_id, lat: Number(x.lat), lon: Number(x.lon), tags: { ...base, name: x.name, phone: e.phone || e['contact:phone'], opening_hours: e.opening_hours, website: e.website || e['contact:website'], 'addr:full': addr } });
+        out.push({ type: 'n', id: x.place_id, lat: Number(x.lat), lon: Number(x.lon), tags: { ...base, name: x.name, phone: e.phone || e['contact:phone'], opening_hours: e.opening_hours, website: e.website || e['contact:website'], 'addr:full': addrFromDisplay(x.display_name) } });
       }
-    } catch {
-      // try the next query
+    } catch (err) {
+      if (signal.aborted) throw err;
     }
   }
   if (!out.length) throw new Error('nominatim empty');
   return out;
 }
 
+function toPlaces(elements: any[], pos: { lat: number; lon: number }): Place[] {
+  const seen = new Set<string>();
+  const list: Place[] = [];
+  for (const el of elements) {
+    const t = el.tags || {};
+    const name = t.name || t['name:zh'];
+    const lat = el.lat ?? el.center?.lat;
+    const lon = el.lon ?? el.center?.lon;
+    if (!name || lat == null || lon == null) continue;
+    const key = `${name}|${Math.round(lat * 1e3)}|${Math.round(lon * 1e3)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const addr = t['addr:full'] || [t['addr:city'], t['addr:district'], t['addr:street'], t['addr:housenumber'] ? String(t['addr:housenumber']).replace(/號?$/, '號') : ''].filter(Boolean).join('');
+    const hours = t.opening_hours || '';
+    list.push({
+      id: `${el.type}${el.id}`, name, lat, lon, dist: haversine(pos.lat, pos.lon, lat, lon), kind: kindOf(t),
+      addr, phone: t.phone || t['contact:phone'] || '', hours, website: t.website || t['contact:website'] || '',
+      h24: is24(hours), exotic: EXOTIC.test(name) || EXOTIC.test(t.description || '') || EXOTIC.test(t['veterinary:speciality'] || ''),
+    });
+  }
+  return list.sort((a, b) => a.dist - b.dist).slice(0, 60);
+}
+
 type Phase = 'idle' | 'locating' | 'denied' | 'searching' | 'done' | 'error';
 
 export default function PlacesScreen(_: { params: any }) {
-  const { store, petId, setPetId } = useStore();
+  const { store, update, toast, petId, setPetId } = useStore();
   const pet = usePet();
   const nav = useNav();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<Cat>('all');
   const [radius, setRadius] = useState<'1000' | '3000' | '5000'>('3000');
+  const [view, setView] = useState<'list' | 'map'>('list');
   const [pos, setPos] = useState<{ lat: number; lon: number } | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [places, setPlaces] = useState<Place[]>([]);
+  const [stale, setStale] = useState(false);
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  const seq = useRef(0);
+  const ctl = useRef<AbortController | null>(null);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  useEffect(() => () => { alive.current = false; ctl.current?.abort(); }, []);
   const vet = pet ? store.vets[pet.id] : undefined;
 
   const locate = useCallback(async () => {
@@ -158,57 +230,65 @@ export default function PlacesScreen(_: { params: any }) {
         loc = await Location.getLastKnownPositionAsync();
       }
       if (!alive.current) return;
-      if (!loc) {
-        setPhase('error');
-        return;
-      }
+      if (!loc) return setPhase('error');
       setPos({ lat: loc.coords.latitude, lon: loc.coords.longitude });
     } catch {
       if (alive.current) setPhase('error');
     }
   }, []);
 
+  // Coming back from the phone's Settings after allowing location: try again.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st === 'active' && phaseRef.current === 'denied') locate();
+    });
+    return () => sub.remove();
+  }, [locate]);
+
   const search = useCallback(async () => {
-    if (!pos) return;
-    setPhase('searching');
+    if (!pos || cat === 'fav') return;
+    ctl.current?.abort();
+    const mine = ++seq.current;
+    const c = new AbortController();
+    ctl.current = c;
+    const cap = setTimeout(() => c.abort(), TOTAL_CAP_MS);
     const r = Number(radius);
+    const key = `${cat}|${r}|${pos.lat.toFixed(2)}|${pos.lon.toFixed(2)}`;
+    const hit = cache.get(key);
+    const filterCat = (list: Place[]) => (cat === 'exotic' ? list.filter((p) => p.exotic) : list);
+    if (hit) {
+      setPlaces(filterCat(toPlaces(hit.elements, pos)));
+      setStale(Date.now() - hit.at > CACHE_MS);
+      setPhase('done');
+      if (Date.now() - hit.at < CACHE_MS) {
+        clearTimeout(cap);
+        return;
+      }
+    } else setPhase('searching');
     const body = FILTERS[cat].map((f) => {
       const [k, v] = f.split('=');
       return `nwr["${k}"="${v}"](around:${r},${pos.lat},${pos.lon});`;
     }).join('');
-    const query = `[out:json][timeout:25];(${body});out center tags 60;`;
+    const query = `[out:json][timeout:25];(${body});out center tags 200;`;
     try {
       let elements: any[];
       try {
-        elements = (await fetchOverpass(query)).elements;
-      } catch {
-        elements = await fetchNominatim(cat, r, pos.lat, pos.lon);
+        elements = await fetchOverpass(query, c.signal);
+      } catch (e) {
+        if (c.signal.aborted) throw e;
+        elements = await fetchNominatim(cat, r, pos.lat, pos.lon, c.signal);
       }
-      const seen = new Set<string>();
-      const list: Place[] = [];
-      for (const el of elements) {
-        const t = el.tags || {};
-        const name = t.name || t['name:zh'];
-        const lat = el.lat ?? el.center?.lat;
-        const lon = el.lon ?? el.center?.lon;
-        if (!name || lat == null || lon == null) continue;
-        const key = `${name}|${Math.round(lat * 1e4)}|${Math.round(lon * 1e4)}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const addr = t['addr:full'] || [t['addr:city'], t['addr:district'], t['addr:street'], t['addr:housenumber'] ? t['addr:housenumber'] + '號' : ''].filter(Boolean).join('');
-        const hours = t.opening_hours || '';
-        list.push({
-          id: `${el.type}${el.id}`, name, lat, lon, dist: haversine(pos.lat, pos.lon, lat, lon), kind: kindOf(t),
-          addr, phone: t.phone || t['contact:phone'] || '', hours, website: t.website || t['contact:website'] || '',
-          h24: hours === '24/7' || /24/.test(name),
-        });
-      }
-      list.sort((a, b) => a.dist - b.dist);
-      if (!alive.current) return;
-      setPlaces(list);
+      if (!alive.current || mine !== seq.current) return; // a newer search has started
+      cache.set(key, { at: Date.now(), elements });
+      setPlaces(filterCat(toPlaces(elements, pos)));
+      setStale(false);
       setPhase('done');
     } catch {
-      if (alive.current) setPhase('error');
+      if (!alive.current || mine !== seq.current) return;
+      if (hit) setStale(true);
+      else setPhase('error');
+    } finally {
+      clearTimeout(cap);
     }
   }, [pos, cat, radius]);
 
@@ -216,6 +296,32 @@ export default function PlacesScreen(_: { params: any }) {
   useEffect(() => { if (pos) search(); }, [pos, search]);
 
   const km = Number(radius) / 1000;
+  const isFav = (p: { name: string; lat: number; lon: number }) => store.favPlaces.some((f) => f.name === p.name && Math.abs(f.lat - p.lat) < 1e-4 && Math.abs(f.lon - p.lon) < 1e-4);
+  const toggleFav = (p: Place | FavPlace) => {
+    const on = isFav(p);
+    update((d) => {
+      if (on) d.favPlaces = d.favPlaces.filter((f) => !(f.name === p.name && Math.abs(f.lat - p.lat) < 1e-4 && Math.abs(f.lon - p.lon) < 1e-4));
+      else d.favPlaces.push({ id: uid('fp'), name: p.name, lat: p.lat, lon: p.lon, addr: p.addr, phone: p.phone, kind: p.kind });
+    });
+    toast(on ? '已取消收藏' : '已收藏，沒有網路也能看到');
+  };
+  const navTo = (p: { name: string; addr: string; lat: number; lon: number }) =>
+    openUrl(p.addr ? mapsSearch(`${p.name} ${p.addr}`) : `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}`);
+  const setAsVet = (p: { name: string; phone: string; addr: string; hours?: string }) => {
+    if (!pet) return;
+    update((d) => { d.vets[pet.id] = { name: p.name, doctor: '', phone: p.phone, addr: p.addr, hours: p.hours ? zhHours(p.hours) : '' }; });
+    toast(`已設為${pet.name}的主治醫院${p.phone ? '' : '，記得補上電話'}`);
+  };
+  const addContact = (p: { name: string; phone: string; kind: string }) => {
+    if (!pet || !p.phone) return;
+    update((d) => { d.contacts.push({ id: uid('c'), petId: pet.id, name: p.name, rel: p.kind === '動物醫院' ? '主治醫院' : '其他', phone: p.phone, primary: false }); });
+    toast(`已加入${pet.name}的聯絡人`);
+  };
+
+  const shown: (Place | (FavPlace & { dist: number; hours: string; website: string; h24: boolean; exotic: boolean }))[] =
+    cat === 'fav'
+      ? store.favPlaces.map((f) => ({ ...f, dist: pos ? haversine(pos.lat, pos.lon, f.lat, f.lon) : NaN, hours: '', website: '', h24: false, exotic: false }))
+      : places;
 
   return (
     <Screen title="找醫院與友善地點" subtitle="依你目前的位置，找附近的動物醫院、用品店與公園">
@@ -230,67 +336,91 @@ export default function PlacesScreen(_: { params: any }) {
               {vet.phone ? <Sub>電話 {vet.phone}{vet.hours ? ' · ' + vet.hours : ''}</Sub> : null}
               <Row>
                 <Btn small kind="dark" title="導航" style={{ flex: 1 }} onPress={() => openUrl(mapsSearch(`${vet.name} ${vet.addr}`.trim()))} />
-                {vet.phone ? <Btn small kind="outline" title="撥打" style={{ flex: 1 }} onPress={() => openUrl(phoneHref(vet.phone), '無法撥打電話')} /> : null}
+                {vet.phone ? <Btn small kind="outline" title="撥打" style={{ flex: 1 }} onPress={() => callPhone(vet.phone)} /> : null}
               </Row>
             </Card>
           ) : (
             <Card style={{ gap: 10 }}>
-              <Sub>還沒有設定{pet.name}的主治醫院。設定後可一鍵導航和撥打。</Sub>
-              <Btn small kind="outline" title="設定主治醫院" onPress={() => nav.push('vetEdit', { petId: pet.id })} />
+              <Sub>還沒有設定{pet.name}的主治醫院。可以從下方搜尋結果按「設為主治醫院」，或手動輸入。</Sub>
+              <Btn small kind="outline" title="手動設定主治醫院" onPress={() => nav.push('vetEdit', { petId: pet.id })} />
             </Card>
           )}
         </View>
       ) : null}
 
       <ChipRow>
-        {CATS.map((c) => <Chip key={c.value} label={c.label} on={cat === c.value} onPress={() => setCat(c.value)} />)}
+        {CATS.map((c) => <Chip key={c.value} label={c.value === 'fav' ? `收藏（${store.favPlaces.length}）` : c.label} on={cat === c.value} onPress={() => setCat(c.value)} />)}
       </ChipRow>
-      <Segment options={[{ value: '1000', label: '1 公里' }, { value: '3000', label: '3 公里' }, { value: '5000', label: '5 公里' }]} value={radius} onChange={setRadius} />
-
-      {phase === 'denied' ? (
-        <Banner kind="warn" text="需要定位權限才能找附近的地點。請到手機設定允許定位，或使用下方的 Google 地圖搜尋。" action={{ label: '開啟設定', onPress: () => Linking.openSettings().catch(() => {}) }} />
+      {cat !== 'fav' ? (
+        <Segment options={[{ value: '1000', label: '1 公里' }, { value: '3000', label: '3 公里' }, { value: '5000', label: '5 公里' }]} value={radius} onChange={setRadius} />
       ) : null}
+      <Segment options={[{ value: 'list', label: '清單' }, { value: 'map', label: '地圖' }]} value={view} onChange={setView} />
 
-      {phase === 'locating' || phase === 'searching' || phase === 'idle' ? (
-        <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 24 }}>
-          <ActivityIndicator color={C.accent} />
-          <Sub>{phase === 'searching' ? '正在搜尋附近地點…' : '正在取得你的位置…'}</Sub>
+      {phase === 'denied' && cat !== 'fav' ? (
+        <Card style={{ gap: 10, backgroundColor: C.yellowBg, borderWidth: 0 }}>
+          <Text style={{ fontSize: 14, color: '#5E4512', lineHeight: 21 }}>需要定位權限才能找附近的地點。請到手機設定允許定位，回到 App 後會自動重新搜尋；也可以用下方的 Google 地圖搜尋。</Text>
+          <Row gap={8}>
+            <Btn small kind="dark" title="開啟設定" onPress={() => Linking.openSettings().catch(() => {})} />
+            <Btn small kind="outline" title="重試" onPress={locate} />
+          </Row>
         </Card>
       ) : null}
 
-      {phase === 'error' ? (
-        <Banner kind="danger" text="暫時無法取得位置或附近地點，請確認網路與定位後再試一次。" action={{ label: '重試', onPress: () => (pos ? search() : locate()) }} />
+      {(phase === 'locating' || phase === 'searching' || phase === 'idle') && cat !== 'fav' ? (
+        <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 24 }}>
+          <ActivityIndicator color={C.accent} />
+          <Sub>{phase === 'searching' ? '正在搜尋附近地點…（最多約 30 秒）' : '正在取得你的位置…'}</Sub>
+          {phase === 'searching' ? <Btn small kind="ghost" title="停止" onPress={() => { ctl.current?.abort(); setPhase('error'); }} /> : null}
+        </Card>
       ) : null}
 
-      {phase === 'done' ? (
+      {phase === 'error' && cat !== 'fav' ? (
+        <Banner kind="danger" text="暫時無法取得位置或附近地點。地圖資料伺服器可能忙碌，請稍後再試，或用下方 Google 地圖搜尋。" action={{ label: '重試', onPress: () => (pos ? search() : locate()) }} />
+      ) : null}
+
+      {(phase === 'done' || cat === 'fav') ? (
         <View style={{ gap: 12 }}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Sub style={{ flex: 1 }}>目前位置附近 · 半徑 {km} 公里 · 共 {places.length} 筆</Sub>
-            <Btn small kind="soft" title="重新定位" onPress={locate} />
+            <Sub style={{ flex: 1 }}>
+              {cat === 'fav' ? `收藏的地點 ${shown.length} 筆` : `目前位置附近 · 半徑 ${km} 公里 · 共 ${shown.length} 筆${stale ? ' · 上次結果' : ''}`}
+            </Sub>
+            {cat !== 'fav' ? <Btn small kind="soft" title="重新定位" onPress={locate} /> : null}
           </Row>
-          {places.length ? places.map((p) => (
-            <Card key={p.id} style={{ gap: 8 }}>
-              <Row style={{ alignItems: 'flex-start' }}>
-                <View style={{ flex: 1, gap: 4 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>{p.name}</Text>
-                  <Row gap={6} style={{ flexWrap: 'wrap' }}>
-                    <Badge text={p.kind} />
-                    {p.h24 ? <Badge text="24 小時" bg={C.dangerBg} fg={C.danger} /> : null}
-                  </Row>
-                </View>
-                <Text style={{ fontSize: 15, fontWeight: '600', color: C.sub }}>{distText(p.dist)}</Text>
-              </Row>
-              {p.addr ? <Sub>{p.addr}</Sub> : null}
-              {p.hours ? <Sub>營業時間 {p.hours}</Sub> : null}
-              {p.phone ? <Sub>電話 {p.phone}</Sub> : null}
-              <Row gap={8} style={{ flexWrap: 'wrap' }}>
-                <Btn small kind="dark" title="導航" onPress={() => openUrl(`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`)} />
-                {p.phone ? <Btn small kind="outline" title="撥打" onPress={() => callPhone(p.phone.split(/[;,]/)[0])} /> : null}
-                {p.website ? <Btn small kind="ghost" title="網站" onPress={() => openUrl(p.website)} /> : null}
-              </Row>
-            </Card>
-          )) : (
-            <Empty text={`半徑 ${km} 公里內沒有找到資料。可以改成更大的範圍，或用下方 Google 地圖搜尋。`} />
+          {view === 'map' && pos ? (
+            <MapPreview center={pos} places={shown.map((p) => ({ id: p.id, name: p.name, lat: p.lat, lon: p.lon }))} />
+          ) : null}
+          {shown.length ? shown.map((p) => {
+            const fav = isFav(p);
+            return (
+              <Card key={p.id} style={{ gap: 8 }}>
+                <Row style={{ alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>{p.name}</Text>
+                    <Row gap={6} style={{ flexWrap: 'wrap' }}>
+                      <Badge text={p.kind} />
+                      {p.h24 ? <Badge text="24 小時" bg={C.dangerBg} fg={C.danger} /> : null}
+                      {p.exotic ? <Badge text="異寵" bg={C.purpleBg} fg="#5B3F60" /> : null}
+                    </Row>
+                  </View>
+                  {isFinite(p.dist) ? <Text style={{ fontSize: 15, fontWeight: '600', color: C.sub }}>{distText(p.dist)}</Text> : null}
+                  <Pressable onPress={() => toggleFav(p)} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel={fav ? '取消收藏' : '收藏'} accessibilityState={{ selected: fav }}>
+                    <Text style={{ fontSize: 22, color: fav ? C.danger : C.sub }}>{fav ? '♥' : '♡'}</Text>
+                  </Pressable>
+                </Row>
+                {p.addr ? <Sub>{p.addr}</Sub> : null}
+                {p.hours ? <Sub>營業時間 {zhHours(p.hours)}</Sub> : null}
+                {p.phone ? <Sub>電話 {p.phone}</Sub> : null}
+                <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                  <Btn small kind="dark" title="導航" onPress={() => navTo(p)} />
+                  {p.phone ? <Btn small kind="outline" title="撥打" onPress={() => callPhone(p.phone.split(/[;,]/)[0])} /> : null}
+                  {p.website ? <Btn small kind="ghost" title="網站" onPress={() => openUrl(p.website)} /> : null}
+                  {pet && p.kind === '動物醫院' && store.vets[pet.id]?.name !== p.name ? <Btn small kind="soft" title="設為主治醫院" onPress={() => setAsVet(p)} /> : null}
+                  {pet && p.phone ? <Btn small kind="ghost" title="加入聯絡人" onPress={() => addContact(p)} /> : null}
+                </Row>
+              </Card>
+            );
+          }) : (
+            <Empty text={cat === 'fav' ? '還沒有收藏的地點。在搜尋結果按愛心就能收藏，沒有網路時也能查看。' : `半徑 ${km} 公里內沒有找到資料。可以改成更大的範圍，或用下方 Google 地圖搜尋。`} />
           )}
         </View>
       ) : null}
