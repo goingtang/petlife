@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useStore, usePet, memberName } from '../lib/store';
-import { useNav } from '../nav';
+import { useNav, useBackHandler } from '../nav';
 import { Btn, Card, DateField, Empty, ListCard, PetChips, Row, Screen, Section, Stepper, Sub, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
-import { addDays, hm, relTime, today, weekday } from '../lib/date';
+import { addDays, hm, relTime, today, weekday, ymd } from '../lib/date';
 import { entriesFor } from '../lib/domain';
 import { uid } from '../lib/seed';
 
@@ -25,16 +25,18 @@ export default function ActivityScreen() {
   const nav = useNav();
   const [, tick] = useState(0);
   const [manual, setManual] = useState(false);
+  useBackHandler(manual ? () => (setManual(false), true) : null);
   const [mMin, setMMin] = useState(30);
   const [mDate, setMDate] = useState(today());
 
   const t = store.timer;
   const running = !!t?.startedAt;
+  const tickHere = running && t?.petId === pet?.id; // only re-render every second while this pet's timer runs
   useEffect(() => {
-    if (!running) return;
+    if (!tickHere) return;
     const iv = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(iv);
-  }, [running]);
+  }, [tickHere]);
 
   if (!pet)
     return (
@@ -69,8 +71,10 @@ export default function ActivityScreen() {
     });
   const finish = () => {
     const min = Math.max(1, Math.round(elapsed / 60));
+    // Log on the day the session started (a walk from 23:50 to 00:20 belongs to the first day).
+    const started = new Date(Date.now() - elapsed * 1000);
     update((d) => {
-      d.entries.push({ id: uid('e'), petId: pet.id, form: 'activity', at: `${today()}T${hm()}`, who: d.me, v: { min } });
+      d.entries.push({ id: uid('e'), petId: pet.id, form: 'activity', at: `${ymd(started)}T${hm(started)}`, who: d.me, v: { min } });
       d.timer = null;
     });
     toast(`已記錄 ${min} 分鐘${a.label}`);

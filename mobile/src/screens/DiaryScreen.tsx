@@ -10,11 +10,12 @@ import { shareText, shareFile, deleteFile } from '../lib/files';
 import type { JournalEntry } from '../lib/types';
 
 export default function DiaryScreen() {
-  const { store, update, toast } = useStore();
+  const { store, update, toast, afterSave } = useStore();
   const nav = useNav();
   const insets = useSafeAreaInsets();
   const [day, setDay] = useState<string | null>(null);
   const [pet, setPet] = useState<string>('all');
+  const [limit, setLimit] = useState(30);
   const td = today();
   const days = Array.from({ length: 7 }, (_, i) => addDays(td, i - 6));
 
@@ -32,10 +33,10 @@ export default function DiaryScreen() {
 
   const remove = (j: JournalEntry) =>
     confirm('刪除這篇日記？', '照片也會一起刪除，無法復原。', () => {
-      j.photos.forEach((u) => deleteFile(u));
       update((d) => {
         d.journal = d.journal.filter((x) => x.id !== j.id);
       });
+      afterSave(() => j.photos.forEach((u) => deleteFile(u)));
       toast('已刪除');
     });
 
@@ -73,13 +74,14 @@ export default function DiaryScreen() {
         </ChipRow>
 
         {!day && lastYear.length ? (
-          <Card style={{ backgroundColor: C.purpleBg, borderWidth: 0, gap: 4 }} onPress={() => setDay(null)}>
+          <Card style={{ backgroundColor: C.purpleBg, borderWidth: 0, gap: 4 }} onPress={() => setDay(lastYear[0].at.slice(0, 10))}>
             <Text style={{ fontSize: 12, fontWeight: '700', color: '#5B3F60' }}>去年的今天</Text>
             <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{lastYear[0].title}</Text>
+            <Sub style={{ fontSize: 12 }}>點一下查看那天的日記</Sub>
           </Card>
         ) : null}
 
-        {list.map((j) => (
+        {list.slice(0, limit).map((j) => (
           <Card key={j.id} style={{ gap: 12, padding: 14 }}>
             <Row>
               <Avatar name={memberName(store, j.author)} color={memberColor(store, j.author)} size={38} />
@@ -122,6 +124,9 @@ export default function DiaryScreen() {
             action={day ? { label: '顯示全部', onPress: () => setDay(null) } : undefined}
           />
         ) : null}
+        {list.length > limit ? <Btn kind="outline" title={`顯示更早的日記（還有 ${list.length - limit} 篇）`} onPress={() => setLimit((n) => n + 30)} /> : null}
+        {/* room so the floating 寫日記 button never covers the last card */}
+        <View style={{ height: 64 }} />
       </Screen>
       {store.pets.length ? (
         <Btn

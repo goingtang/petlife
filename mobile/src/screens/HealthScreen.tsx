@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Polygon, Text as SvgText } from 'react-native-svg';
 import { useStore, usePet, memberName } from '../lib/store';
-import { useNav } from '../nav';
+import { useNav, useBackHandler } from '../nav';
 import { Badge, Btn, Card, Empty, ListCard, PetChips, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
 import { parseYmd, relTime, shortDate, today } from '../lib/date';
@@ -56,6 +56,8 @@ export default function HealthScreen() {
   const nav = useNav();
   const [open, setOpen] = useState<string | null>(null);
   const [showGrowth, setShowGrowth] = useState(false);
+  const [limit, setLimit] = useState(12);
+  useBackHandler(open || showGrowth ? () => (setOpen(null), setShowGrowth(false), true) : null);
 
   if (!pet)
     return (
@@ -82,7 +84,8 @@ export default function HealthScreen() {
       const sb = reminderState(b).state === 'done' ? 1 : 0;
       return sa - sb || (a.date < b.date ? -1 : 1);
     });
-  const health = entriesFor(store, pet.id, 'health').slice(0, 12);
+  const allHealth = entriesFor(store, pet.id, 'health');
+  const health = allHealth.slice(0, limit);
 
   return (
     <Screen root title="健康">
@@ -210,6 +213,7 @@ export default function HealthScreen() {
         ) : (
           <Empty text="還沒有健康紀錄" />
         )}
+        {allHealth.length > health.length ? <Btn kind="ghost" small title={`顯示更多（還有 ${allHealth.length - health.length} 筆）`} onPress={() => setLimit((n) => n + 20)} /> : null}
       </Section>
     </Screen>
   );

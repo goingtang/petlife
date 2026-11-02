@@ -27,18 +27,27 @@ interface NavCtx {
   /** What the back button / Android back key do: ask the screen first, then pop. */
   back: () => void;
   popToRoot: () => void;
-  registerBack: (routeKey: string, fn: BackFn | null) => void;
+  registerBack: (routeKey: string, id: number, fn: BackFn | null) => void;
 }
 
 const Ctx = createContext<NavCtx | null>(null);
-/** The key of the route a component is rendered in (undefined on tab screens). */
+/** The key of the route a component is rendered in. Tab screens use `tab:<name>`. */
 export const RouteKeyCtx = createContext<string | undefined>(undefined);
 let k = 0;
+let handlerSeq = 0;
 
 export function NavProvider({ children }: { children: React.ReactNode }) {
   const [tab, setTabState] = useState<TabName>('today');
   const [stack, setStack] = useState<Route[]>([]);
-  const handlers = useRef(new Map<string, BackFn>());
+  // Per screen, a stack of handlers (several sub-views on one screen may each register one); newest runs first.
+  const handlers = useRef(new Map<string, { id: number; fn: BackFn }[]>());
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+  const runHandlers = useCallback((key: string) => {
+    const list = handlers.current.get(key) ?? [];
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].fn()) return true;
+    return false;
+  }, []);
   const stackRef = useRef(stack);
   stackRef.current = stack;
 
@@ -57,17 +66,21 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
   const popToRoot = useCallback(() => setStack([]), []);
   const back = useCallback(() => {
     const top = stackRef.current[stackRef.current.length - 1];
-    if (!top) return;
-    const fn = handlers.current.get(top.key);
-    if (fn && fn()) return;
+    if (!top) {
+      runHandlers(`tab:${tabRef.current}`);
+      return;
+    }
+    if (runHandlers(top.key)) return;
     setStack((s) => s.slice(0, -1));
-  }, []);
+  }, [runHandlers]);
   const setTab = useCallback((t: TabName) => {
     setStack([]);
     setTabState(t);
   }, []);
-  const registerBack = useCallback((routeKey: string, fn: BackFn | null) => {
-    if (fn) handlers.current.set(routeKey, fn);
+  const registerBack = useCallback((routeKey: string, id: number, fn: BackFn | null) => {
+    const list = (handlers.current.get(routeKey) ?? []).filter((h) => h.id !== id);
+    if (fn) list.push({ id, fn });
+    if (list.length) handlers.current.set(routeKey, list);
     else handlers.current.delete(routeKey);
   }, []);
 
@@ -77,6 +90,7 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
         back();
         return true;
       }
+      if (runHandlers(`tab:${tab}`)) return true;
       if (tab !== 'today') {
         setTabState('today');
         return true;
@@ -84,7 +98,7 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
       return false;
     });
     return () => sub.remove();
-  }, [tab, back]);
+  }, [tab, back, runHandlers]);
 
   const value = useMemo(
     () => ({ tab, setTab, stack, push, pushUnique, replace, pop, back, popToRoot, registerBack }),
@@ -108,10 +122,12 @@ export function useBackHandler(fn: BackFn | null) {
   const { registerBack } = useNav();
   const ref = useRef(fn);
   ref.current = fn;
+  const id = useRef(0);
+  if (!id.current) id.current = ++handlerSeq;
   const active = !!fn;
   useEffect(() => {
     if (!key) return;
-    registerBack(key, active ? () => (ref.current ? ref.current() : false) : null);
-    return () => registerBack(key, null);
+    registerBack(key, id.current, active ? () => (ref.current ? ref.current() : false) : null);
+    return () => registerBack(key, id.current, null);
   }, [key, active, registerBack]);
 }

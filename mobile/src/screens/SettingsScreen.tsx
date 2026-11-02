@@ -10,7 +10,12 @@ import { cleanupOrphans, shareTextFile } from '../lib/files';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
-  const { store, update, replace, toast } = useStore();
+  const { store, update, replace, toast, afterSave } = useStore();
+  /** Swap in a whole new data set, then delete photos/files the old data used and the new one doesn't. */
+  const replaceAll = (next: typeof store) => {
+    replace(next);
+    afterSave(() => cleanupOrphans(next));
+  };
   const nav = useNav();
   const [count, setCount] = useState<number | null>(null);
   const [phone, setPhone] = useDraft(store.ownerPhone, (v) =>
@@ -49,7 +54,7 @@ export default function SettingsScreen() {
       const data = JSON.parse(text);
       if (!data || !Array.isArray(data.pets)) throw new Error('bad');
       confirm('用備份取代目前資料？', `備份內有 ${data.pets.length} 隻寵物。目前這支手機上的資料會被取代。`, () => {
-        replace({ ...migrate(data), onboarded: true });
+        replaceAll({ ...migrate(data), onboarded: true });
         // Photos in a backup point at the old phone's files; they show as blank until re-added.
         nav.popToRoot();
         toast('已還原備份');
@@ -128,7 +133,7 @@ export default function SettingsScreen() {
             title="載入範例資料"
             onPress={() =>
               confirm('載入範例資料？', '目前的資料會被範例資料取代。建議先匯出備份。', () => {
-                replace(sampleStore());
+                replaceAll(sampleStore());
                 nav.popToRoot();
                 toast('已載入範例資料');
               }, '載入')
@@ -139,7 +144,8 @@ export default function SettingsScreen() {
             title="清除所有資料"
             onPress={() =>
               confirm('清除所有資料？', '寵物、紀錄、日記和設定都會刪除，無法復原。', () => {
-                replace(emptyStore());
+                replaceAll(emptyStore());
+                toast('已清除所有資料與照片');
                 nav.popToRoot();
               }, '清除')
             }

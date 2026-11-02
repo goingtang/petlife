@@ -9,7 +9,7 @@ import { latestGrowth, KIND_LABEL, SEX_LABEL, mapsSearch } from '../lib/domain';
 import { callPhone, choosePhotos, deleteFile, openUrl } from '../lib/files';
 
 export default function ProfileScreen({ params }: { params: any }) {
-  const { store, update, toast } = useStore();
+  const { store, update, toast, afterSave } = useStore();
   const nav = useNav();
   const pet = store.pets.find((p) => p.id === params.petId);
   if (!pet)
@@ -31,7 +31,7 @@ export default function ProfileScreen({ params }: { params: any }) {
         const x = d.pets.find((y) => y.id === pet.id);
         if (x) x.photo = u[0];
       });
-      deleteFile(old);
+      afterSave(() => deleteFile(old));
       toast('照片已更新');
     });
 

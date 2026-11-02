@@ -70,7 +70,7 @@ describe('planNotifications', () => {
     s.meds = [
       { id: 'a', petId: 'p', name: '已結束', dose: '', times: ['08:00'], start: addDays(td, -10), end: addDays(td, -1), notify: true, freq: 'daily', count: null, refillAt: 0 },
       { id: 'b', petId: 'p', name: '兩天', dose: '', times: ['08:00', '20:00'], start: td, end: addDays(td, 1), notify: true, freq: 'daily', count: null, refillAt: 0 },
-      { id: 'c', petId: 'p', name: '下週開始', dose: '', times: ['09:00'], start: addDays(td, 5), end: null, notify: true, freq: 'daily', count: null, refillAt: 0 },
+      { id: 'c', petId: 'p', name: '下週開始', dose: '', times: ['09:00'], start: addDays(td, 2), end: null, notify: true, freq: 'daily', count: null, refillAt: 0 },
     ];
     s.doses[doseKey(td, 'b', '08:00')] = 'taken';
     const notes = planNotifications(s, now).filter((n) => n.kind === 'med');
@@ -78,7 +78,7 @@ describe('planNotifications', () => {
     expect(bodies.some((b) => b.includes('已結束'))).toBe(false);
     expect(notes.filter((n) => n.body.includes('兩天')).length).toBe(3); // today 20:00 + tomorrow 08:00 & 20:00
     const firstC = notes.find((n) => n.body.includes('下週開始'));
-    expect(firstC && ymd(firstC.at)).toBe(addDays(td, 5));
+    expect(firstC && ymd(firstC.at)).toBe(addDays(td, 2));
   });
 
   test('never exceeds the iOS limit and is sorted', () => {
@@ -89,6 +89,25 @@ describe('planNotifications', () => {
     expect(notes.length).toBeLessThanOrEqual(MAX_NOTES);
     for (let i = 1; i < notes.length; i++) expect(notes[i].at.getTime()).toBeGreaterThanOrEqual(notes[i - 1].at.getTime());
     expect(notes.every((n) => n.at.getTime() > now.getTime())).toBe(true);
+  });
+
+  test('medication alerts leave room for other notices', () => {
+    const s = sampleStore();
+    s.notifyEnabled = true;
+    for (let i = 0; i < 30; i++) s.meds.push({ ...s.meds[0], id: 'y' + i, end: null, times: ['06:00', '12:00', '18:00'] });
+    s.reminders.push({ id: 'far', petId: 'dou', title: '遠期疫苗', date: addDays(td, 20), repeat: 'yearly', notify: true, history: [] });
+    const notes = planNotifications(s, now);
+    expect(notes.filter((n) => n.kind === 'med').length).toBeLessThanOrEqual(40);
+    expect(notes.some((n) => n.title.includes('遠期疫苗'))).toBe(true);
+  });
+
+  test('document expiry: 30/7 days, the evening before, and one expired notice', () => {
+    const s = emptyStore();
+    s.notifyEnabled = true;
+    s.pets = [{ id: 'p', name: '豆豆', kind: 'dog', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#fff' }];
+    s.reminders = [{ id: 'd', petId: 'p', title: '保單到期', date: addDays(td, 40), repeat: 'once', notify: true, history: [], lead: [30, 7, 0], docId: 'doc1' }];
+    const n = planNotifications(s, now);
+    expect(n.map((x) => x.title)).toEqual(['30 天後：豆豆 保單到期', '7 天後：豆豆 保單到期', '明天：豆豆 保單到期', '今天：豆豆 保單到期', '已過期：豆豆 保單到期']);
   });
 
   test('overdue reminders get up to 3 follow-ups', () => {

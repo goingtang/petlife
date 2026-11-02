@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Animated, Dimensions, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
-import { StoreProvider, useStore } from './src/lib/store';
+import { StoreProvider, useStore, useToastMsg } from './src/lib/store';
+import { cleanupCacheExports } from './src/lib/files';
 import { NavProvider, useNav, TabName, RouteKeyCtx, Route } from './src/nav';
 import { SCREENS } from './src/screens/registry';
 import TodayScreen from './src/screens/TodayScreen';
@@ -60,8 +61,12 @@ function TabBar() {
 }
 
 function Toast() {
-  const { toastMsg } = useStore();
+  const toastMsg = useToastMsg();
   const insets = useSafeAreaInsets();
+  useEffect(() => {
+    // Android reads the live region below; iOS VoiceOver needs an explicit announcement.
+    if (toastMsg && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(toastMsg);
+  }, [toastMsg]);
   if (!toastMsg) return null;
   return (
     <View pointerEvents="none" style={[st.toastWrap, { top: insets.top + 12 }]}>
@@ -75,58 +80,60 @@ function Toast() {
 /** Keep phone notifications in step with reminders and medication schedules. */
 function NotificationSync() {
   const { store, ready, day } = useStore();
-  const key = useMemo(
-    () =>
-      JSON.stringify([
-        day,
-        store.notifyEnabled,
-        store.reminders,
-        store.meds,
-        Object.keys(store.doses).filter((k) => k >= day),
-        store.supplies,
-        store.groom,
-        store.pets.map((p) => [p.id, p.name, p.birthday, p.adopted]),
-      ]),
-    [day, store.notifyEnabled, store.reminders, store.meds, store.doses, store.supplies, store.groom, store.pets],
-  );
+  const latest = useRef(store);
+  latest.current = store;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     initNotifications();
+    cleanupCacheExports(); // PDFs/CSVs shared during the last session
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
+  // immer keeps unchanged parts of the store identical, so these references only change when that data changes.
   useEffect(() => {
     if (!ready) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      syncNotifications(store);
+      syncNotifications(latest.current);
     }, 1500);
-    // store is read at fire time through the closure of this render; key captures what matters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, ready]);
+  }, [ready, day, store.notifyEnabled, store.reminders, store.meds, store.doses, store.supplies, store.groom, store.pets]);
   return null;
 }
 
-const W = Dimensions.get('window').width;
-
 /** A pushed screen: slides in from the right; on iOS it can be dragged back from the left edge. */
-function StackScreen({ route, visible }: { route: Route; visible: boolean }) {
+function StackScreen({ route, visible, top }: { route: Route; visible: boolean; top: boolean }) {
   const { back } = useNav();
-  const x = useRef(new Animated.Value(Platform.OS === 'web' ? 0 : W)).current;
+  const { width } = useWindowDimensions();
+  const W = useRef(width);
+  W.current = width;
+  const x = useRef(new Animated.Value(Platform.OS === 'web' ? 0 : width)).current;
+  const mounted = useRef(true);
   useEffect(() => {
     Animated.timing(x, { toValue: 0, duration: 220, useNativeDriver: Platform.OS !== 'web' }).start();
+    return () => {
+      mounted.current = false;
+    };
   }, [x]);
+  const springBack = () => Animated.spring(x, { toValue: 0, useNativeDriver: true }).start();
   const pan = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (e, g) => Platform.OS === 'ios' && g.x0 < 24 && g.dx > 8 && Math.abs(g.dy) < Math.abs(g.dx),
+      // iOS only: claim the gesture in the capture phase when it starts at the very left edge,
+      // so horizontal chip rows there don't swallow it.
+      onMoveShouldSetPanResponderCapture: (e, g) => Platform.OS === 'ios' && g.x0 < 20 && g.dx > 8 && Math.abs(g.dy) < Math.abs(g.dx),
       onPanResponderMove: (e, g) => x.setValue(Math.max(0, g.dx)),
       onPanResponderRelease: (e, g) => {
-        if (g.dx > W / 3 || g.vx > 0.8) {
-          Animated.timing(x, { toValue: W, duration: 160, useNativeDriver: true }).start(() => {
-            x.setValue(0);
+        if (g.dx > W.current / 3 || g.vx > 0.8) {
+          Animated.timing(x, { toValue: W.current, duration: 160, useNativeDriver: true }).start(() => {
             back();
+            // If the screen asked to stay (e.g. unsaved changes), slide it back in.
+            setTimeout(() => {
+              if (mounted.current) springBack();
+            }, 30);
           });
-        } else Animated.spring(x, { toValue: 0, useNativeDriver: true }).start();
+        } else springBack();
       },
-      onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: true }).start(),
+      onPanResponderTerminate: springBack,
     }),
   ).current;
   const S = SCREENS[route.name];
@@ -134,6 +141,7 @@ function StackScreen({ route, visible }: { route: Route; visible: boolean }) {
   return (
     <Animated.View
       {...pan.panHandlers}
+      pointerEvents={top ? 'auto' : 'none'}
       style={[StyleSheet.absoluteFill, { backgroundColor: C.bg, display: visible ? 'flex' : 'none', transform: [{ translateX: x }] }]}
     >
       <RouteKeyCtx.Provider value={route.key}>
@@ -157,12 +165,15 @@ function Shell() {
   const TabScreen = TAB_SCREENS[tab];
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <View style={{ flex: 1, display: stack.length ? 'none' : 'flex' }}>
-        <TabScreen />
+      {/* The screen right below the top one stays visible so an iOS swipe-back reveals it. */}
+      <View style={{ flex: 1, display: stack.length <= 1 ? 'flex' : 'none' }} pointerEvents={stack.length ? 'none' : 'auto'}>
+        <RouteKeyCtx.Provider value={`tab:${tab}`}>
+          <TabScreen />
+        </RouteKeyCtx.Provider>
         <TabBar />
       </View>
       {stack.map((r, i) => (
-        <StackScreen key={r.key} route={r} visible={i === stack.length - 1} />
+        <StackScreen key={r.key} route={r} visible={i >= stack.length - 2} top={i === stack.length - 1} />
       ))}
     </View>
   );

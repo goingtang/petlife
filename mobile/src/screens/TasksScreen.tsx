@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useStore, memberName } from '../lib/store';
+import { useBackHandler } from '../nav';
 import { Avatar, Btn, Card, Choice, Empty, Field, Label, PetChips, Row, Screen, Sub, TimeField, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
 import { tasksFor } from '../lib/domain';
@@ -11,6 +12,7 @@ export default function TasksScreen({ params }: { params: any }) {
   const { store, update, toast } = useStore();
   const [petId, setPet] = useState<string>(params.petId ?? store.pets[0]?.id);
   const [edit, setEdit] = useState<CareTask | null>(null);
+  useBackHandler(edit ? () => (setEdit(null), true) : null);
   const pet = store.pets.find((p) => p.id === petId);
   const tasks = pet ? tasksFor(store, pet.id) : [];
 

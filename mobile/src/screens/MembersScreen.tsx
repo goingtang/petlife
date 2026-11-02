@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
+import { useBackHandler } from '../nav';
 import { Avatar, Badge, Banner, Btn, Card, Field, Label, Row, Screen, Section, Sub, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
 import { MEMBER_COLORS, uid } from '../lib/seed';
@@ -8,6 +9,7 @@ import { MEMBER_COLORS, uid } from '../lib/seed';
 export default function MembersScreen() {
   const { store, update, toast } = useStore();
   const [editing, setEditing] = useState<string | null>(null);
+  useBackHandler(editing ? () => (setEditing(null), true) : null);
   const [name, setName] = useState('');
   const [color, setColor] = useState(MEMBER_COLORS[1]);
 

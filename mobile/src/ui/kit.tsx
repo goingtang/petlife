@@ -317,9 +317,13 @@ export function NumberField({
 }
 
 /** Date input. Uses the phone's date picker; on web a plain YYYY-MM-DD box. */
-export function DateField({ label, value, onChange, optional, error }: { label?: string; value: string; onChange: (v: string) => void; optional?: boolean; error?: string | null }) {
+export function DateField({ label, value, onChange, optional, error, max }: { label?: string; value: string; onChange: (v: string) => void; optional?: boolean; error?: string | null; /** latest allowed date (YYYY-MM-DD), e.g. today for birthdays */ max?: string }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(value);
+  React.useEffect(() => {
+    if (value !== text && (isValidYmd(value) || !value)) setText(value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
   if (Platform.OS === 'web') {
     return (
       <Field
@@ -329,7 +333,7 @@ export function DateField({ label, value, onChange, optional, error }: { label?:
         error={error ?? (text && !isValidYmd(text) ? '日期格式：2026-11-01' : null)}
         onChangeText={(t) => {
           setText(t);
-          if (isValidYmd(t) || (optional && !t)) onChange(t);
+          if ((isValidYmd(t) && (!max || t <= max)) || (optional && !t)) onChange(t);
         }}
       />
     );
@@ -347,6 +351,7 @@ export function DateField({ label, value, onChange, optional, error }: { label?:
       {open ? (
         <DateTimePicker
           value={value ? parseYmd(value) : new Date()}
+          maximumDate={max ? parseYmd(max) : undefined}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(e, d) => {
@@ -496,9 +501,9 @@ export function PhotoGrid({ photos, onRemove, onAdd, max = 4, size = 76 }: { pho
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {photos.map((u, i) => (
         <View key={u + i} style={{ width: size, height: size, borderRadius: 14, overflow: 'hidden', backgroundColor: C.sand2 }}>
-          <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} />
+          <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} accessibilityLabel={`照片 ${i + 1}`} />
           {onRemove ? (
-            <Pressable onPress={() => onRemove(i)} style={s.photoX} accessibilityRole="button" accessibilityLabel="移除照片" hitSlop={6}>
+            <Pressable onPress={() => onRemove(i)} style={s.photoX} accessibilityRole="button" accessibilityLabel={`移除第 ${i + 1} 張照片`} hitSlop={8}>
               <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
             </Pressable>
           ) : null}
@@ -549,9 +554,9 @@ export const s = StyleSheet.create({
   card: { backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1.5, borderColor: C.line, padding: 16 },
   btn: { minHeight: 50, borderRadius: 25, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   btnSmall: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card },
   seg: { flexDirection: 'row', padding: 4, borderRadius: 22, backgroundColor: C.sand2 },
-  segItem: { flex: 1, minHeight: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  segItem: { flex: 1, minHeight: 44, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   segOn: { backgroundColor: C.card, shadowColor: '#3B2F28', shadowOpacity: 0.1, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
   input: { minHeight: 48, borderRadius: 16, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, paddingHorizontal: 16, fontSize: 15, color: C.ink },
   stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 8, borderRadius: 24, backgroundColor: C.sand },
@@ -559,6 +564,6 @@ export const s = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, paddingLeft: 16, paddingRight: 8, paddingVertical: 8, borderRadius: 26, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card },
   track: { width: 52, height: 32, borderRadius: 16, padding: 3 },
   knob: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#fff' },
-  photoX: { position: 'absolute', top: 4, right: 4, width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(59,47,40,.75)', alignItems: 'center', justifyContent: 'center' },
+  photoX: { position: 'absolute', top: 2, right: 2, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(59,47,40,.75)', alignItems: 'center', justifyContent: 'center' },
   photoAdd: { borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CDBBA6', alignItems: 'center', justifyContent: 'center', gap: 2 },
 });

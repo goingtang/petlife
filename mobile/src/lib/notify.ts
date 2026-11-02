@@ -15,7 +15,9 @@ export interface PlannedNote {
 
 /** iOS keeps at most 64 pending notifications per app; leave a little room. */
 export const MAX_NOTES = 60;
-const MED_DAYS = 7;
+const MED_DAYS = 4;
+/** Medication alerts may use at most this many slots, so vaccine/document/anniversary notices always fit. */
+export const MAX_MED_NOTES = 40;
 
 function at(date: string, time: string): Date {
   const d = parseYmd(date);
@@ -56,16 +58,22 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
     if (!r.notify || (r.repeat === 'once' && r.doneOnce)) continue;
     const title = `${pet(r.petId)} ${r.title}`;
     const days = daysBetween(td, r.date);
+    const isDoc = !!r.docId;
     if (days >= 0) {
-      const leads = r.lead?.length ? r.lead : [];
-      for (const L of leads) push({ at: at(addDays(r.date, -L), '09:00'), kind: 'reminder', title: `${L} 天後：${title}`, body: '記得先預約或準備。' });
-      if (!leads.length) push({ at: at(addDays(r.date, -1), '20:00'), kind: 'reminder', title: `明天：${title}`, body: '記得先預約或準備。' });
-      push({ at: at(r.date, '09:00'), kind: 'reminder', title: `今天：${title}`, body: '完成後在 PetPal 按「完成」。' });
+      const leads = [...new Set((r.lead || []).filter((L) => L > 1))];
+      for (const L of leads) push({ at: at(addDays(r.date, -L), '09:00'), kind: 'reminder', title: `${L} 天後：${title}`, body: isDoc ? '記得先辦理更新。' : '記得先預約或準備。' });
+      push({ at: at(addDays(r.date, -1), '20:00'), kind: 'reminder', title: `明天：${title}`, body: isDoc ? '明天到期，記得辦理更新。' : '記得先預約或準備。' });
+      push({ at: at(r.date, '09:00'), kind: 'reminder', title: `今天：${title}`, body: isDoc ? '今天到期。更新後在文件夾修改到期日。' : '完成後在 PetPal 按「完成」。' });
     }
     for (let k = 1; k <= 3; k++) {
       const d = addDays(r.date, k);
       if (d < td) continue;
-      push({ at: at(d, '09:00'), kind: 'overdue', title: `逾期 ${k} 天：${title}`, body: '還沒完成嗎？完成後在 PetPal 按「完成」，或修改日期。' });
+      push(
+        isDoc
+          ? { at: at(d, '09:00'), kind: 'overdue', title: `已過期：${title}`, body: '文件已過期，更新後在文件夾修改到期日。' }
+          : { at: at(d, '09:00'), kind: 'overdue', title: `逾期 ${k} 天：${title}`, body: '還沒完成嗎？完成後在 PetPal 按「完成」，或修改日期。' },
+      );
+      if (isDoc) break; // one notice is enough for an expired document
     }
   }
 
@@ -101,7 +109,15 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
   }
 
   out.sort((a, b) => a.at.getTime() - b.at.getTime());
-  return out.slice(0, MAX_NOTES);
+  // Medication alerts get at most MAX_MED_NOTES slots; everything else fills the rest, soonest first.
+  const meds = out.filter((n) => n.kind === 'med').slice(0, MAX_MED_NOTES);
+  // Other slots by importance: reminders/expiry/refill first, then supplies, grooming, anniversaries.
+  const rank: Record<PlannedNote['kind'], number> = { reminder: 0, overdue: 0, refill: 0, med: 0, supply: 1, groom: 2, anniversary: 3 };
+  const others = out
+    .filter((n) => n.kind !== 'med')
+    .sort((a, b) => rank[a.kind] - rank[b.kind] || a.at.getTime() - b.at.getTime())
+    .slice(0, MAX_NOTES - meds.length);
+  return [...meds, ...others].sort((a, b) => a.at.getTime() - b.at.getTime());
 }
 
 let handlerSet = false;
@@ -132,8 +148,15 @@ export async function askPermission(): Promise<boolean> {
   }
 }
 
-/** Cancel everything this app scheduled and schedule it again from the current data. */
-export async function syncNotifications(store: Store): Promise<number> {
+let chain: Promise<number> = Promise.resolve(0);
+
+/** Cancel everything this app scheduled and schedule it again from the current data. Calls run one at a time. */
+export function syncNotifications(store: Store): Promise<number> {
+  chain = chain.then(() => doSync(store), () => doSync(store));
+  return chain;
+}
+
+async function doSync(store: Store): Promise<number> {
   if (Platform.OS === 'web') return 0;
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();

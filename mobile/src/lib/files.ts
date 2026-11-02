@@ -179,11 +179,12 @@ export async function shareTextFile(name: string, content: string, mimeType: str
 }
 
 /** Render HTML to a PDF and open the share sheet (LINE, 存到檔案, 列印…). */
-export async function sharePdf(html: string, name: string) {
+/** Render HTML to a PDF and open the share sheet. Returns false if the PDF could not be made or shared. */
+export async function sharePdf(html: string, name: string): Promise<boolean> {
   try {
     if (Platform.OS === 'web') {
       await Print.printAsync({ html });
-      return;
+      return true;
     }
     const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
     let target = uri;
@@ -196,23 +197,51 @@ export async function sharePdf(html: string, name: string) {
     } catch {
       // keep the generated name
     }
-    await shareFile(target, 'application/pdf', clean);
-    // The PDF holds health and personal data: don't leave it lying in the cache.
-    setTimeout(() => removeCacheFile(target), 60000);
+    // The PDF holds health and personal data. It is removed by cleanupCachePdfs() on the next app start,
+    // not right away: on Android the share call returns before the receiving app has read the file.
+    return await shareFile(target, 'application/pdf', clean);
   } catch {
     Alert.alert('無法產生 PDF', '請再試一次。');
+    return false;
   }
 }
 
-/** Read a local image as a data URI so it can be embedded in a PDF. */
-export async function imageDataUri(uri?: string | null): Promise<string | null> {
+/** Delete PDFs and CSV/JSON exports left in the cache by earlier shares. Call once at startup. */
+export function cleanupCacheExports() {
+  if (Platform.OS === 'web') return;
+  try {
+    for (const item of Paths.cache.list()) {
+      if (item instanceof File && /\.(pdf|csv|json)$/i.test(item.uri)) item.delete();
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Read a local image as a JPEG data URI for embedding in a PDF, shrunk so the longest side is at most
+ * `maxSide` px (PDFs with many full-size photos are slow or fail on low-memory phones). HEIC/WebP become JPEG.
+ */
+export async function imageDataUri(uri?: string | null, maxSide = 1000): Promise<string | null> {
   if (!uri) return null;
   if (uri.startsWith('data:')) return uri;
   if (Platform.OS === 'web') return uri;
   try {
+    const orig = await ImageManipulator.manipulate(uri).renderAsync();
+    let ref = orig;
+    if (Math.max(orig.width, orig.height) > maxSide) {
+      const c = ImageManipulator.manipulate(uri);
+      c.resize(orig.width >= orig.height ? { width: maxSide } : { height: maxSide });
+      ref = await c.renderAsync();
+    }
+    const out = await ref.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+    if (out.base64) return `data:image/jpeg;base64,${out.base64}`;
+  } catch {
+    // fall back to the raw file
+  }
+  try {
     const b64 = await new File(uri).base64();
-    const ext = extOf(uri, 'jpg');
-    return `data:image/${ext === 'png' ? 'png' : 'jpeg'};base64,${b64}`;
+    return `data:${mimeOf(uri)};base64,${b64}`;
   } catch {
     return null;
   }
@@ -251,10 +280,10 @@ export const esc = (x: unknown) =>
 export function usePendingFiles() {
   const add = useRef<string[]>([]);
   const rem = useRef<string[]>([]);
-  const done = useRef(false);
+  // Leaving without saving: files picked during this visit were never stored, so remove them.
   useEffect(
     () => () => {
-      if (!done.current) add.current.forEach((u) => deleteFile(u));
+      add.current.forEach((u) => deleteFile(u));
     },
     [],
   );
@@ -268,12 +297,13 @@ export function usePendingFiles() {
       deleteFile(uri); // never saved, safe to delete now
     } else rem.current.push(uri);
   }, []);
-  const commit = useCallback(() => {
-    done.current = true;
-    rem.current.forEach((u) => deleteFile(u));
-    rem.current = [];
+  /** Call on save. Pass `afterSave` from useStore so files are only deleted once the data is on disk. */
+  const commit = useCallback((defer?: (fn: () => void) => void) => {
+    const gone = rem.current.splice(0);
     add.current = [];
-    done.current = false;
+    const del = () => gone.forEach((u) => deleteFile(u));
+    if (defer) defer(del);
+    else del();
   }, []);
   const discard = useCallback(() => {
     add.current.forEach((u) => deleteFile(u));

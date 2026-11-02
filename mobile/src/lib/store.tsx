@@ -34,6 +34,40 @@ export function migrate(raw: any): Store {
   out.groom = arr(out.groom).map((g: any) => ({ ...g, history: arr(g.history) }));
   out.reminders = arr(out.reminders).map((r: any) => ({ ...r, history: arr(r.history) }));
   out.journal = arr(out.journal).map((j: any) => ({ ...j, photos: arr(j.photos), acts: arr(j.acts) }));
+  const str = (x: any) => (typeof x === 'string' ? x : x == null ? '' : String(x));
+  const prevMonth = (() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  out.recurring = arr(out.recurring)
+    .filter((r: any) => r && typeof r === 'object')
+    .map((r: any) => ({
+      ...r,
+      amt: Number(r.amt) || 0,
+      day: Math.min(28, Math.max(1, Math.round(Number(r.day) || 1))),
+      lastPosted: /^\d{4}-\d{2}$/.test(r.lastPosted) ? r.lastPosted : prevMonth,
+      note: str(r.note),
+      cat: str(r.cat) || '其他',
+      petId: str(r.petId) || 'all',
+    }));
+  const vets: any = {};
+  for (const [k, v] of Object.entries(out.vets || {})) {
+    if (!v || typeof v !== 'object') continue;
+    const x = v as any;
+    vets[k] = { name: str(x.name), doctor: str(x.doctor), phone: str(x.phone), addr: str(x.addr), hours: str(x.hours) };
+  }
+  out.vets = vets;
+  if (out.erVet && typeof out.erVet === 'object') {
+    const x = out.erVet;
+    out.erVet = { name: str(x.name), doctor: str(x.doctor), phone: str(x.phone), addr: str(x.addr), hours: str(x.hours) };
+  } else out.erVet = null;
+  out.entries = arr(out.entries).filter((e: any) => e && typeof e === 'object').map((e: any) => ({ ...e, v: e.v && typeof e.v === 'object' ? e.v : {} }));
+  out.pets = arr(out.pets)
+    .filter((p: any) => p && typeof p === 'object' && p.id)
+    .map((p: any) => ({ kind: 'other', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#E8D9B5', ...p, name: str(p.name) || '寵物' }));
+  out.ownerPhone = str(out.ownerPhone);
   const lost: any = {};
   for (const [k, v] of Object.entries(out.lost || {})) lost[k] = { ...(v as any), sightings: arr((v as any)?.sightings) };
   out.lost = lost;
@@ -70,12 +104,18 @@ interface Ctx {
   petId: string | null;
   setPetId: (id: string) => void;
   toast: (msg: string) => void;
-  toastMsg: string | null;
+  /** Run `fn` once the next save has reached the disk (e.g. delete a replaced photo file). */
+  afterSave: (fn: () => void) => void;
   /** Today's date; changes when the app is reopened on a new day, so screens re-render. */
   day: string;
 }
 
 const StoreCtx = createContext<Ctx | null>(null);
+/** Toast text lives in its own context so showing a toast doesn't re-render every screen. */
+const ToastCtx = createContext<string | null>(null);
+export const useToastMsg = () => useContext(ToastCtx);
+
+const RETRY_MS = [2000, 5000, 15000, 30000, 60000];
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<Store>(emptyStore);
@@ -87,8 +127,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(store);
   const saving = useRef<Promise<void>>(Promise.resolve());
-  const failedOnce = useRef(false);
+  const failures = useRef(0);
   const savedOnce = useRef(false);
+  const afterSaveQueue = useRef<(() => void)[]>([]);
 
   const toast = useCallback((msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -96,28 +137,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     toastTimer.current = setTimeout(() => setToastMsg(null), 2600);
   }, []);
 
+  const writeNow = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const jobs = afterSaveQueue.current.splice(0);
+    // Serialize writes so two saves never interleave.
+    saving.current = saving.current.then(async () => {
+      try {
+        await saveRaw(JSON.stringify({ ...latest.current, _savedAt: Date.now() }));
+        failures.current = 0;
+        jobs.forEach((fn) => {
+          try {
+            fn();
+          } catch {
+            // ignore
+          }
+        });
+        if (!savedOnce.current) {
+          savedOnce.current = true;
+          clearLegacy();
+        }
+      } catch {
+        afterSaveQueue.current.unshift(...jobs); // keep them for the next successful save
+        const n = failures.current++;
+        if (n === 0) toast('資料沒有存成功，請確認手機空間；App 會自動再試');
+        if (n < RETRY_MS.length) saveTimer.current = setTimeout(writeNow, RETRY_MS[n]);
+      }
+    });
+  }, [toast]);
+
   const persist = useCallback(
     (delay = 300) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        // Serialize writes so two saves never interleave.
-        saving.current = saving.current.then(async () => {
-          try {
-            await saveRaw(JSON.stringify(latest.current));
-            failedOnce.current = false;
-            if (!savedOnce.current) {
-              savedOnce.current = true;
-              clearLegacy();
-            }
-          } catch {
-            if (!failedOnce.current) toast('資料沒有存成功，請確認手機空間後再試');
-            failedOnce.current = true;
-            persist(5000); // retry later; the data is still in memory
-          }
-        });
-      }, delay);
+      saveTimer.current = setTimeout(writeNow, delay);
     },
-    [toast],
+    [writeNow],
+  );
+
+  const afterSave = useCallback(
+    (fn: () => void) => {
+      afterSaveQueue.current.push(fn);
+      persist();
+    },
+    [persist],
   );
 
   const apply = useCallback(
@@ -131,16 +193,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const raw = await loadRaw();
-      if (raw) {
-        const s = produce(migrate(raw), (d) => dailyMaintenance(d));
-        latest.current = s;
-        setStore(s);
-        persist(50); // writes the migrated file (moves data out of the old AsyncStorage key)
+      try {
+        const r = await loadRaw();
+        if (r.data) {
+          let s = migrate(r.data);
+          try {
+            s = produce(s, (d) => dailyMaintenance(d));
+          } catch {
+            // housekeeping must never block opening the app
+          }
+          latest.current = s;
+          setStore(s);
+          if (r.source === 'tmp' || r.source === 'bak') toast('上次儲存沒有完成，已從最近的完整資料還原');
+          persist(50); // writes the migrated file (and moves data out of the old AsyncStorage key)
+        } else if (r.mainUnreadable) {
+          toast('資料檔無法讀取，已另外保留原檔；目前從空白開始');
+        }
+      } catch {
+        toast('讀取資料時發生問題，請到「設定」用備份檔還原');
       }
       setReady(true);
     })();
-  }, [persist]);
+  }, [persist, toast]);
+
+  // Save right away when the app goes to the background: the OS may close it without warning.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if ((st === 'background' || st === 'inactive') && saveTimer.current) writeNow();
+    });
+    return () => sub.remove();
+  }, [writeNow]);
 
   // New day while the app was in the background: refresh screens and run housekeeping.
   const dayRef = useRef(day);
@@ -169,10 +251,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const currentPet = store.pets.find((p) => p.id === petId) ? petId : store.pets[0]?.id ?? null;
 
   const value = useMemo<Ctx>(
-    () => ({ store, ready, update, replace, petId: currentPet, setPetId: setPetIdState, toast, toastMsg, day }),
-    [store, ready, update, replace, currentPet, toast, toastMsg, day],
+    () => ({ store, ready, update, replace, petId: currentPet, setPetId: setPetIdState, toast, afterSave, day }),
+    [store, ready, update, replace, currentPet, toast, afterSave, day],
   );
-  return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
+  return (
+    <StoreCtx.Provider value={value}>
+      <ToastCtx.Provider value={toastMsg}>{children}</ToastCtx.Provider>
+    </StoreCtx.Provider>
+  );
 }
 
 export function useStore(): Ctx {
@@ -200,13 +286,20 @@ export function useDraft(value: string, commit: (v: string) => void): [string, (
   useEffect(() => {
     if (pending.current === null) setDraft(value);
   }, [value]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const flush = () => {
       if (timer.current) clearTimeout(timer.current);
       if (pending.current !== null) commitRef.current(pending.current);
-    },
-    [],
-  );
+      pending.current = null;
+    };
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') flush();
+    });
+    return () => {
+      sub.remove();
+      flush();
+    };
+  }, []);
   const set = (v: string) => {
     setDraft(v);
     pending.current = v;

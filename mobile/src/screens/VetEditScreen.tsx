@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View } from 'react-native';
 import { useStore } from '../lib/store';
-import { useNav } from '../nav';
-import { Btn, Field, Screen, Sub, Toggle } from '../ui/kit';
+import { useNav, useBackHandler } from '../nav';
+import { Btn, Field, Screen, Sub, Toggle, confirm } from '../ui/kit';
 import type { Vet } from '../lib/types';
 
 export default function VetEditScreen({ params }: { params: any }) {
@@ -12,7 +12,16 @@ export default function VetEditScreen({ params }: { params: any }) {
   const petId: string = params.petId ?? store.pets[0]?.id;
   const pet = store.pets.find((p) => p.id === petId);
   const blank: Vet = { name: '', doctor: '', phone: '', addr: '', hours: '' };
-  const [v, setV] = useState<Vet>((er ? store.erVet : store.vets[petId]) ?? blank);
+  const [v, setV] = useState<Vet>({ ...blank, ...((er ? store.erVet : store.vets[petId]) ?? {}) });
+  const [initial] = useState(v);
+  useBackHandler(
+    JSON.stringify(v) !== JSON.stringify(initial)
+      ? () => {
+          confirm('放棄未儲存的內容？', '剛才修改的醫院資料不會保存。', () => nav.pop(), '放棄');
+          return true;
+        }
+      : null,
+  );
   const [all, setAll] = useState(false);
   const [tried, setTried] = useState(false);
   const set = (k: keyof Vet, x: string) => setV((o) => ({ ...o, [k]: x }));
@@ -43,7 +52,14 @@ export default function VetEditScreen({ params }: { params: any }) {
       footer={
         <View style={{ gap: 8 }}>
           <Btn title="儲存" onPress={save} />
-          {er && store.erVet ? <Btn kind="danger" title="移除" onPress={() => { update((d) => { d.erVet = null; }); nav.pop(); }} /> : null}
+          {er && store.erVet ? <Btn kind="danger" title="移除" onPress={() =>
+                confirm('移除夜間急診醫院？', '緊急求助頁將不再顯示這家醫院。', () => {
+                  update((d) => {
+                    d.erVet = null;
+                  });
+                  nav.pop();
+                }, '移除')
+              } /> : null}
         </View>
       }
     >

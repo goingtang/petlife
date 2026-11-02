@@ -29,7 +29,7 @@ const slot = (t: string) => {
 const FOOD_TASK_WORDS: Record<string, string[]> = { dry: ['乾糧'], wet: ['濕食', '罐'], hay: ['牧草'], veg: ['葉菜', '蔬菜'], water: ['水'] };
 
 export default function FormScreen({ params }: { params: any }) {
-  const { store, update, toast } = useStore();
+  const { store, update, toast, afterSave } = useStore();
   const nav = useNav();
   const form: string = params.form;
   const editId: string | undefined = params.editId;
@@ -124,13 +124,14 @@ export default function FormScreen({ params }: { params: any }) {
   // Duplicate feeding guard: same food in the same part of the day already logged.
   const nowT = hm();
   const dup =
-    form === 'feed' && !editId && !dupOk && !['water', 'treat'].includes(v.food)
+    form === 'feed' && !editId && !dupOk && date === today() && !['water', 'treat'].includes(v.food)
       ? store.entries
           .filter((e) => e.petId === petId && e.form === 'feed' && e.v.food === v.food && e.at.startsWith(date) && slot(e.at.slice(11, 16)) === slot(nowT))
           .sort((a, b) => (a.at < b.at ? 1 : -1))[0]
       : undefined;
 
-  const entryAt = () => (date === today() ? `${date}T${nowT}` : existingEntry && existingEntry.at.startsWith(date) ? existingEntry.at : `${date}T12:00`);
+  // Editing keeps the original time when the date is unchanged; new entries today use the current time.
+  const entryAt = () => (existingEntry && existingEntry.at.startsWith(date) ? existingEntry.at : date === today() ? `${date}T${nowT}` : `${date}T12:00`);
 
   const submit = () => {
     setTried(true);
@@ -170,7 +171,7 @@ export default function FormScreen({ params }: { params: any }) {
           }
         }
       });
-      pf.commit();
+      pf.commit(afterSave);
       toast(existingEntry ? '已更新' : alsoMed && v.hType === 'med' && form === 'health' ? '已記錄，並加入用藥打卡（每天 08:00，可到用藥打卡修改）' : '已記錄');
       nav.pop();
       return;
@@ -199,7 +200,7 @@ export default function FormScreen({ params }: { params: any }) {
           d.journal.push(j);
         }
       });
-      pf.commit();
+      pf.commit(afterSave);
       toast(existingJ ? '日記已更新' : '日記已儲存');
       nav.pop();
       return;
@@ -222,18 +223,14 @@ export default function FormScreen({ params }: { params: any }) {
 
   const remove = () =>
     confirm('確定刪除？', '刪除後無法復原。', () => {
+      const files: string[] = [...(existingEntry?.v?.docs || []), ...(existingJ?.photos || [])];
       update((d) => {
-        if (existingEntry) {
-          (existingEntry.v?.docs || []).forEach((u: string) => deleteFile(u));
-          d.entries = d.entries.filter((x) => x.id !== existingEntry.id);
-        }
+        if (existingEntry) d.entries = d.entries.filter((x) => x.id !== existingEntry.id);
         if (existingRem) d.reminders = d.reminders.filter((x) => x.id !== existingRem.id);
-        if (existingJ) {
-          existingJ.photos.forEach((u) => deleteFile(u));
-          d.journal = d.journal.filter((x) => x.id !== existingJ.id);
-        }
+        if (existingJ) d.journal = d.journal.filter((x) => x.id !== existingJ.id);
         if (existingC) d.contacts = d.contacts.filter((x) => x.id !== existingC.id);
       });
+      afterSave(() => files.forEach((u) => deleteFile(u)));
       toast('已刪除');
       nav.pop();
     });
@@ -254,7 +251,7 @@ export default function FormScreen({ params }: { params: any }) {
       }
     >
       {(form === 'feed' || form === 'health' || form === 'growth') && (
-        <DateField label="日期" value={date} onChange={(x) => x && setDate(x)} />
+        <DateField label="日期" value={date} onChange={(x) => x && setDate(x)} max={today()} />
       )}
 
       {form === 'feed' && (

@@ -20,10 +20,10 @@ export default function TodayScreen() {
     <Row style={{ justifyContent: 'space-between' }}>
       <Sub style={{ fontWeight: '500' }}>{dateLabel()}</Sub>
       <Row gap={6}>
-        <Pressable onPress={() => nav.push('sos')} style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
+        <Pressable onPress={() => nav.push('sos')} style={{ height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
           <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 }}>SOS</Text>
         </Pressable>
-        <Pressable onPress={() => nav.push('settings')} style={{ height: 34, paddingHorizontal: 12, borderRadius: 17, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="設定">
+        <Pressable onPress={() => nav.push('settings')} style={{ height: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="設定">
           <Text style={{ color: C.ink, fontWeight: '700', fontSize: 13 }}>設定</Text>
         </Pressable>
       </Row>
@@ -207,11 +207,17 @@ export default function TodayScreen() {
       <Section title="最近紀錄">
         {recent.length ? (
           recent.map((e) => (
-            <Row key={e.id} style={{ padding: 12, paddingHorizontal: 14, borderRadius: 18, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line }}>
+            <Pressable
+              key={e.id}
+              onPress={() => (e.form === 'activity' ? nav.setTab('act') : nav.push('form', { form: e.form, petId: pet.id, editId: e.id }))}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, padding: 12, paddingHorizontal: 14, borderRadius: 18, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line }}
+              accessibilityRole="button"
+              accessibilityLabel={`${relTime(e.at)} ${entrySummary(e)}，點一下編輯`}
+            >
               <Text style={{ width: 70, fontSize: 13, color: C.sub }}>{relTime(e.at)}</Text>
               <Text style={{ flex: 1, fontSize: 14, color: C.ink }}>{entrySummary(e)}</Text>
               <Sub style={{ fontSize: 12 }}>{memberName(store, e.who)}</Sub>
-            </Row>
+            </Pressable>
           ))
         ) : (
           <Empty text="還沒有紀錄，按「＋ 記錄」新增第一筆" />

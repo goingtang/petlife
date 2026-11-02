@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
+import { today } from '../lib/date';
 import { useNav, useBackHandler } from '../nav';
 import { Btn, Choice, DateField, Field, Label, Row, Screen, Segment, Sub, Toggle, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
@@ -17,7 +18,7 @@ const BREEDS: Record<PetKind, string[]> = {
 };
 
 export default function PetEditScreen({ params }: { params: any }) {
-  const { store, update, toast, setPetId } = useStore();
+  const { store, update, toast, setPetId, afterSave } = useStore();
   const nav = useNav();
   const existing = params.petId ? store.pets.find((p) => p.id === params.petId) : undefined;
   const [p, setP] = useState<Pet>(
@@ -56,7 +57,7 @@ export default function PetEditScreen({ params }: { params: any }) {
         if (params.first) d.ownerId = d.me;
       }
     });
-    pf.commit();
+    pf.commit(afterSave);
     if (!existing) setPetId(clean.id);
     toast(existing ? '已更新寵物資料' : `已新增${clean.name}，每日照護項目也幫你建好了`);
     if (params.first) nav.popToRoot();
@@ -64,15 +65,19 @@ export default function PetEditScreen({ params }: { params: any }) {
   };
 
   const remove = () =>
-    confirm(`刪除${existing?.name}？`, '這隻寵物的紀錄、日記、提醒、文件和照片都會一起刪除，無法復原。花費紀錄會保留，方便對帳。', () => {
+    confirm(`刪除${existing?.name}？`, '這隻寵物的紀錄、日記、提醒、文件和照片都會一起刪除，無法復原。過去的花費紀錄會保留，方便對帳；這隻寵物的每月固定支出會停止。', () => {
       const id = existing!.id;
-      deleteFile(existing!.photo);
+      // Collect the files first; they are deleted only after the change has been saved.
+      const files: (string | null | undefined)[] = [
+        existing!.photo,
+        ...store.journal.filter((j) => j.petId === id).flatMap((j) => j.photos),
+        ...store.entries.filter((e) => e.petId === id).flatMap((e) => e.v?.docs || []),
+        ...store.docs.filter((x) => x.petId === id).flatMap((x) => [x.fileUri, ...(x.pages || [])]),
+        ...store.milestones.filter((m) => m.petId === id).map((m) => m.photo),
+        store.lost[id]?.photo,
+      ];
       update((d) => {
-        d.journal.filter((j) => j.petId === id).forEach((j) => j.photos.forEach((u) => deleteFile(u)));
-        d.entries.filter((e) => e.petId === id).forEach((e) => (e.v?.docs || []).forEach((u: string) => deleteFile(u)));
-        d.docs.filter((x) => x.petId === id).forEach((x) => [x.fileUri, ...(x.pages || [])].forEach((u) => deleteFile(u)));
-        d.milestones.filter((m) => m.petId === id).forEach((m) => deleteFile(m.photo));
-        deleteFile(d.lost[id]?.photo);
+        d.recurring = d.recurring.filter((r) => r.petId !== id);
         d.pets = d.pets.filter((x) => x.id !== id);
         d.tasks = d.tasks.filter((x) => x.petId !== id);
         d.entries = d.entries.filter((x) => x.petId !== id);
@@ -89,6 +94,7 @@ export default function PetEditScreen({ params }: { params: any }) {
         delete d.care[id];
         if (d.timer?.petId === id) d.timer = null;
       });
+      afterSave(() => files.forEach((u) => deleteFile(u)));
       toast('已刪除');
       nav.popToRoot();
     });
@@ -127,8 +133,8 @@ export default function PetEditScreen({ params }: { params: any }) {
         <Segment options={[{ value: 'male', label: '公' }, { value: 'female', label: '母' }]} value={p.sex} onChange={(s) => set('sex', s)} />
       </View>
       <Toggle label="已結紮" value={p.neutered} onChange={(v) => set('neutered', v)} />
-      <DateField label="生日（不確定可填大約日期）" value={p.birthday} onChange={(v) => set('birthday', v)} optional />
-      <DateField label="來到家裡的日子" value={p.adopted} onChange={(v) => set('adopted', v)} optional />
+      <DateField label="生日（不確定可填大約日期）" value={p.birthday} onChange={(v) => set('birthday', v)} optional max={today()} />
+      <DateField label="來到家裡的日子" value={p.adopted} onChange={(v) => set('adopted', v)} optional max={today()} />
       <Field label="晶片號碼" value={p.chip} onChangeText={(t) => set('chip', t)} keyboardType="numeric" placeholder="15 碼" />
       <Field label="過敏" value={p.allergy} onChangeText={(t) => set('allergy', t)} placeholder="例如：雞肉；沒有可留白" />
       <View style={{ gap: 8 }}>
