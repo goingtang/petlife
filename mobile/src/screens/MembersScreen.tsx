@@ -50,7 +50,7 @@ export default function MembersScreen() {
 
   return (
     <Screen title="家人成員" subtitle="共同照顧的人。照護項目可以指派給不同成員輪值。">
-      <Banner kind="info" text="目前資料存在這支手機。家人用各自手機即時同步，需等雲端帳號功能上線；現在可以在同一支手機切換「我是誰」來記錄。" />
+      <Sub>資料存在這支手機。家人共用這支手機時，可以切換「現在是誰」來記錄。</Sub>
 
       <Section title="現在使用這支手機的是">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

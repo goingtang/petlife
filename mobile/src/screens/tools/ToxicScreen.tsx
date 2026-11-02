@@ -10,7 +10,7 @@ import { callPhone } from '../../lib/files';
 import { uid } from '../../lib/seed';
 import { CHOCOLATES, chocolateRisk, type ChocolateKind } from '../../lib/health';
 import { CONTENT } from '../../data/content';
-import { EXTRA_TOXIC, type ToxicItem } from '../../data/content-health';
+import { EXTRA_TOXIC, HEALTH_SOURCES, type ToxicItem } from '../../data/content-health';
 
 const SPECIES = ['狗', '貓', '兔', '鳥'];
 const LV: { label: string; fg: string; bg: string }[] = [
@@ -39,6 +39,8 @@ export default function ToxicScreen(_: { params: any }) {
   const [sp, setSp] = useState(String(known ?? 0));
   const [cat, setCat] = useState('全部');
   const [q, setQ] = useState('');
+  // With a dog/cat/rabbit/bird selected only that species' rating is shown; 「比較其他物種」 shows all four.
+  const [compare, setCompare] = useState(false);
   // Re-default the species whenever another pet is chosen.
   useEffect(() => {
     if (known !== undefined) setSp(String(known));
@@ -76,6 +78,9 @@ export default function ToxicScreen(_: { params: any }) {
   // Severity follows the pet's own species, not the species tab being browsed.
   const petSp = known ?? spi;
   const calcKind = pet && (pet.kind === 'dog' || pet.kind === 'cat') ? pet.kind : spi === 1 ? 'cat' : 'dog';
+  // Rabbits and birds: no safe amount, so no calculator.
+  const exotic = pet ? pet.kind === 'rabbit' || pet.kind === 'bird' : spi === 2 || spi === 3;
+  const showAllSpecies = !pet || known === undefined || compare;
   const chocRes = grams && weight ? chocolateRisk(chocType, grams, weight, calcKind) : null;
   const mgPerKg = chocRes ? chocRes.mgPerKg : null;
 
@@ -103,7 +108,14 @@ export default function ToxicScreen(_: { params: any }) {
       <PetChips value={petId} onChange={setPetId} />
       <Field value={q} onChangeText={setQ} placeholder="搜尋：巧克力、檳榔、普拿疼…" />
       {pet && known === undefined ? <Sub>{pet.name}的種類不在清單內，請選擇最接近的物種查看。</Sub> : null}
-      <Segment options={SPECIES.map((n, i) => ({ value: String(i), label: n }))} value={sp} onChange={setSp} />
+      {showAllSpecies ? (
+        <Segment options={SPECIES.map((n, i) => ({ value: String(i), label: n }))} value={sp} onChange={setSp} />
+      ) : (
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Sub style={{ flex: 1 }}>顯示{pet!.name}（{SPECIES[known!]}）的分級</Sub>
+          <Btn small kind="ghost" title="比較其他物種" onPress={() => setCompare(true)} />
+        </Row>
+      )}
       <ChipRow>
         {CATS.map((c) => (
           <Chip key={c} label={c} on={cat === c} onPress={() => setCat(c)} />
@@ -131,6 +143,7 @@ export default function ToxicScreen(_: { params: any }) {
                 </View>
                 <Badge text={lvLabel(t.lv[spi], t.cat)} bg={lv.bg} fg={lv.fg} />
               </View>
+              {showAllSpecies ? (
               <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
                 {SPECIES.map((n, i) => {
                   const l = LV[t.lv[i]];
@@ -141,6 +154,7 @@ export default function ToxicScreen(_: { params: any }) {
                   );
                 })}
               </View>
+              ) : null}
             </Card>
           );
         })
@@ -152,8 +166,18 @@ export default function ToxicScreen(_: { params: any }) {
         />
       )}
       <Sub>資料為一般性參考，個體差異很大。若已誤食，請立即聯絡獸醫。</Sub>
+      <Sub style={{ fontSize: 12 }}>{HEALTH_SOURCES.toxic}本頁為整理摘要，不能取代獸醫診斷。</Sub>
 
-      {(pet ? pet.kind === 'dog' || pet.kind === 'cat' : spi === 0 || spi === 1) ? (
+      {exotic ? (
+        <Section title="吃了巧克力？">
+          <Banner
+            kind="danger"
+            text={`${pet ? pet.name + '是' + (pet.kind === 'rabbit' ? '兔子' : '鳥') : '兔子和鳥'}，體型小、代謝方式不同，巧克力任何量都危險，請立即就醫，不要等症狀出現。`}
+            action={vet ? { label: `撥打${vet.name}`, onPress: () => callPhone(vet.phone) } : { label: '緊急求助', onPress: () => nav.pushUnique('sos', { topic: 'fa_poison' }) }}
+          />
+          {pet ? <Btn kind="outline" title="記錄這次誤食" onPress={() => logIngestion('巧克力', '', 'severe')} /> : null}
+        </Section>
+      ) : (pet ? pet.kind === 'dog' || pet.kind === 'cat' : spi === 0 || spi === 1) ? (
         <Section title="吃了巧克力？算算看">
           <Card style={{ gap: 12 }}>
             <ChipRow wrap>

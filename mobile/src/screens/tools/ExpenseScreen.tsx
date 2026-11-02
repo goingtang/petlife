@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import {
-  Screen, Card, Btn, Chip, ChipRow, Choice, Field, DateField, NumberField, Progress, ListCard, Row, Section, Empty, H2, Sub, Label,
+  Screen, Card, Btn, PetChips, Choice, Field, DateField, NumberField, Progress, ListCard, Row, Section, Empty, H2, Sub, Label,
   Segment, PhotoGrid, Banner, confirm,
 } from '../../ui/kit';
 import { C } from '../../ui/theme';
@@ -34,15 +34,17 @@ function csvCell(v: unknown): string {
   return /[",\r\n]/.test(s) || s !== String(v ?? '') ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export default function ExpenseScreen(_: { params: any }) {
-  const { store, update, toast } = useStore();
+export default function ExpenseScreen({ params }: { params: any }) {
+  const { store, update, toast, afterSave } = useStore();
   const cur = monthKey(today());
   const [mode, setMode] = useState<'month' | 'year'>('month');
   const [month, setMonth] = useState(cur);
   const [year, setYear] = useState(cur.slice(0, 4));
   const [pf, setPf] = useState<string>('all');
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [orig, setOrig] = useState('');
+  // Opened from 「＋ 記錄 → 花費」: start with a new expense.
+  const [draft, setDraft] = useState<Draft | null>(() => (params?.add ? { id: null, amt: null, cat: '食物', petId: 'all', date: today(), note: '' } : null));
+  const [orig, setOrig] = useState(() => (draft ? JSON.stringify(draft) : ''));
+  const [showExport, setShowExport] = useState(false);
   const [tried, setTried] = useState(false);
   const [rdraft, setRdraft] = useState<RDraft | null>(null);
   const [budgetEdit, setBudgetEdit] = useState(false);
@@ -118,7 +120,7 @@ export default function ExpenseScreen(_: { params: any }) {
       if (i >= 0) d.expenses[i] = { ...d.expenses[i], ...rec };
       else d.expenses.push(rec);
     });
-    files.commit();
+    files.commit(afterSave);
     toast(draft.id ? '已更新這筆花費' : '已記一筆');
     setMonth(monthKey(rec.date));
     setDraft(null);
@@ -157,7 +159,8 @@ export default function ExpenseScreen(_: { params: any }) {
   };
 
   const postThisMonth = (r: RecurringExpense) => {
-    const date = `${cur}-${String(r.day).padStart(2, '0')}`;
+    // Use the month at the moment of pressing (the banner may have stayed open past midnight).
+    const date = `${monthKey(today())}-${String(r.day).padStart(2, '0')}`;
     update((d) => {
       d.expenses.push({ id: uid('x'), date, cat: r.cat, amt: r.amt, petId: r.petId, note: r.note, recurringId: r.id });
     });
@@ -197,10 +200,10 @@ export default function ExpenseScreen(_: { params: any }) {
 
   return (
     <Screen title="花費記帳" subtitle="每月花費、預算與年度統計" scrollRef={scrollRef}>
-      <ChipRow>
-        <Chip label="全部" on={pf === 'all'} onPress={() => setPf('all')} />
-        {store.pets.map((p) => <Chip key={p.id} label={p.name} on={pf === p.id} onPress={() => setPf(p.id)} />)}
-      </ChipRow>
+      {draft ? null : (
+        <Btn title="＋ 記一筆" onPress={() => openDraft({ id: null, amt: null, cat: '食物', petId: pf, date: month === cur ? today() : `${month}-01`, note: '' })} />
+      )}
+      {store.pets.length > 1 ? <PetChips value={pf} onChange={setPf} allowAll /> : null}
       <Segment options={[{ value: 'month', label: '每月' }, { value: 'year', label: '年度統計' }]} value={mode} onChange={setMode} />
 
       {draft ? (
@@ -225,15 +228,27 @@ export default function ExpenseScreen(_: { params: any }) {
           <Row>
             <Btn small kind="outline" title="取消" style={{ flex: 1 }} onPress={() => closeDraft()} />
             {draft.id ? (
-              <Btn small kind="danger" title="刪除" style={{ flex: 1 }} onPress={() => confirm('刪除這筆花費？', '刪除後無法復原。', () => {
+              <Btn small kind="danger" title="刪除" style={{ flex: 1 }} onPress={() => {
                 const id = draft.id;
                 const rec = store.expenses.find((x) => x.id === id);
-                update((d) => { d.expenses = d.expenses.filter((x) => x.id !== id); });
-                deleteFile(rec?.receipt);
-                files.discard();
-                setDraft(null);
-                toast('已刪除');
-              })} />
+                if (!rec) return;
+                const drop = () => {
+                  update((d) => { d.expenses = d.expenses.filter((x) => x.id !== id); });
+                  files.discard();
+                  setDraft(null);
+                };
+                if (rec.receipt) {
+                  // The receipt photo is deleted too, so this one can't be undone: ask first.
+                  confirm('刪除這筆花費？', '收據照片也會一起刪除，無法復原。', () => {
+                    drop();
+                    afterSave(() => deleteFile(rec.receipt));
+                    toast('已刪除');
+                  });
+                } else {
+                  drop();
+                  toast('已刪除', { action: { label: '復原', onPress: () => update((d) => { d.expenses.push(rec); }) } });
+                }
+              }} />
             ) : null}
           </Row>
         </Card>
@@ -258,11 +273,11 @@ export default function ExpenseScreen(_: { params: any }) {
                     {total > budget ? `超出 ${money(total - budget)}` : `還剩 ${money(budget - total)}`}
                   </Text>
                   <Row gap={6}>
-                    <Btn small kind="soft" title="−" accessibilityLabel="預算減少 500" onPress={() => update((d) => { d.budget = Math.max(500, (d.budget || 5000) - 500); })} />
+                    <Btn small kind="soft" title="−" style={{ minWidth: 44 }} accessibilityLabel="預算減少 500" onPress={() => update((d) => { d.budget = Math.max(500, (d.budget || 5000) - 500); })} />
                     <Pressable onPress={() => { setBudgetDraft(budget); setBudgetErr(null); setBudgetEdit(!budgetEdit); }} accessibilityRole="button" accessibilityLabel="修改每月預算" style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 }}>
                       <Text style={{ fontWeight: '600', color: C.ink }}>預算 {money(budget)}</Text>
                     </Pressable>
-                    <Btn small kind="soft" title="＋" accessibilityLabel="預算增加 500" onPress={() => update((d) => { d.budget = (d.budget || 5000) + 500; })} />
+                    <Btn small kind="soft" title="＋" style={{ minWidth: 44 }} accessibilityLabel="預算增加 500" onPress={() => update((d) => { d.budget = (d.budget || 5000) + 500; })} />
                   </Row>
                 </Row>
                 {budgetEdit ? (
@@ -347,17 +362,17 @@ export default function ExpenseScreen(_: { params: any }) {
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 130 }}>
               {months.map((m, i) => (
                 <Pressable key={m} onPress={() => setMonth(m)} style={{ flex: 1, alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'flex-end' }} accessibilityRole="button" accessibilityLabel={`${monthLabel(m)} ${tots[i] ? money(tots[i]) : '沒有花費'}`}>
-                  <Text style={{ fontSize: 10, color: C.sub }} numberOfLines={1} adjustsFontSizeToFit>{hundreds(tots[i])}</Text>
+                  <Text style={{ fontSize: 12, color: C.sub }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{hundreds(tots[i])}</Text>
                   {tots[i] ? (
                     <View style={{ width: '100%', maxWidth: 30, height: Math.max(4, Math.round((tots[i] / tmax) * 80)), borderRadius: 8, backgroundColor: m === month ? C.accent : '#E5D8C6' }} />
                   ) : null}
-                  <Text style={{ fontSize: 11, color: m === month ? C.ink : C.sub, fontWeight: m === month ? '700' : '400' }}>{Number(m.slice(5))}月</Text>
+                  <Text style={{ fontSize: 12, color: m === month ? C.ink : C.sub, fontWeight: m === month ? '700' : '400' }}>{Number(m.slice(5))}月</Text>
                 </Pressable>
               ))}
             </View>
           </Card>
 
-          <Section title="明細" action={draft ? undefined : { label: '＋ 記一筆', kind: 'primary', onPress: () => openDraft({ id: null, amt: null, cat: '食物', petId: pf, date: month === cur ? today() : `${month}-01`, note: '' }) }}>
+          <Section title="明細">
             {inMonth.length ? (
               <ListCard>
                 {inMonth.slice(0, shown).map((x) => (
@@ -426,8 +441,15 @@ export default function ExpenseScreen(_: { params: any }) {
             ) : null}
           </Section>
 
-          <Btn kind="outline" title={`匯出${monthLabel(month)}・${scopeName}（CSV）`} onPress={() => exportCsv(inMonth, `petpal-花費-${month}-${scopeName}.csv`)} />
-          <Btn kind="ghost" title="匯出全部花費（CSV）" onPress={() => exportCsv(store.expenses, 'petpal-花費-全部.csv')} />
+          {showExport ? (
+            <Card style={{ gap: 8 }}>
+              <Btn kind="outline" title={`匯出${monthLabel(month)}・${scopeName}（CSV）`} onPress={() => exportCsv(inMonth, `petpal-花費-${month}-${scopeName}.csv`)} />
+              <Btn kind="outline" title="匯出全部花費（CSV）" onPress={() => exportCsv(store.expenses, 'petpal-花費-全部.csv')} />
+              <Btn small kind="ghost" title="收起" onPress={() => setShowExport(false)} />
+            </Card>
+          ) : (
+            <Btn kind="ghost" title="匯出 CSV（給試算表或保險理賠）…" onPress={() => setShowExport(true)} />
+          )}
         </>
       ) : (
         <>

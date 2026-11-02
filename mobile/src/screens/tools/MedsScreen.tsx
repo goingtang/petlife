@@ -11,6 +11,12 @@ import { addDays, daysBetween, shortDate, today } from '../../lib/date';
 import { uid } from '../../lib/seed';
 import { applyMedEdit, stopMed, freqText } from '../../lib/health';
 
+// Doses whose check-in actually took a pill off the count, and doses checked in since the app started.
+// Un-checking gives a pill back only when the check-in took one (a check-in at count 0 took nothing),
+// so the count can't creep above what it was. Kept at module level so it survives leaving the screen.
+const decremented = { current: new Set<string>() };
+const sessionTaken = { current: new Set<string>() };
+
 const PRESET = ['07:00', '08:00', '09:00', '12:00', '18:00', '20:00', '21:00'];
 
 function Ring({ pct }: { pct: number | null }) {
@@ -46,7 +52,6 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
   const [refillAt, setRefillAt] = useState<number | null>(med?.refillAt ?? 3);
   const [custom, setCustom] = useState('19:00');
   const [tried, setTried] = useState(false);
-  const [saved, setSaved] = useState(false);
   const touch = <T,>(fn: (v: T) => void) => (v: T) => {
     dirty.current = true;
     fn(v);
@@ -77,18 +82,8 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
     });
     dirty.current = false;
     toast(msg);
-    if (notify && !store.notifyEnabled) setSaved(true);
-    else onDone();
+    onDone();
   };
-
-  if (saved) {
-    return (
-      <View style={{ gap: 12 }}>
-        <Banner kind="warn" text="已儲存。要在服藥時間收到提醒，請先到「設定」開啟通知。" action={{ label: '前往設定', onPress: () => { onDone(); nav.push('settings'); } }} />
-        <Btn kind="outline" title="之後再說" onPress={onDone} />
-      </View>
-    );
-  }
 
   return (
     <Card style={{ gap: 14 }}>
@@ -97,7 +92,16 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
       <Sub>{growth ? `最近體重 ${growth.v.weight} kg（${growth.at.slice(0, 10).replace(/-/g, '/')} 記錄），依體重給藥時請以醫師處方為準。` : '還沒有體重紀錄。依體重給藥的藥物，請以醫師處方為準。'}</Sub>
       <View style={{ gap: 8 }}>
         <Label>多久吃一次</Label>
-        <Segment options={[{ value: 'daily', label: '每天' }, { value: 'weekly', label: '每週' }, { value: 'monthly', label: '每月' }]} value={freq} onChange={touch(setFreq)} />
+        <Segment
+          options={[{ value: 'daily', label: '每天' }, { value: 'weekly', label: '每週' }, { value: 'monthly', label: '每月' }]}
+          value={freq}
+          onChange={touch((f: MedFreq) => {
+            setFreq(f);
+            // A new weekly med defaults to 4 weeks (a 7-day course would be one dose).
+            if (!med && f === 'weekly' && days > 0 && days < 28) setDays(28);
+            if (!med && f === 'daily' && days === 28) setDays(7);
+          })}
+        />
         <Sub>{freq === 'daily' ? '每天在下面的時間吃。' : freq === 'weekly' ? '每週同一天（開始日期那個星期幾）吃一次。' : '每月同一日（開始日期那一天）吃一次，適合心絲蟲、體內外驅蟲、除蚤滴劑。'}</Sub>
       </View>
       <View style={{ gap: 8 }}>
@@ -128,8 +132,8 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
       <View style={{ gap: 8 }}>
         <Label>療程</Label>
         <ChipRow wrap>
-          {[7, 14, 30, 0].map((n) => (
-            <Chip key={n} label={n ? `${n} 天` : '長期'} on={days === n} onPress={() => touch(setDays)(n)} />
+          {(freq === 'weekly' ? [28, 56, 84, 0] : [7, 14, 30, 0]).map((n) => (
+            <Chip key={n} label={n ? (freq === 'weekly' ? `${n / 7} 週` : `${n} 天`) : '長期'} on={days === n} onPress={() => touch(setDays)(n)} />
           ))}
         </ChipRow>
         {days ? <Stepper value={days} onChange={touch(setDays)} min={1} max={365} unit="天" /> : null}
@@ -140,7 +144,7 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
           <NumberField label="藥還剩幾次" value={count} onChange={touch(setCount)} integer placeholder="不記錄可留白" />
         </View>
         <View style={{ flex: 1 }}>
-          <NumberField label="剩幾次時提醒補藥" value={refillAt} onChange={touch(setRefillAt)} integer />
+          <NumberField label="剩幾次提醒補藥" value={refillAt} onChange={touch(setRefillAt)} integer />
         </View>
       </Row>
       <Sub>有填「剩幾次」的話，每次打卡會自動減一，快吃完時會提醒你回診或補藥。</Sub>
@@ -155,10 +159,12 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
 
 export default function MedsScreen(_: { params: any }) {
   const { store, update, toast, petId, setPetId, day: td } = useStore();
+  const nav = useNav();
   const pet = usePet();
   const [editing, setEditing] = useState<Med | 'new' | null>(null);
   const [which, setWhich] = useState<'today' | 'yesterday'>('today');
   const [showEnded, setShowEnded] = useState(false);
+  const [moreFor, setMoreFor] = useState<string | null>(null);
   const dirty = useRef(false);
   const scrollRef = useRef<any>(null);
 
@@ -211,9 +217,20 @@ export default function MedsScreen(_: { params: any }) {
       const prev = d.doses[k];
       const med = d.meds.find((x) => x.id === m.id);
       if (med && med.count !== null && med.count !== undefined) {
-        if (prev !== 'taken' && v === 'taken') med.count = Math.max(0, med.count - 1);
-        if (prev === 'taken' && v !== 'taken') med.count = med.count + 1;
+        if (prev !== 'taken' && v === 'taken') {
+          if (med.count > 0) {
+            med.count -= 1;
+            decremented.current.add(k);
+          } else decremented.current.delete(k);
+        }
+        if (prev === 'taken' && v !== 'taken') {
+          // Taken earlier in this run: give back only if it was decremented. Taken before the app started: assume it was.
+          const known = sessionTaken.current.has(k) ? decremented.current.has(k) : true;
+          if (known) med.count += 1;
+          decremented.current.delete(k);
+        }
       }
+      if (v === 'taken') sessionTaken.current.add(k);
       if (v) d.doses[k] = v;
       else delete d.doses[k];
     });
@@ -223,25 +240,42 @@ export default function MedsScreen(_: { params: any }) {
   const endedMeds = mine.filter(ended).sort((a, b) => ((a.end ?? '') < (b.end ?? '') ? 1 : -1));
 
   const stop = (m: Med) => {
-    const notYet = m.start >= td;
+    const notYet = m.start > td;
     confirm(
-      notYet ? '取消這個療程？' : '停用這個用藥？',
-      notYet ? `「${m.name}」從今天或之後才開始，取消後會直接移除；今天已打卡的會退回藥量。` : `「${m.name}」會在昨天結束，今天起不再提醒。過去的服藥紀錄會保留，今天已打卡的會退回藥量。`,
+      '停藥？',
+      notYet ? `「${m.name}」還沒開始，停藥後會直接移除。` : `「${m.name}」今天之後不再提醒。過去和今天已打卡的服藥紀錄都會保留。`,
       () => {
         const res: { r: 'stopped' | 'removed' } = { r: 'stopped' };
         update((d) => {
           res.r = stopMed(d, m.id, td);
         });
-        toast(res.r === 'removed' ? '已取消療程' : '已停用，今天起不再提醒');
+        toast(res.r === 'removed' ? '已移除這個療程' : '已停藥，之後不再提醒');
       },
-      notYet ? '取消療程' : '停用',
+      '停藥',
     );
+  };
+
+  const removeMed = (m: Med) => {
+    const kept = Object.fromEntries(Object.entries(store.doses).filter(([k]) => k.split('|')[1] === m.id));
+    update((d) => {
+      d.meds = d.meds.filter((y) => y.id !== m.id);
+      for (const k of Object.keys(d.doses)) if (k.split('|')[1] === m.id) delete d.doses[k];
+    });
+    toast(`已刪除「${m.name}」`, {
+      action: {
+        label: '復原',
+        onPress: () =>
+          update((d) => {
+            if (!d.meds.some((y) => y.id === m.id)) d.meds.push(m);
+            Object.assign(d.doses, kept);
+          }),
+      },
+    });
   };
 
   const card = (m: Med) => {
     const isEnded = ended(m);
     const notStarted = m.start > td;
-    const startsToday = m.start === td;
     const next = !isEnded ? nextDueDate(m, td) : null;
     const low = m.count !== null && m.count !== undefined && m.count <= m.refillAt;
     return (
@@ -263,21 +297,12 @@ export default function MedsScreen(_: { params: any }) {
           </Row>
         ) : null}
         <Row>
-          {!isEnded ? <Btn small kind="outline" title={notStarted || startsToday ? '取消療程' : '停用'} onPress={() => stop(m)} /> : null}
-          <Btn
-            small
-            kind="danger"
-            title="刪除"
-            onPress={() =>
-              confirm('刪除用藥', `確定刪除「${m.name}」和它的服藥紀錄嗎？`, () => {
-                update((d) => {
-                  d.meds = d.meds.filter((y) => y.id !== m.id);
-                  for (const k of Object.keys(d.doses)) if (k.split('|')[1] === m.id) delete d.doses[k];
-                });
-                toast('已刪除');
-              })
-            }
-          />
+          {!isEnded ? <Btn small kind="outline" title="停藥" onPress={() => stop(m)} /> : null}
+          {moreFor === m.id ? (
+            <Btn small kind="danger" title="刪除（含服藥紀錄）" onPress={() => removeMed(m)} />
+          ) : (
+            <Btn small kind="ghost" title="…" accessibilityLabel={`${m.name} 更多選項`} style={{ minWidth: 44 }} onPress={() => setMoreFor(m.id)} />
+          )}
         </Row>
       </Card>
     );
@@ -286,14 +311,10 @@ export default function MedsScreen(_: { params: any }) {
   return (
     <Screen title="用藥打卡" subtitle="排程與服藥紀錄" scrollRef={scrollRef}>
       <PetChips value={petId} onChange={setPetId} />
+      {!store.notifyEnabled && activeMeds.some((m) => m.notify) ? (
+        <Banner kind="warn" text="通知目前關閉，到服藥時間不會跳出提醒。" action={{ label: '前往設定開啟', onPress: () => nav.push('settings') }} />
+      ) : null}
 
-      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-        <Ring pct={adh.pct} />
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>7 天服藥率</Text>
-          <Sub>{adh.pct !== null ? `已服用 ${adh.taken} / 應服 ${adh.sched} 次` : '近 7 天沒有排定的用藥'}</Sub>
-        </View>
-      </Card>
 
       <Section title={which === 'today' ? '今天的用藥' : '昨天的用藥（補登）'}>
         <Segment options={[{ value: 'today', label: '今天' }, { value: 'yesterday', label: '昨天' }]} value={which} onChange={setWhich} />
@@ -321,7 +342,7 @@ export default function MedsScreen(_: { params: any }) {
                   ) : (
                     <Row gap={6}>
                       <Btn small kind="soft" title="略過" onPress={() => setDose(m, t, 'skip')} />
-                      <Btn small title="打卡" style={{ backgroundColor: C.green }} onPress={() => { setDose(m, t, 'taken'); toast(`${m.name} 已服用`); }} />
+                      <Btn small title="打卡" style={{ backgroundColor: C.green }} onPress={() => { setDose(m, t, 'taken'); toast(`${m.name} 已服用`, { action: { label: '復原', onPress: () => setDose(m, t, null) } }); }} />
                     </Row>
                   )}
                 </Row>
@@ -335,6 +356,14 @@ export default function MedsScreen(_: { params: any }) {
         )}
         {doses.some(({ m, t }) => store.doses[doseKey(day, m.id, t)]) ? <Sub>點「已服用」或「已略過」可以取消紀錄。</Sub> : null}
       </Section>
+
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <Ring pct={adh.pct} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>7 天服藥率</Text>
+          <Sub>{adh.pct !== null ? `已服用 ${adh.taken} / 應服 ${adh.sched} 次` : '近 7 天沒有排定的用藥'}</Sub>
+        </View>
+      </Card>
 
       <Section title="用藥清單" action={{ label: '＋ 新增用藥', onPress: () => open('new') }}>
         {activeMeds.length ? activeMeds.map(card) : (

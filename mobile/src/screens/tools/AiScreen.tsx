@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Screen, Card, Btn, Chip, ChipRow, Field, Banner, PetChips, Section, Sub, P, Label, Row, Segment } from '../../ui/kit';
+import { Screen, Card, Btn, Chip, ChipRow, Field, Banner, PetChips, Section, Sub, P, Label, Row, confirm } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { useNav } from '../../nav';
@@ -38,6 +38,9 @@ function providerUrl(k: ProviderKey, prompt: string): string {
     default: return 'https://gemini.google.com/app';
   }
 }
+
+const TITLE = '症狀檢查 · 問 AI';
+const SUBTITLE = '先判斷急不急（不是診斷）';
 
 export default function AiScreen(_: { params: any }) {
   const { store, petId, setPetId, toast, update } = useStore();
@@ -113,11 +116,21 @@ export default function AiScreen(_: { params: any }) {
 
   const toggleChip = (c: string) => setChips((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
-  const ask = async () => {
+  const ask = () => {
     if (!symptoms) {
       toast('請先描述症狀');
       return;
     }
+    const name = PROVIDERS.find((p) => p.k === provider)?.name ?? 'AI';
+    confirm(
+      `把資料交給 ${name}？`,
+      `會複製並送出以下內容到 ${name}（由該服務的隱私政策規範）：\n• ${pet?.name}的名字、種類、品種、年齡、性別、體重、過敏\n• 目前用藥、近 30 天健康紀錄\n• 你描述的症狀\n\n不會包含你的電話、地址或照片。`,
+      () => void send(),
+      '同意並開啟',
+      { destructive: false },
+    );
+  };
+  const send = async () => {
     await copyText(prompt);
     toast(`提問已複製，內含${pet?.name ?? ''}的健康資料`);
     if (provider === 'gemini') setGeminiCopied(true);
@@ -144,8 +157,24 @@ export default function AiScreen(_: { params: any }) {
 
   if (!pet) {
     return (
-      <Screen title="AI 健康助理" subtitle="描述症狀，先判斷急不急">
+      <Screen title={TITLE} subtitle={SUBTITLE}>
         <Sub>請先新增一隻寵物。</Sub>
+      </Screen>
+    );
+  }
+
+  // One-time notice before first use.
+  if (!store.disclaimerOk) {
+    return (
+      <Screen title={TITLE} subtitle={SUBTITLE}>
+        <Card style={{ gap: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: C.ink }}>使用前請先了解</Text>
+          <P>這裡依你描述的症狀，用固定規則找出常見的緊急警訊，幫你判斷要不要馬上就醫。</P>
+          <P>它不是診斷，也不能取代獸醫。沒有偵測到警訊不代表沒事；只要你覺得不對勁，請直接聯絡醫院。</P>
+          <P>「問 AI」會在你同意後，把整理好的文字交給你選的 AI 服務（例如 ChatGPT），PetPal 不會自己上傳資料。</P>
+          <Btn title="我了解，開始使用" onPress={() => update((d) => { d.disclaimerOk = true; })} />
+          <Btn kind="danger" title="現在就是緊急狀況" onPress={() => nav.pushUnique('sos')} />
+        </Card>
       </Screen>
     );
   }
@@ -159,7 +188,7 @@ export default function AiScreen(_: { params: any }) {
   );
 
   return (
-    <Screen title="AI 健康助理" subtitle="描述症狀，先判斷急不急">
+    <Screen title={TITLE} subtitle={SUBTITLE}>
       <PetChips value={petId} onChange={setPetId} />
 
       <Section title={`${pet.name}哪裡不舒服？`}>
@@ -209,13 +238,13 @@ export default function AiScreen(_: { params: any }) {
       <Section title="問 AI">
         <Sub>PetPal 會把{pet.name}的資料和症狀整理成提問並複製，開啟你常用的 AI 後就能直接取得建議。</Sub>
         <Sub style={{ fontSize: 12 }}>提問會包含{pet.name}的年齡、體重、用藥與近 30 天健康紀錄，並送到你選擇的 AI 服務。</Sub>
-        <ChipRow>
+        <ChipRow wrap>
           {PROVIDERS.map((p) => (
             <Chip key={p.k} label={p.name} on={provider === p.k} onPress={() => { setProvider(p.k); setGeminiCopied(false); }} />
           ))}
         </ChipRow>
         {provider === 'gemini' ? <Sub>Gemini 無法自動帶入提問，開啟後要自己貼上。</Sub> : null}
-        <Btn title="複製提問並開啟" onPress={ask} disabled={!symptoms} />
+        <Btn title="整理提問並開啟 AI" onPress={ask} disabled={!symptoms} />
         {geminiCopied && provider === 'gemini' ? (
           <Banner kind="ok" text="已複製。開啟 Gemini 後，長按輸入框選「貼上」，再送出。" />
         ) : null}
@@ -235,7 +264,7 @@ export default function AiScreen(_: { params: any }) {
         ) : null}
       </Section>
 
-      <Sub style={{ fontSize: 12 }}>AI 回答僅供參考，無法取代獸醫診斷。</Sub>
+      <Sub style={{ fontSize: 12 }}>症狀檢查與 AI 回答都僅供參考，無法取代獸醫診斷。緊急警訊的整理參考 Merck Veterinary Manual（默克獸醫手冊）等公開獸醫資料。</Sub>
     </Screen>
   );
 }

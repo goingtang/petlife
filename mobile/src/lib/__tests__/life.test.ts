@@ -1,7 +1,8 @@
 import {
   prevMonthKey, initialLastPosted, recurringMissedThisMonth, restockCategory, costPerDayText,
-  samePlace, validCoord, chunk, mentionsGrape, phoneDigits, normalizeName,
+  samePlace, validCoord, chunk, mentionsGrape, phoneDigits, normalizeName, roundCoord,
 } from '../life';
+import { isSamplePhone, sampleStore, emptyStore } from '../seed';
 
 describe('prevMonthKey', () => {
   it('goes back one month, across the year', () => {
@@ -90,5 +91,24 @@ describe('mentionsGrape', () => {
     expect(mentionsGrape('雞肉、葡萄柚籽萃取物')).toBe(false);
     expect(mentionsGrape('chicken, grapefruit seed extract')).toBe(false);
     expect(mentionsGrape('chicken, grape seed extract')).toBe(false);
+  });
+});
+
+describe('roundCoord', () => {
+  test('rounds to about 100 m', () => {
+    expect(roundCoord(25.0339871)).toBe(25.034);
+    expect(roundCoord(121.5644722)).toBe(121.564);
+    expect(roundCoord(-33.86882)).toBe(-33.869);
+  });
+});
+
+describe('isSamplePhone', () => {
+  test('sample numbers are recognised in any format, real ones are not', () => {
+    expect(isSamplePhone('02-0000-9999')).toBe(true);
+    expect(isSamplePhone('(02) 00009999')).toBe(true);
+    expect(isSamplePhone('02-2700-1234')).toBe(false);
+    expect(sampleStore().erVet && isSamplePhone(sampleStore().erVet!.phone)).toBe(true);
+    expect(sampleStore().sample).toBe(true);
+    expect(emptyStore().sample).toBe(false);
   });
 });

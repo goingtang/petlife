@@ -194,10 +194,39 @@ export function Chip({ label, on, onPress, style, leading }: { label: string; on
 
 export function ChipRow({ children, wrap }: { children: React.ReactNode; wrap?: boolean }) {
   if (wrap) return <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{children}</View>;
+  return <ScrollChips>{children}</ScrollChips>;
+}
+
+/** Sideways chip row with a fade on the right edge while more chips are hidden off-screen. */
+function ScrollChips({ children }: { children: React.ReactNode }) {
+  const [more, setMore] = useState(false);
+  const [w, setW] = useState(0);
+  const [cw, setCw] = useState(0);
+  React.useEffect(() => setMore(cw > w + 4), [w, cw]);
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -20 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}>
-      {children}
-    </ScrollView>
+    <View style={{ marginHorizontal: -20 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+        onLayout={(e) => setW(e.nativeEvent.layout.width)}
+        onContentSizeChange={(x) => setCw(x)}
+        onScroll={(e) => {
+          const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+          setMore(contentOffset.x + layoutMeasurement.width < contentSize.width - 8);
+        }}
+        scrollEventThrottle={64}
+      >
+        {children}
+      </ScrollView>
+      {more ? (
+        <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 36, flexDirection: 'row' }}>
+          {[0.15, 0.35, 0.6, 0.85].map((o) => (
+            <View key={o} style={{ flex: 1, backgroundColor: C.bg, opacity: o }} />
+          ))}
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -306,10 +335,10 @@ export function NumberField({
           keyboardType={integer ? 'number-pad' : 'decimal-pad'}
           placeholder={placeholder}
           placeholderTextColor={C.faint}
-          style={{ flex: 1, fontSize: 16, color: C.ink, minHeight: 46 }}
+          style={{ flex: 1, minWidth: 0, fontSize: 16, color: C.ink, minHeight: 46 }}
           accessibilityLabel={label ?? placeholder}
         />
-        {unit ? <Text style={{ fontSize: 15, color: C.sub }}>{unit}</Text> : null}
+        {unit ? <Text style={{ fontSize: 15, color: C.sub, flexShrink: 0, marginLeft: 6 }}>{unit}</Text> : null}
       </View>
       {error ? <Text style={{ fontSize: 12, color: C.danger, fontWeight: '500' }}>{error}</Text> : null}
     </View>
@@ -330,7 +359,7 @@ export function DateField({ label, value, onChange, optional, error, max }: { la
         label={label}
         value={text}
         placeholder="YYYY-MM-DD"
-        error={error ?? (text && !isValidYmd(text) ? '日期格式：2026-11-01' : null)}
+        error={error ?? (text && !isValidYmd(text) ? '日期格式：2026-11-01' : text && max && text > max ? `不能晚於 ${max.replace(/-/g, '/')}` : null)}
         onChangeText={(t) => {
           setText(t);
           if ((isValidYmd(t) && (!max || t <= max)) || (optional && !t)) onChange(t);
@@ -470,7 +499,7 @@ export function Avatar({ name, color, size = 32, photo, textColor = '#fff' }: { 
   if (photo) return <Image source={{ uri: photo }} style={{ width: size, height: size, borderRadius: size / 2 }} accessibilityLabel={name} />;
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: textColor, fontSize: size * 0.42, fontWeight: '700' }}>{initialOf(name)}</Text>
+      <Text style={{ color: textColor, fontSize: Math.max(12, size * 0.42), fontWeight: '700' }}>{initialOf(name)}</Text>
     </View>
   );
 }
@@ -512,7 +541,7 @@ export function PhotoGrid({ photos, onRemove, onAdd, max = 4, size = 76 }: { pho
       {onAdd && photos.length < max ? (
         <Pressable onPress={onAdd} style={[s.photoAdd, { width: size, height: size }]} accessibilityRole="button" accessibilityLabel="加入照片">
           <Text style={{ fontSize: 22, color: C.sub }}>＋</Text>
-          <Text style={{ fontSize: 11, color: C.sub }}>拍照／相簿</Text>
+          <Text style={{ fontSize: 12, color: C.sub }}>拍照／相簿</Text>
         </Pressable>
       ) : null}
     </View>
@@ -530,17 +559,26 @@ export function Banner({ text, kind = 'info', action }: { text: string; kind?: '
   );
 }
 
-/** Ask before destructive actions. Uses a native dialog on phones. */
-export function confirm(title: string, message: string, onYes: () => void, yesLabel = '刪除') {
+/**
+ * Ask before an action. Uses a native dialog on phones. Destructive by default (red button on iOS);
+ * pass `{ destructive: false }` for plain questions, `onCancel` to react to 取消.
+ */
+export function confirm(title: string, message: string, onYes: () => void, yesLabel = '刪除', opts?: { onCancel?: () => void; destructive?: boolean; cancelLabel?: string }) {
   if (Platform.OS === 'web') {
     // eslint-disable-next-line no-alert
     if (typeof window !== 'undefined' && window.confirm(`${title}\n${message}`)) onYes();
+    else opts?.onCancel?.();
     return;
   }
-  Alert.alert(title, message, [
-    { text: '取消', style: 'cancel' },
-    { text: yesLabel, style: 'destructive', onPress: onYes },
-  ]);
+  Alert.alert(
+    title,
+    message,
+    [
+      { text: opts?.cancelLabel ?? '取消', style: 'cancel', onPress: opts?.onCancel },
+      { text: yesLabel, style: opts?.destructive === false ? 'default' : 'destructive', onPress: onYes },
+    ],
+    { cancelable: true, onDismiss: opts?.onCancel },
+  );
 }
 
 export const s = StyleSheet.create({

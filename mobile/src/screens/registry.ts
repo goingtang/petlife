@@ -24,6 +24,7 @@ import MilestonesScreen from './tools/MilestonesScreen';
 import LearnScreen from './tools/LearnScreen';
 import ArticleScreen from './tools/ArticleScreen';
 import PlacesScreen from './tools/PlacesScreen';
+import PrivacyScreen from './PrivacyScreen';
 
 export const SCREENS: Record<string, React.ComponentType<{ params: any }>> = {
   form: FormScreen, // { form: 'feed'|'health'|'growth'|'reminder'|'diary'|'contact', petId?, editId? }
@@ -50,4 +51,5 @@ export const SCREENS: Record<string, React.ComponentType<{ params: any }>> = {
   learn: LearnScreen,
   article: ArticleScreen, // { id }
   places: PlacesScreen,
+  privacy: PrivacyScreen,
 };

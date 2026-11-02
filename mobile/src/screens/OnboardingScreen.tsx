@@ -15,7 +15,7 @@ export default function OnboardingScreen() {
   const start = () => {
     update((d) => {
       d.onboarded = true;
-      d.members = [{ ...d.members[0], name: name.trim() || '我' }];
+      d.members = [{ ...d.members[0], name: name.trim() || '主人' }];
     });
     nav.push('petEdit', { first: true });
   };
@@ -28,7 +28,7 @@ export default function OnboardingScreen() {
 
       <Card style={{ gap: 14 }}>
         <Text style={{ fontSize: 17, fontWeight: '700', color: C.ink }}>開始使用</Text>
-        <Field label="你的稱呼" value={name} onChangeText={setName} placeholder="例如：小明、媽媽" />
+        <Field label="你的稱呼（選填）" value={name} onChangeText={setName} placeholder="例如：小明、媽媽；之後家人一起用時方便分辨" />
         <Btn title="建立我的寵物" onPress={start} />
       </Card>
 
@@ -37,6 +37,7 @@ export default function OnboardingScreen() {
         <Sub>載入範例資料（豆豆、麻糬、小白三隻寵物和三位家人），所有功能都可以直接操作。之後可以在「更多 → 設定」清除。</Sub>
         <Btn kind="outline" title="使用範例資料" onPress={() => replace(sampleStore())} />
       </Card>
+      <Btn small kind="ghost" title="隱私說明：資料存在哪裡、用在哪裡" onPress={() => nav.push('privacy')} style={{ alignSelf: 'center' }} />
       <View style={{ height: 20 }} />
     </ScrollView>
   );

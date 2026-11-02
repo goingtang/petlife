@@ -1,11 +1,11 @@
 // One screen for every quick-log form: 餵食 / 健康 / 成長 / 提醒 / 日記 / 緊急聯絡人.
 // params: { form, petId?, editId? }
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { useStore, memberName } from '../lib/store';
+import { useStore, memberName, petName } from '../lib/store';
 import { useNav, useBackHandler } from '../nav';
 import {
-  Banner, Btn, Choice, DateField, Field, Label, PhotoGrid, Screen, Segment, Stepper, Sub, Toggle, confirm,
+  Banner, Btn, Choice, DateField, Field, Label, PetChips, PhotoGrid, Row, Screen, Segment, Stepper, Sub, TimeField, Toggle, confirm,
 } from '../ui/kit';
 import { today, hm, addDays } from '../lib/date';
 import { latestGrowth, tasksFor, doneBy, primaryVetPhone, FOOD_LABEL } from '../lib/domain';
@@ -67,9 +67,12 @@ export default function FormScreen({ params }: { params: any }) {
   const [v, setV] = useState<any>(init);
   const [date, setDate] = useState<string>(existingEntry ? existingEntry.at.slice(0, 10) : today());
   const [initDate] = useState(date);
+  const [time, setTime] = useState<string>(existingEntry ? existingEntry.at.slice(11, 16) : hm());
+  const [initTime] = useState(time);
+  const scrollRef = useRef<any>(null);
   const [alsoMed, setAlsoMed] = useState(false);
   const pf = usePendingFiles();
-  const dirty = JSON.stringify(v) !== JSON.stringify(init) || date !== initDate;
+  const dirty = JSON.stringify(v) !== JSON.stringify(init) || date !== initDate || time !== initTime;
   useBackHandler(
     dirty
       ? () => {
@@ -88,11 +91,7 @@ export default function FormScreen({ params }: { params: any }) {
     set(key, v[key].filter((_: string, j: number) => j !== i));
   };
   const [tried, setTried] = useState(false);
-  const [dupOk, setDupOk] = useState(false);
-  const set = (k: string, x: any) => {
-    setV((o: any) => ({ ...o, [k]: x }));
-    setDupOk(false);
-  };
+  const set = (k: string, x: any) => setV((o: any) => ({ ...o, [k]: x }));
 
   if (!pet && form !== 'diary') {
     return (
@@ -112,7 +111,6 @@ export default function FormScreen({ params }: { params: any }) {
   }
   if (form === 'reminder' && !v.title.trim()) errors.title = '請填寫提醒事項';
   if (form === 'reminder' && !v.date) errors.date = '請選擇日期';
-  if (form === 'diary' && !v.title.trim()) errors.title = '請填寫標題';
   if (form === 'contact') {
     if (!v.name.trim()) errors.name = '請填寫姓名或名稱';
     if (!v.phone.trim()) errors.phone = '請填寫電話';
@@ -121,22 +119,38 @@ export default function FormScreen({ params }: { params: any }) {
   const err = (k: string) => (tried ? errors[k] ?? null : null);
   const hasErr = Object.values(errors).some(Boolean);
 
-  // Duplicate feeding guard: same food in the same part of the day already logged.
-  const nowT = hm();
+  // Duplicate feeding guard: same food in the same part of the day already logged. Checked when saving.
   const dup =
-    form === 'feed' && !editId && !dupOk && date === today() && !['water', 'treat'].includes(v.food)
+    form === 'feed' && !editId && !['water', 'treat'].includes(v.food)
       ? store.entries
-          .filter((e) => e.petId === petId && e.form === 'feed' && e.v.food === v.food && e.at.startsWith(date) && slot(e.at.slice(11, 16)) === slot(nowT))
+          .filter((e) => e.petId === petId && e.form === 'feed' && e.v.food === v.food && e.at.startsWith(date) && slot(e.at.slice(11, 16)) === slot(time))
           .sort((a, b) => (a.at < b.at ? 1 : -1))[0]
       : undefined;
 
-  // Editing keeps the original time when the date is unchanged; new entries today use the current time.
-  const entryAt = () => (existingEntry && existingEntry.at.startsWith(date) ? existingEntry.at : date === today() ? `${date}T${nowT}` : `${date}T12:00`);
+  const entryAt = () => `${date}T${time}`;
+  // The care task a feed log will tick off (same food, same part of the day, not done yet).
+  const feedTask =
+    form === 'feed' && !editId && date === today()
+      ? tasksFor(store, petId).find((x) => !doneBy(store, x.id) && slot(x.time) === slot(time) && (FOOD_TASK_WORDS[v.food] ?? []).some((w) => x.title.includes(w)))
+      : undefined;
 
-  const submit = () => {
+  const submit = (force = false) => {
     setTried(true);
-    if (hasErr) return;
-    if (dup) return; // the warning card asks for confirmation first
+    if (hasErr) {
+      scrollRef.current?.scrollTo?.({ y: 0, animated: true });
+      toast('請完成標示紅字的欄位');
+      return;
+    }
+    if (dup && !force) {
+      confirm(
+        `${FOOD_LABEL[v.food]}已經餵過了`,
+        `${memberName(store, dup.who)} ${dup.at.slice(11, 16)} 已經記錄過。重複餵食容易造成肥胖或腸胃不適，仍要再記一次嗎？`,
+        () => submit(true),
+        '仍要記錄',
+        { destructive: false },
+      );
+      return;
+    }
 
     if (form === 'feed' || form === 'health' || form === 'growth') {
       const clean: any = { ...v };
@@ -164,15 +178,19 @@ export default function FormScreen({ params }: { params: any }) {
           if (form === 'health' && v.hType === 'med' && alsoMed) {
             d.meds.push({ id: uid('m'), petId, name: clean.medName, dose: '', times: ['08:00'], start: date, end: null, notify: true, freq: 'daily', count: null, refillAt: 0 });
           }
-          if (form === 'feed' && date === today()) {
-            const words = FOOD_TASK_WORDS[v.food] ?? [];
-            const t = tasksFor(d, petId).find((x) => !doneBy(d, x.id) && slot(x.time) === slot(nowT) && words.some((w) => x.title.includes(w)));
-            if (t) d.taskDone[date] = { ...(d.taskDone[date] || {}), [t.id]: d.me };
-          }
+          if (feedTask) d.taskDone[date] = { ...(d.taskDone[date] || {}), [feedTask.id]: d.me };
         }
       });
       pf.commit(afterSave);
-      toast(existingEntry ? '已更新' : alsoMed && v.hType === 'med' && form === 'health' ? '已記錄，並加入用藥打卡（每天 08:00，可到用藥打卡修改）' : '已記錄');
+      toast(
+        existingEntry
+          ? '已更新'
+          : alsoMed && v.hType === 'med' && form === 'health'
+            ? '已記錄，並加入用藥打卡（每天 08:00，可到用藥打卡修改）'
+            : feedTask
+              ? `已記錄，並完成「${feedTask.title}」`
+              : '已記錄',
+      );
       nav.pop();
       return;
     }
@@ -191,12 +209,13 @@ export default function FormScreen({ params }: { params: any }) {
       return;
     }
     if (form === 'diary') {
+      const jTitle = v.title.trim() || `${petName(store, v.petId)}的日記 ${Number(today().slice(5, 7))}/${Number(today().slice(8))}`;
       update((d) => {
         if (existingJ) {
           const j = d.journal.find((x) => x.id === existingJ.id);
-          if (j) Object.assign(j, { petId: v.petId, mood: v.mood, acts: v.acts, title: v.title.trim(), body: v.body.trim(), photos: v.photos, private: v.private });
+          if (j) Object.assign(j, { petId: v.petId, mood: v.mood, acts: v.acts, title: jTitle, body: v.body.trim(), photos: v.photos, private: v.private });
         } else {
-          const j: JournalEntry = { id: uid('j'), petId: v.petId, at: `${today()}T${hm()}`, author: d.me, mood: v.mood, acts: v.acts, title: v.title.trim(), body: v.body.trim(), photos: v.photos, private: v.private };
+          const j: JournalEntry = { id: uid('j'), petId: v.petId, at: `${today()}T${hm()}`, author: d.me, mood: v.mood, acts: v.acts, title: jTitle, body: v.body.trim(), photos: v.photos, private: v.private };
           d.journal.push(j);
         }
       });
@@ -243,15 +262,23 @@ export default function FormScreen({ params }: { params: any }) {
     <Screen
       title={title}
       subtitle={subtitle}
+      scrollRef={scrollRef}
       footer={
         <View style={{ gap: 8 }}>
-          <Btn title={form === 'feed' || form === 'health' ? '儲存' : '儲存'} onPress={submit} />
+          <Btn title="儲存" onPress={() => submit()} />
           {editId ? <Btn kind="danger" title="刪除" onPress={remove} /> : null}
         </View>
       }
     >
       {(form === 'feed' || form === 'health' || form === 'growth') && (
-        <DateField label="日期" value={date} onChange={(x) => x && setDate(x)} max={today()} />
+        <Row gap={10} style={{ alignItems: 'flex-start' }}>
+          <View style={{ flex: 3 }}>
+            <DateField label="日期" value={date} onChange={(x) => x && setDate(x)} max={today()} />
+          </View>
+          <View style={{ flex: 2 }}>
+            <TimeField label="時間" value={time} onChange={setTime} />
+          </View>
+        </Row>
       )}
 
       {form === 'feed' && (
@@ -272,13 +299,7 @@ export default function FormScreen({ params }: { params: any }) {
             </View>
           )}
           <Field label="備註" value={v.note} onChangeText={(t) => set('note', t)} placeholder="例如：剩下一半" />
-          {dup ? (
-            <Banner
-              kind="danger"
-              text={`${memberName(store, dup.who)} ${dup.at.slice(11, 16)} 已經餵過${FOOD_LABEL[v.food]}了。確定還要再記一次嗎？重複餵食容易造成肥胖或腸胃不適。`}
-              action={{ label: '仍要記錄', onPress: () => setDupOk(true) }}
-            />
-          ) : null}
+
         </>
       )}
 
@@ -351,16 +372,19 @@ export default function FormScreen({ params }: { params: any }) {
             <Label>重複</Label>
             <Segment options={[{ value: 'once', label: '不重複' }, { value: 'monthly', label: '每月' }, { value: 'yearly', label: '每年' }]} value={v.repeat} onChange={(x) => set('repeat', x)} />
           </View>
-          <Toggle label="手機通知提醒" hint="前一天晚上 8 點和當天早上 9 點各提醒一次" value={v.notify} onChange={(x) => set('notify', x)} />
+          <Toggle label="手機通知提醒" hint={store.notifyEnabled ? '前一天晚上 8 點和當天早上 9 點各提醒一次' : '通知目前關閉，要到「設定」開啟才會跳出提醒'} value={v.notify} onChange={(x) => set('notify', x)} />
         </>
       )}
 
       {form === 'diary' && (
         <>
-          <View style={{ gap: 8 }}>
-            <Label>寵物</Label>
-            <Choice options={store.pets.map((p) => ({ value: p.id, label: p.name }))} value={v.petId} onChange={(x) => set('petId', x)} />
-          </View>
+          {store.pets.length > 1 ? (
+            <View style={{ gap: 8 }}>
+              <Label>寵物</Label>
+              <PetChips value={v.petId} onChange={(x) => set('petId', x)} />
+            </View>
+          ) : null}
+          <Field label="標題（選填）" value={v.title} onChangeText={(t) => set('title', t)} placeholder="例如：第一次去海邊；空白會用日期當標題" />
           <View style={{ gap: 8 }}>
             <Label>照片（最多 4 張）</Label>
             <PhotoGrid photos={v.photos} max={4} onRemove={(i) => removePhoto('photos', i)} onAdd={() => addPhotos('photos', 4)} />
@@ -373,9 +397,8 @@ export default function FormScreen({ params }: { params: any }) {
             <Label>今天一起做了什麼</Label>
             <Choice multi options={ACTS.map((x) => ({ value: x, label: x }))} value={v.acts} onChange={(x) => set('acts', x)} />
           </View>
-          <Field label="標題" required value={v.title} onChangeText={(t) => set('title', t)} placeholder="例如：第一次去海邊" error={err('title')} />
           <Field label="今天發生了什麼？" value={v.body} onChangeText={(t) => set('body', t)} multiline placeholder="記下想留住的小事…" />
-          <Toggle label="只有我看得到" hint="私密日記不會出現在其他家人的畫面" value={v.private} onChange={(x) => set('private', x)} />
+          <Toggle label="私密日記" hint="只在你的身分下顯示（同一支手機的家人切換身分後看不到）" value={v.private} onChange={(x) => set('private', x)} />
         </>
       )}
 

@@ -29,7 +29,7 @@ export default function TasksScreen({ params }: { params: any }) {
   };
 
   return (
-    <Screen title="每日照護項目" subtitle="每天都會自動重新開始。指派給不同家人，就能輪流照顧。">
+    <Screen title="照護項目" subtitle="每天都會自動重新開始。指派給不同家人，就能輪流照顧。">
       <PetChips value={petId} onChange={(id) => { setPet(id); setEdit(null); }} />
       {!pet ? <Empty text="請先新增寵物" /> : null}
 

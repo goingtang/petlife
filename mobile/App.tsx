@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { StoreProvider, useStore, useToastMsg } from './src/lib/store';
@@ -15,6 +16,9 @@ import MoreScreen from './src/screens/MoreScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import { initNotifications, syncNotifications } from './src/lib/notify';
 import { C } from './src/ui/theme';
+
+// Keep the launch screen up until the saved data has loaded, so the app never flashes an empty screen.
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const TABS: { k: TabName; name: string; d: string; d2?: string }[] = [
   { k: 'today', name: '今天', d: 'M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z' },
@@ -48,11 +52,11 @@ function TabBar() {
             accessibilityState={{ selected: on }}
             accessibilityLabel={t.name}
           >
-            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={on ? C.ink : '#D8C8B4'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={on ? C.ink : '#EFE4D6'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <Path d={t.d} />
               {t.d2 ? <Path d={t.d2} /> : null}
             </Svg>
-            <Text style={{ fontSize: 11, color: on ? C.ink : '#D8C8B4', fontWeight: '500' }}>{t.name}</Text>
+            <Text style={{ fontSize: 12, color: on ? C.ink : '#EFE4D6', fontWeight: '500' }}>{t.name}</Text>
           </Pressable>
         );
       })}
@@ -61,17 +65,32 @@ function TabBar() {
 }
 
 function Toast() {
-  const toastMsg = useToastMsg();
+  const { toast, dismiss } = useToastMsg();
   const insets = useSafeAreaInsets();
   useEffect(() => {
     // Android reads the live region below; iOS VoiceOver needs an explicit announcement.
-    if (toastMsg && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(toastMsg);
-  }, [toastMsg]);
-  if (!toastMsg) return null;
+    if (toast && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(toast.action ? `${toast.msg}，可${toast.action.label}` : toast.msg);
+  }, [toast]);
+  if (!toast) return null;
+  const action = toast.action;
   return (
-    <View pointerEvents="none" style={[st.toastWrap, { top: insets.top + 12 }]}>
-      <View style={st.toast} accessibilityLiveRegion="polite">
-        <Text style={{ color: C.bg, fontSize: 14, fontWeight: '500', textAlign: 'center' }}>{toastMsg}</Text>
+    <View pointerEvents="box-none" style={[st.toastWrap, { top: insets.top + 12 }]}>
+      <View pointerEvents={action ? 'auto' : 'none'} style={[st.toast, action && st.toastRow]} accessibilityLiveRegion="polite">
+        <Text style={{ color: C.bg, fontSize: 14, fontWeight: '500', textAlign: action ? 'left' : 'center', flexShrink: 1 }}>{toast.msg}</Text>
+        {action ? (
+          <Pressable
+            onPress={() => {
+              dismiss();
+              action.onPress();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            hitSlop={6}
+            style={{ minHeight: 44, minWidth: 56, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: C.bg }}
+          >
+            <Text style={{ color: C.ink, fontSize: 14, fontWeight: '700' }}>{action.label}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -142,6 +161,10 @@ function StackScreen({ route, visible, top }: { route: Route; visible: boolean; 
     <Animated.View
       {...pan.panHandlers}
       pointerEvents={top ? 'auto' : 'none'}
+      // Screens below the top one stay drawn (for swipe-back) but must not be read by screen readers.
+      accessibilityElementsHidden={!top}
+      aria-hidden={!top}
+      importantForAccessibility={top ? 'auto' : 'no-hide-descendants'}
       style={[StyleSheet.absoluteFill, { backgroundColor: C.bg, display: visible ? 'flex' : 'none', transform: [{ translateX: x }] }]}
     >
       <RouteKeyCtx.Provider value={route.key}>
@@ -154,6 +177,9 @@ function StackScreen({ route, visible, top }: { route: Route; visible: boolean; 
 function Shell() {
   const { store, ready } = useStore();
   const { tab, stack } = useNav();
+  useEffect(() => {
+    if (ready) SplashScreen.hideAsync().catch(() => {});
+  }, [ready]);
   if (!ready)
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, gap: 12 }}>
@@ -166,7 +192,13 @@ function Shell() {
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
       {/* The screen right below the top one stays visible so an iOS swipe-back reveals it. */}
-      <View style={{ flex: 1, display: stack.length <= 1 ? 'flex' : 'none' }} pointerEvents={stack.length ? 'none' : 'auto'}>
+      <View
+        style={{ flex: 1, display: stack.length <= 1 ? 'flex' : 'none' }}
+        pointerEvents={stack.length ? 'none' : 'auto'}
+        accessibilityElementsHidden={stack.length > 0}
+        aria-hidden={stack.length > 0}
+        importantForAccessibility={stack.length ? 'no-hide-descendants' : 'auto'}
+      >
         <RouteKeyCtx.Provider value={`tab:${tab}`}>
           <TabScreen />
         </RouteKeyCtx.Provider>
@@ -203,4 +235,5 @@ const st = StyleSheet.create({
   tab: { flex: 1, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 3 },
   toastWrap: { position: 'absolute', left: 20, right: 20, alignItems: 'center', zIndex: 100 },
   toast: { backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 22, maxWidth: 360 },
+  toastRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingRight: 6 },
 });

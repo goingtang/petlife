@@ -3,7 +3,7 @@ import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore, memberName, memberColor, petName, isOwner } from '../lib/store';
 import { useNav } from '../nav';
-import { Avatar, Badge, Btn, Card, Chip, ChipRow, Empty, Row, Screen, Sub, confirm } from '../ui/kit';
+import { Avatar, Badge, Btn, Card, Empty, PetChips, Row, Screen, Sub, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
 import { addDays, today, weekday, relTime, addMonths } from '../lib/date';
 import { shareText, shareFile, deleteFile } from '../lib/files';
@@ -42,9 +42,9 @@ export default function DiaryScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Screen root title="共享日記" right={<Btn small kind="dark" title="家人成員" onPress={() => nav.push('members')} />}>
-        <Sub>在這支手機上記錄的日記。家人用各自手機同步，需等雲端帳號功能上線。</Sub>
+      <Screen root title="日記">
 
+        <Sub style={{ fontSize: 12 }}>最近 7 天（點一天只看那天，有圓點的是有日記的日子）</Sub>
         <View style={{ flexDirection: 'row', gap: 4 }}>
           {days.map((d) => {
             const on = day === d;
@@ -58,7 +58,7 @@ export default function DiaryScreen() {
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={d}
               >
-                <Text style={{ fontSize: 11, color: on ? C.bg : C.ink }}>{d === td ? '今' : weekday(d)}</Text>
+                <Text style={{ fontSize: 12, color: on ? C.bg : C.ink }}>{d === td ? '今' : weekday(d)}</Text>
                 <Text style={{ fontSize: 17, fontWeight: '700', color: on ? C.bg : C.ink }}>{Number(d.slice(8))}</Text>
                 <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: has ? (on ? C.yellow : C.accent) : 'transparent' }} />
               </Pressable>
@@ -66,12 +66,7 @@ export default function DiaryScreen() {
           })}
         </View>
 
-        <ChipRow>
-          <Chip label="全部" on={pet === 'all'} onPress={() => setPet('all')} />
-          {store.pets.map((p) => (
-            <Chip key={p.id} label={p.name} on={pet === p.id} onPress={() => setPet(p.id)} />
-          ))}
-        </ChipRow>
+        {store.pets.length > 1 ? <PetChips value={pet} onChange={setPet} allowAll /> : null}
 
         {!day && lastYear.length ? (
           <Card style={{ backgroundColor: C.purpleBg, borderWidth: 0, gap: 4 }} onPress={() => setDay(lastYear[0].at.slice(0, 10))}>
@@ -120,8 +115,14 @@ export default function DiaryScreen() {
         ))}
         {!list.length ? (
           <Empty
-            text={day ? '這天還沒有日記' : '還沒有日記，寫下第一篇吧'}
-            action={day ? { label: '顯示全部', onPress: () => setDay(null) } : undefined}
+            text={!store.pets.length ? '先新增寵物，就能開始寫日記' : day ? '這天還沒有日記' : '還沒有日記，寫下第一篇吧'}
+            action={
+              !store.pets.length
+                ? { label: '新增寵物', onPress: () => nav.push('petEdit', {}) }
+                : day
+                  ? { label: '顯示全部', onPress: () => setDay(null) }
+                  : undefined
+            }
           />
         ) : null}
         {list.length > limit ? <Btn kind="outline" title={`顯示更早的日記（還有 ${list.length - limit} 篇）`} onPress={() => setLimit((n) => n + 30)} /> : null}

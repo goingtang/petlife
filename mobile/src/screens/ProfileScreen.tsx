@@ -4,12 +4,13 @@ import { useStore } from '../lib/store';
 import { useNav } from '../nav';
 import { Badge, Btn, Card, Empty, KV, ListCard, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
-import { ageText, daysBetween, today, relTime } from '../lib/date';
+import { ageText, today, relTime } from '../lib/date';
+import { daysTogether } from '../lib/domain';
 import { latestGrowth, KIND_LABEL, SEX_LABEL, mapsSearch } from '../lib/domain';
-import { callPhone, choosePhotos, deleteFile, openUrl } from '../lib/files';
+import { callPhone, choosePhotos, deleteIfUnused, openUrl } from '../lib/files';
 
 export default function ProfileScreen({ params }: { params: any }) {
-  const { store, update, toast, afterSave } = useStore();
+  const { store, update, toast, afterSave, getStore } = useStore();
   const nav = useNav();
   const pet = store.pets.find((p) => p.id === params.petId);
   if (!pet)
@@ -31,7 +32,8 @@ export default function ProfileScreen({ params }: { params: any }) {
         const x = d.pets.find((y) => y.id === pet.id);
         if (x) x.photo = u[0];
       });
-      afterSave(() => deleteFile(old));
+      // The old photo may still be on the lost-pet poster; only delete it when nothing uses it.
+      afterSave(() => deleteIfUnused(old, getStore()));
       toast('照片已更新');
     });
 
@@ -59,7 +61,7 @@ export default function ProfileScreen({ params }: { params: any }) {
       <Row gap={8}>
         {[
           { v: g ? String(g.weight) : '–', u: 'kg', l: '目前體重', bg: C.greenBg, on: () => nav.push('form', { form: 'growth', petId: pet.id }) },
-          { v: pet.adopted ? String(daysBetween(pet.adopted, today())) : '–', u: '天', l: '相處天數', bg: C.yellowBg, on: () => nav.push('miles') },
+          { v: daysTogether(pet) !== null ? String(daysTogether(pet)) : '–', u: '天', l: '相處天數', bg: C.yellowBg, on: () => nav.push('miles') },
           { v: String(logsToday), u: '筆', l: '今日紀錄', bg: C.dangerBg, on: () => nav.push('logPicker') },
         ].map((st) => (
           <Pressable key={st.l} onPress={st.on} style={{ flex: 1, padding: 14, borderRadius: 20, backgroundColor: st.bg, gap: 4 }} accessibilityRole="button">

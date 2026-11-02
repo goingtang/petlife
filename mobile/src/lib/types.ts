@@ -264,4 +264,7 @@ export interface Store {
   favPlaces: FavPlace[];
   scans: ScanResult[];
   hideRecorder: boolean; // hide family names in reports given to the vet
+  locConsent?: boolean; // agreed to use location in 附近地點 (asked once, before the system prompt)
+  sample?: boolean; // the data is the built-in sample set (phones are fake; a banner says so)
+  disclaimerOk?: boolean; // accepted the one-time 症狀檢查 disclaimer
 }

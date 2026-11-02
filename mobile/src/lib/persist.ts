@@ -3,14 +3,17 @@
 //
 // Save:  write petpal-store.json.tmp → copy the current main file to .bak → move .tmp over the main file.
 //        At every moment at least one complete copy exists on disk.
-// Load:  read main, .tmp and .bak; use the one saved most recently (each copy carries `_savedAt`).
-//        The old AsyncStorage key (first app version) is only used when none of the files exist.
+// Load:  a readable main file wins, unless a readable .tmp was saved after it (the save stopped
+//        between writing .tmp and moving it). .bak is only used when main can't be read. Comparing
+//        `_savedAt` only between main and .tmp keeps a phone clock that jumped backwards from
+//        bringing back an older copy. The old AsyncStorage key (first app version) is used whenever
+//        no file could be read.
 //        A main file that exists but can't be read is set aside (renamed .corrupt-…) before the next save,
 //        so it is never silently overwritten.
 // Web preview: AsyncStorage (localStorage).
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 
 const LEGACY_KEY = 'petpal.store.v1';
 const NAME = 'petpal-store.json';
@@ -29,17 +32,25 @@ export interface LoadResult {
   mainUnreadable: boolean;
 }
 
-/** Pick the newest readable copy. Pure, so it can be unit-tested. */
+/** Pick which saved copy to load. Pure, so it can be unit-tested. */
 export function chooseCopy(c: Candidate[]): { data: any | null; source: LoadResult['source']; mainUnreadable: boolean; anyFile: boolean } {
-  const main = c.find((x) => x.name === 'main');
-  const readable = c.filter((x) => x.data && typeof x.data === 'object');
-  const order = { main: 0, tmp: 1, bak: 2 } as const;
-  readable.sort((a, b) => (Number(b.data._savedAt) || 0) - (Number(a.data._savedAt) || 0) || order[a.name] - order[b.name]);
-  const best = readable[0];
+  const get = (n: Candidate['name']) => {
+    const x = c.find((y) => y.name === n);
+    return x && x.data && typeof x.data === 'object' ? x : null;
+  };
+  const main = get('main');
+  const tmp = get('tmp');
+  const bak = get('bak');
+  const at = (x: Candidate) => Number(x.data._savedAt) || 0;
+  let best: Candidate | null = null;
+  if (main) best = tmp && at(tmp) > at(main) ? tmp : main;
+  else if (tmp && bak) best = at(tmp) >= at(bak) ? tmp : bak;
+  else best = tmp ?? bak;
+  const mainCand = c.find((x) => x.name === 'main');
   return {
     data: best ? best.data : null,
     source: best ? best.name : 'none',
-    mainUnreadable: !!main?.exists && !main.data,
+    mainUnreadable: !!mainCand?.exists && !main,
     anyFile: c.some((x) => x.exists),
   };
 }
@@ -63,6 +74,16 @@ async function readJson(f: File): Promise<Candidate['data']> {
 
 let mainNeedsSetAside = false;
 
+async function readLegacy(): Promise<any | null> {
+  try {
+    const raw = await AsyncStorage.getItem(LEGACY_KEY);
+    const data = raw ? JSON.parse(raw) : null;
+    return data && typeof data === 'object' ? data : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadRaw(): Promise<LoadResult> {
   if (native) {
     const f = files();
@@ -74,14 +95,13 @@ export async function loadRaw(): Promise<LoadResult> {
     const r = chooseCopy(cands);
     mainNeedsSetAside = r.mainUnreadable;
     if (r.data) return { data: r.data, source: r.source, mainUnreadable: r.mainUnreadable };
-    if (r.anyFile) return { data: null, source: 'none', mainUnreadable: r.mainUnreadable };
+    // No file could be read (e.g. an empty .tmp left by a failed first save): fall back to the old copy.
+    const legacy = await readLegacy();
+    if (legacy) return { data: legacy, source: 'legacy', mainUnreadable: r.mainUnreadable };
+    return { data: null, source: 'none', mainUnreadable: r.mainUnreadable };
   }
-  try {
-    const raw = await AsyncStorage.getItem(LEGACY_KEY);
-    if (raw) return { data: JSON.parse(raw), source: 'legacy', mainUnreadable: false };
-  } catch {
-    // ignore
-  }
+  const legacy = await readLegacy();
+  if (legacy) return { data: legacy, source: 'legacy', mainUnreadable: false };
   return { data: null, source: 'none', mainUnreadable: false };
 }
 
@@ -103,11 +123,43 @@ export async function saveRaw(json: string): Promise<void> {
   await f.tmp.move(new File(Paths.document, NAME), { overwrite: true });
 }
 
-/** After the first successful file save, drop the old AsyncStorage copy so it can never come back. */
+/**
+ * After data loaded from the old AsyncStorage copy (or from a file) has been saved to a file,
+ * drop the old copy so it can never come back. Never call this when nothing was loaded.
+ */
 export async function clearLegacy(): Promise<void> {
   if (!native) return;
   try {
     await AsyncStorage.removeItem(LEGACY_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Erase everything this app stored on the device: the data file and its .tmp/.bak/.corrupt copies,
+ * the photos/documents folder, exported files in the cache, and the old AsyncStorage key.
+ * (Scheduled notifications are cancelled by the caller.)
+ */
+export async function wipeAll(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(LEGACY_KEY);
+  } catch {
+    // ignore
+  }
+  if (!native) return;
+  mainNeedsSetAside = false;
+  try {
+    for (const item of Paths.document.list()) {
+      const name = item.uri.replace(/\/$/, '').split('/').pop() || '';
+      if (item instanceof File && name.startsWith(NAME)) item.delete();
+      else if (item instanceof Directory && name === 'petpal') item.delete();
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    for (const item of Paths.cache.list()) item.delete();
   } catch {
     // ignore
   }

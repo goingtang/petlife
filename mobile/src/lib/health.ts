@@ -1,7 +1,7 @@
 // Pure health logic used by the health tools (unit-tested in __tests__/health.test.ts).
 import type { Med, PetKind } from './types';
 import { addDays, parseYmd } from './date';
-import { doseKey } from './domain';
+import { doseKey, medDueOn } from './domain';
 
 // ---------------- Red flags ----------------
 
@@ -27,13 +27,25 @@ function realMatch(term: string, text: string, i: number): boolean {
   return true;
 }
 
+/** Characters that may sit between a negation and the sign: 沒再抽搐、沒吃巧克力、未曾出血. */
+const NEG_GAP = /^[再有在被吃喝碰曾見看]$/;
+
+/**
+ * True when this mention is negated: the negation sits right before the sign (沒有抽搐、無出血),
+ * or one allowed character away (沒再抽搐、沒吃巧克力). 「無故抽搐」「無力抽搐」「沒力吐血」 are not negations.
+ */
 function negated(text: string, i: number): boolean {
+  if (i < 0) return false;
   let start = i;
   // Stay inside the clause, look at most 2 characters back.
   while (start > 0 && i - start < 2 && !CLAUSE_BREAK.test(text[start - 1])) start--;
   const before = text.slice(start, i);
-  return NEGATIONS.some((n) => before.endsWith(n) || before.includes(n));
+  if (NEGATIONS.some((n) => before.endsWith(n))) return true;
+  return NEGATIONS.some((n) => n.length === 1 && before.length === 2 && before[0] === n && NEG_GAP.test(before[1]));
 }
+
+/** Swallowed objects that can block the gut or poison (pills given on purpose are not included). */
+const SWALLOWED = /(吞下|吞了|誤吞|吞進)[^，。；,.;!！?？\n]{0,4}?(電池|襪子|繩|線|骨頭|玩具|針|塑膠|磁鐵|硬幣|橡皮筋|毛巾|布|石頭|玉米)/;
 
 export interface Assessment {
   /** Go to a vet now. */
@@ -66,10 +78,16 @@ export function assessSymptoms(text: string, species?: PetKind): Assessment {
   }
   const flags = new Set(taken.filter((h) => !h.neg).map((h) => h.term));
 
-  // 頻尿 alone is common; it is an emergency for male cats (urethral blockage).
-  if (/頻尿/.test(text) && /公貓/.test(text) && !negated(text, text.indexOf('頻尿'))) flags.add('公貓頻尿');
+  const sw = SWALLOWED.exec(text);
+  if (sw && !negated(text, sw.index)) flags.add(`吞下${sw[2]}`);
 
   const warnings: string[] = [];
+  // 頻尿: an emergency for male cats (urethral blockage); otherwise see a vet today.
+  const fi = text.indexOf('頻尿');
+  if (fi >= 0 && !negated(text, fi)) {
+    if (/公貓/.test(text)) flags.add('公貓頻尿');
+    else warnings.push('頻尿');
+  }
   const noIntake = /不吃不喝/.test(text) && !negated(text, text.indexOf('不吃不喝'));
   if (noIntake) {
     if (species === 'rabbit') flags.add('不吃不喝（兔子腸胃停滯）');
@@ -88,9 +106,9 @@ export function reassurance(species: PetKind | undefined, birthday: string, warn
   if (warnings.length) return `${warnings.join('、')}：今天就要聯絡獸醫，不要等到明天。`;
   if (species === 'rabbit' || species === 'bird' || young) {
     const who = species === 'rabbit' ? '兔子' : species === 'bird' ? '鳥' : '幼犬幼貓';
-    return `沒有發現明顯的緊急警訊。但${who}病情變化快，建議當天就醫，不要等 24 小時。`;
+    return `這段描述中沒有看到列出的緊急警訊，但${who}病情變化快，建議當天就醫，不要等 24 小時。`;
   }
-  return '沒有發現明顯的緊急警訊。若症狀持續超過 24 小時、精神變差或不吃不喝，請盡快就醫。';
+  return '這段描述中沒有看到列出的緊急警訊，但這不代表沒事。請持續觀察，症狀持續超過 24 小時、精神變差、不吃不喝或你覺得不對勁時，請盡快就醫。';
 }
 
 // ---------------- Chocolate ----------------
@@ -160,20 +178,33 @@ function dropDoses(d: MedDraft, medId: string, from: string, keepTimes?: string[
   }
 }
 
+/** First day on or after `from` when a course with this schedule is due (daily: `from` itself). */
+function firstDueOnOrAfter(m: Pick<Med, 'freq' | 'start'>, from: string): string {
+  if (m.start >= from || m.freq === 'daily') return m.start >= from ? m.start : from;
+  for (let i = 0; i < 31; i++) {
+    const day = addDays(from, i);
+    if (medDueOn({ id: '', petId: '', name: '', dose: '', notify: false, count: null, refillAt: 0, times: [], end: null, freq: m.freq, start: m.start }, day)) return day;
+  }
+  return from;
+}
+
 /**
  * Save edits to an existing course without rewriting history.
- * - Daily courses that started before today and change schedule (times/dose/frequency) are split:
- *   the old course ends yesterday, a new one starts today (or the later start the user picked).
- * - Weekly/monthly courses keep their start date (it is the dosing anchor); they are edited in place.
- * - Today's records for times that no longer exist are removed and their pills given back.
+ * - A course that started before today is split when its frequency, start (the weekly/monthly anchor) or,
+ *   for daily courses, its times/dose change: the old course keeps the past, a new one carries the schedule.
+ *   The new one starts today (or the later start the user picked, or — weekly/monthly with a past anchor —
+ *   the first due day from today). The old one ends the day before, so today's records stay visible.
+ * - Weekly/monthly courses whose times/dose change but keep their anchor are edited in place.
+ * - Records for times that no longer exist are removed and their pills given back.
  * - A course shortened to before today loses today's records (pills given back).
  * Returns the id of the course that now carries the schedule.
  */
 export function applyMedEdit(d: MedDraft, medId: string, next: Omit<Med, 'id'>, td: string, newId: string): string {
   const old = d.meds.find((m) => m.id === medId);
   if (!old) return medId;
-  const scheduleChanged = old.dose !== next.dose || old.freq !== next.freq || old.times.join() !== next.times.join();
-  const yesterday = addDays(td, -1);
+  const freqChanged = old.freq !== next.freq;
+  const startChanged = old.start !== next.start;
+  const scheduleChanged = old.dose !== next.dose || old.times.join() !== next.times.join();
 
   if (next.end && next.end < td) {
     Object.assign(old, next);
@@ -181,26 +212,40 @@ export function applyMedEdit(d: MedDraft, medId: string, next: Omit<Med, 'id'>, 
     return medId;
   }
 
-  if (scheduleChanged && old.freq === 'daily' && next.freq === 'daily' && old.start < td) {
-    const start = next.start > td ? next.start : td;
-    old.end = old.end && old.end < yesterday ? old.end : yesterday;
+  if (old.start < td && (freqChanged || startChanged || (old.freq === 'daily' && scheduleChanged))) {
+    const start = firstDueOnOrAfter(next, td);
+    const oldEnd = addDays(start, -1);
+    old.end = old.end && old.end < oldEnd ? old.end : oldEnd;
     d.meds.push({ ...next, id: newId, start });
-    dropDoses(d, medId, td, next.times, newId);
+    // Records from the new start on belong to the new course (only matching times move over).
+    dropDoses(d, medId, start, next.times, newId);
     return newId;
   }
 
-  // Weekly/monthly (anchor kept unless the user changed it), or not started yet, or only name/notify changed.
-  const start = old.freq !== 'daily' && next.freq === old.freq && next.start === old.start ? old.start : next.start;
-  Object.assign(old, { ...next, start });
+  // Not started yet, weekly/monthly with the same anchor, or only name/notify/count changed.
+  Object.assign(old, next);
   dropDoses(d, medId, td, next.times);
   return medId;
 }
 
-/** Stop a course from today: it ends yesterday; a course starting today or later is removed. Pills from today's records are given back. */
+/**
+ * Stop a course from now on. Doses already given today are kept (the course then ends today and
+ * today's remaining times are marked skipped so they don't ring); otherwise it ends yesterday.
+ * A course starting today or later with nothing given is removed. Untaken records from today on are cleared.
+ */
 export function stopMed(d: MedDraft, medId: string, td: string): 'stopped' | 'removed' {
   const m = d.meds.find((x) => x.id === medId);
   if (!m) return 'removed';
-  dropDoses(d, medId, td);
+  const takenToday = m.times.filter((t) => d.doses[doseKey(td, medId, t)] === 'taken');
+  // Future records (after today) and today's non-taken ones go; today's taken ones stay.
+  dropDoses(d, medId, addDays(td, 1));
+  for (const t of m.times) if (d.doses[doseKey(td, medId, t)] !== 'taken') delete d.doses[doseKey(td, medId, t)];
+  if (takenToday.length) {
+    if (m.start > td) m.start = td;
+    m.end = td;
+    for (const t of m.times) if (!takenToday.includes(t)) d.doses[doseKey(td, medId, t)] = 'skip';
+    return 'stopped';
+  }
   if (m.start >= td) {
     d.meds = d.meds.filter((x) => x.id !== medId);
     return 'removed';

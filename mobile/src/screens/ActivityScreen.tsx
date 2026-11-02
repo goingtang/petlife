@@ -92,7 +92,7 @@ export default function ActivityScreen() {
   const hit = week.filter((w) => w.min >= a.goal).length;
 
   return (
-    <Screen root title={a.label}>
+    <Screen root title="活動" subtitle={`${pet.name}的${a.label}`}>
       <PetChips value={petId} onChange={setPetId} />
       {otherPet ? <Sub style={{ color: C.danger }}>{otherPet.name} 正在計時中。切換回 {otherPet.name} 可以暫停或結束。</Sub> : null}
 
@@ -125,7 +125,7 @@ export default function ActivityScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 120, gap: 8 }}>
           {week.map((w) => (
             <View key={w.d} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-              <Text style={{ fontSize: 11, color: C.sub }}>{w.min || ''}</Text>
+              <Text style={{ fontSize: 12, color: C.sub }}>{w.min || ''}</Text>
               <View style={{ width: '100%', maxWidth: 28, height: Math.max(6, Math.round((w.min / wmax) * 72)), borderRadius: 10, backgroundColor: w.d === td ? C.accent : w.min >= a.goal ? C.green : '#E5D8C6' }} />
               <Text style={{ fontSize: 12, color: w.d === td ? C.ink : C.sub, fontWeight: w.d === td ? '700' : '400' }}>{w.d === td ? '今' : weekday(w.d)}</Text>
             </View>
@@ -157,12 +157,24 @@ export default function ActivityScreen() {
                 <Text style={{ flex: 1, fontSize: 14, color: C.ink }}>{relTime(e.at)}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{e.v.min} 分鐘</Text>
                 <Sub style={{ width: 52, textAlign: 'right' }}>{memberName(store, e.who)}</Sub>
-                <Btn small kind="ghost" title="刪除" onPress={() => confirm('刪除這筆紀錄？', '', () => update((d) => { d.entries = d.entries.filter((x) => x.id !== e.id); }))} textStyle={{ color: C.danger }} />
+                <Btn
+                  small
+                  kind="ghost"
+                  title="刪除"
+                  accessibilityLabel={`刪除 ${relTime(e.at)} ${e.v.min} 分鐘`}
+                  onPress={() => {
+                    update((d) => {
+                      d.entries = d.entries.filter((x) => x.id !== e.id);
+                    });
+                    toast('已刪除', { action: { label: '復原', onPress: () => update((d) => { d.entries.push(e); }) } });
+                  }}
+                  textStyle={{ color: C.danger }}
+                />
               </Row>
             ))}
           </ListCard>
         ) : (
-          <Empty text="還沒有活動紀錄" />
+          <Empty text="還沒有活動紀錄。按上面的按鈕開始計時，或補登一筆" action={{ label: '＋ 補登', onPress: () => setManual(true) }} />
         )}
       </Section>
     </Screen>

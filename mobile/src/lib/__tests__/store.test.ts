@@ -95,10 +95,24 @@ describe('planNotifications', () => {
     const s = sampleStore();
     s.notifyEnabled = true;
     for (let i = 0; i < 30; i++) s.meds.push({ ...s.meds[0], id: 'y' + i, end: null, times: ['06:00', '12:00', '18:00'] });
-    s.reminders.push({ id: 'far', petId: 'dou', title: '遠期疫苗', date: addDays(td, 20), repeat: 'yearly', notify: true, history: [] });
+    s.reminders.push({ id: 'far', petId: 'dou', title: '下週疫苗', date: addDays(td, 10), repeat: 'yearly', notify: true, history: [] });
     const notes = planNotifications(s, now);
-    expect(notes.filter((n) => n.kind === 'med').length).toBeLessThanOrEqual(40);
-    expect(notes.some((n) => n.title.includes('遠期疫苗'))).toBe(true);
+    const meds = notes.filter((n) => n.kind === 'med');
+    expect(meds.length).toBeLessThanOrEqual(40);
+    expect(notes.some((n) => n.title.includes('下週疫苗'))).toBe(true);
+    // Too many doses to fit: the last med slot asks the user to open the app.
+    expect(meds[meds.length - 1].title).toContain('打開 PetPal');
+  });
+
+  test('far-off reminders never push out tomorrow\'s supply alert', () => {
+    const s = emptyStore();
+    s.notifyEnabled = true;
+    s.pets = [{ id: 'p', name: '豆豆', kind: 'dog', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#fff' }];
+    for (let i = 0; i < 40; i++) s.reminders.push({ id: 'r' + i, petId: 'p', title: '提醒' + i, date: addDays(td, 30 + i), repeat: 'once', notify: true, history: [], lead: [7] });
+    s.supplies = [{ id: 's', petId: 'p', name: '飼料', unit: 'g', stock: 100, use: 100, pack: 1000, asOf: td, inCart: false }];
+    const notes = planNotifications(s, now);
+    expect(notes.length).toBeLessThanOrEqual(MAX_NOTES);
+    expect(notes.some((n) => n.kind === 'supply')).toBe(true);
   });
 
   test('document expiry: 30/7 days, the evening before, and one expired notice', () => {

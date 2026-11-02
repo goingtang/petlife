@@ -8,7 +8,7 @@ import * as Clipboard from 'expo-clipboard';
 import { File, Directory, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { useCallback, useEffect, useRef } from 'react';
-import { uid } from './seed';
+import { uid, isSamplePhone } from './seed';
 import { safeFileName } from './domain';
 import type { Store } from './types';
 
@@ -66,7 +66,7 @@ export async function pickPhotos(opts: { camera?: boolean; max?: number } = {}):
     if (opts.camera) {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('需要相機權限', '請到手機「設定」允許 Expo Go（或 PetPal）使用相機。');
+        Alert.alert('需要相機權限', '請到手機「設定」→ 應用程式，允許 PetPal 使用相機。');
         return [];
       }
       res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7 });
@@ -210,9 +210,14 @@ export async function sharePdf(html: string, name: string): Promise<boolean> {
 export function cleanupCacheExports() {
   if (Platform.OS === 'web') return;
   try {
-    for (const item of Paths.cache.list()) {
-      if (item instanceof File && /\.(pdf|csv|json)$/i.test(item.uri)) item.delete();
-    }
+    // Exports we wrote, plus PDFs that expo-print leaves in its own cache sub-folder.
+    const sweep = (dir: Directory, depth: number) => {
+      for (const item of dir.list()) {
+        if (item instanceof File && /\.(pdf|csv|json)$/i.test(item.uri)) item.delete();
+        else if (item instanceof Directory && depth < 2) sweep(item, depth + 1);
+      }
+    };
+    sweep(Paths.cache, 0);
   } catch {
     // ignore
   }
@@ -264,6 +269,10 @@ export async function openUrl(url: string, failMsg = '無法開啟連結') {
 }
 
 export function callPhone(phone: string) {
+  if (isSamplePhone(phone)) {
+    Alert.alert('這是範例資料', '範例裡的電話號碼不是真的。請到設定清除範例資料，再填入你自己的醫院電話。');
+    return Promise.resolve();
+  }
   return openUrl('tel:' + phone.replace(/[^0-9+]/g, ''), '無法撥打電話');
 }
 
@@ -328,6 +337,11 @@ export function referencedFiles(s: Store): Set<string> {
   Object.values(s.lost).forEach((l) => add(l?.photo));
   s.expenses.forEach((x) => add(x.receipt));
   return out;
+}
+
+/** Delete a replaced file only if the data no longer points at it (e.g. a pet photo still used by the lost-pet poster). */
+export function deleteIfUnused(uri: string | null | undefined, s: Store) {
+  if (uri && !referencedFiles(s).has(uri)) deleteFile(uri);
 }
 
 /** Delete files in the app folder that nothing refers to any more. Returns how many were removed. */

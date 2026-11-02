@@ -10,17 +10,15 @@ type Tile = { name: string; desc: string; route: string; params?: any };
 export default function MoreScreen() {
   const nav = useNav();
   const pet = usePet();
+  // Things already on a tab (用藥、健康報告、文件夾 on 健康; the pet profile on 今天) are not repeated here.
   const groups: { name: string; items: Tile[] }[] = [
     {
-      name: '健康與安全',
+      name: '安全',
       items: [
-        { name: 'AI 健康助理', desc: '描述症狀，先判斷急不急', route: 'ai' },
-        { name: '緊急求助', desc: '急診與急救步驟', route: 'sos' },
+        { name: '緊急求助', desc: '急診、急救步驟', route: 'sos' },
+        { name: '症狀檢查 · 問 AI', desc: '先判斷急不急', route: 'ai' },
         { name: '有毒查詢', desc: '食物、植物、藥物', route: 'toxic' },
         { name: '走失協尋', desc: '協尋海報與分享', route: 'lost' },
-        { name: '用藥打卡', desc: '排程、提醒與打卡', route: 'meds' },
-        { name: '健康報告', desc: '一鍵整理給獸醫', route: 'report' },
-        { name: '文件夾', desc: '證明、報告、保單', route: 'docs' },
       ],
     },
     {
@@ -29,9 +27,9 @@ export default function MoreScreen() {
         { name: '花費記帳', desc: '每月花費與預算', route: 'expense' },
         { name: '用品庫存', desc: '快用完時提醒', route: 'supplies' },
         { name: '美容洗澡', desc: '洗澡、指甲、刷牙', route: 'groom' },
-        { name: '成分掃描', desc: '看懂飼料標籤', route: 'scan' },
-        { name: '照顧須知', desc: '給保母或寄宿的說明', route: 'care' },
         { name: '附近地點', desc: '依定位找醫院與商店', route: 'places' },
+        { name: '照顧須知', desc: '給保母或寄宿的說明', route: 'care' },
+        { name: '成分掃描', desc: '看懂飼料標籤', route: 'scan' },
       ],
     },
     {
@@ -44,11 +42,11 @@ export default function MoreScreen() {
     {
       name: '管理',
       items: [
-        ...(pet ? [{ name: '寵物檔案', desc: `${pet.name}的資料與照片`, route: 'profile', params: { petId: pet.id } }] : []),
         { name: '新增寵物', desc: '建立新的寵物檔案', route: 'petEdit', params: {} },
         { name: '家人成員', desc: '誰在用這支手機', route: 'members' },
         ...(pet ? [{ name: '照護項目', desc: '每日待辦與輪值', route: 'tasks', params: { petId: pet.id } }] : []),
         { name: '設定', desc: '通知、備份、資料', route: 'settings' },
+        { name: '隱私說明', desc: '資料存在哪裡', route: 'privacy' },
       ],
     },
   ];

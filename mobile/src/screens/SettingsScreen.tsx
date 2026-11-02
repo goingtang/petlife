@@ -1,20 +1,26 @@
 import React, { useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Alert, Platform, View } from 'react-native';
+import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useStore, useDraft, sampleStore, emptyStore, migrate } from '../lib/store';
 import { useNav } from '../nav';
 import { Banner, Btn, Card, Field, KV, ListCard, Screen, Section, Sub, Toggle, confirm } from '../ui/kit';
 import { askPermission, syncNotifications, testNotification } from '../lib/notify';
+import { wipeAll } from '../lib/persist';
 import { cleanupOrphans, shareTextFile } from '../lib/files';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
-  const { store, update, replace, toast, afterSave } = useStore();
-  /** Swap in a whole new data set, then delete photos/files the old data used and the new one doesn't. */
+  const { store, update, replace, toast, afterSave, getStore } = useStore();
+  /**
+   * Swap in a whole new data set, then delete photos/files the old data used and the new one doesn't.
+   * The clean-up looks at the data as it is when the save lands (photos added since then are kept).
+   */
   const replaceAll = (next: typeof store) => {
     replace(next);
-    afterSave(() => cleanupOrphans(next));
+    afterSave(() => cleanupOrphans(getStore()));
   };
   const nav = useNav();
   const [count, setCount] = useState<number | null>(null);
@@ -24,6 +30,31 @@ export default function SettingsScreen() {
     }),
   );
   const web = Platform.OS === 'web';
+  const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '1.0.0';
+  const build = Application.nativeBuildVersion;
+
+  const exportBackup = () =>
+    Alert.alert(
+      '匯出備份檔',
+      '備份檔包含寵物、健康紀錄、日記和家人與醫院的電話。請只存到自己的雲端硬碟或傳給自己，不要分享到群組。',
+      [
+        { text: '取消', style: 'cancel' },
+        { text: '匯出', onPress: () => shareTextFile(`petpal-備份-${today()}.json`, JSON.stringify(store), 'application/json') },
+      ],
+    );
+
+  /** Erase everything: data file and its copies, photos, exports, scheduled notifications. */
+  const eraseEverything = async () => {
+    await syncNotifications({ ...store, notifyEnabled: false }); // cancels everything this app scheduled
+    replace(emptyStore());
+    // After the empty data is saved, remove every file this app wrote (and its copies), then save the
+    // empty data once more so the app opens to the welcome screen next time.
+    afterSave(() => {
+      wipeAll().then(() => update(() => {}));
+    });
+    nav.popToRoot();
+    toast('已清除所有資料與照片');
+  };
 
   const toggleNotify = async (on: boolean) => {
     if (on) {
@@ -108,11 +139,7 @@ export default function SettingsScreen() {
           ))}
         </ListCard>
         <Sub>所有資料只存在這支手機。換手機或重新安裝前，請先匯出備份。</Sub>
-        <Btn
-          kind="outline"
-          title="匯出備份檔"
-          onPress={() => shareTextFile(`petpal-備份-${today()}.json`, JSON.stringify(store), 'application/json')}
-        />
+        <Btn kind="outline" title="匯出備份檔" onPress={web ? () => shareTextFile(`petpal-備份-${today()}.json`, JSON.stringify(store), 'application/json') : exportBackup} />
         <Btn kind="outline" title="從備份檔還原" onPress={importBackup} />
         {!web ? (
           <Btn
@@ -143,17 +170,20 @@ export default function SettingsScreen() {
             kind="danger"
             title="清除所有資料"
             onPress={() =>
-              confirm('清除所有資料？', '寵物、紀錄、日記和設定都會刪除，無法復原。', () => {
-                replaceAll(emptyStore());
-                toast('已清除所有資料與照片');
-                nav.popToRoot();
-              }, '清除')
+              confirm('清除所有資料？', '寵物、紀錄、日記、照片、文件、設定和已排定的通知都會從這支手機刪除，無法復原。', eraseEverything, '清除')
             }
           />
         </Card>
       </Section>
 
-      <Sub style={{ textAlign: 'center' }}>PetPal 1.0.0 · 測試版</Sub>
+      <Section title="關於">
+        <Card onPress={() => nav.push('privacy')} style={{ gap: 4 }}>
+          <Sub style={{ fontWeight: '700' }}>隱私權政策</Sub>
+          <Sub>資料怎麼存、哪些功能會連網、如何刪除</Sub>
+        </Card>
+      </Section>
+
+      <Sub style={{ textAlign: 'center' }}>PetPal {version}{build ? `（${build}）` : ''}</Sub>
     </Screen>
   );
 }

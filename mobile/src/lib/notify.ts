@@ -15,7 +15,7 @@ export interface PlannedNote {
 
 /** iOS keeps at most 64 pending notifications per app; leave a little room. */
 export const MAX_NOTES = 60;
-const MED_DAYS = 4;
+const MED_DAYS = 7;
 /** Medication alerts may use at most this many slots, so vaccine/document/anniversary notices always fit. */
 export const MAX_MED_NOTES = 40;
 
@@ -36,7 +36,7 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
     if (n.at.getTime() > now.getTime()) out.push(n);
   };
 
-  // Medication: each due dose in the next week that hasn't been checked off.
+  // Medication: each due dose in the next MED_DAYS days that hasn't been checked off.
   for (const m of store.meds) {
     if (!m.notify) continue;
     for (let i = 0; i < MED_DAYS; i++) {
@@ -109,13 +109,22 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
   }
 
   out.sort((a, b) => a.at.getTime() - b.at.getTime());
-  // Medication alerts get at most MAX_MED_NOTES slots; everything else fills the rest, soonest first.
-  const meds = out.filter((n) => n.kind === 'med').slice(0, MAX_MED_NOTES);
-  // Other slots by importance: reminders/expiry/refill first, then supplies, grooming, anniversaries.
+  // Medication alerts get at most MAX_MED_NOTES slots, soonest first. If they don't all fit, the last
+  // slot tells the user to open the app (opening it schedules the next batch).
+  let meds = out.filter((n) => n.kind === 'med');
+  if (meds.length > MAX_MED_NOTES) {
+    meds = meds.slice(0, MAX_MED_NOTES - 1);
+    const last = meds[meds.length - 1].at;
+    meds.push({ at: new Date(last.getTime() + 60000), kind: 'med', title: '打開 PetPal 繼續收到用藥提醒', body: '之後的用藥提醒會在你打開 App 時排定。' });
+  }
+  // Other slots: notices in the next 14 days first, then by importance (reminders/expiry/refill,
+  // supplies, grooming, anniversaries), then time — so a far-off notice never pushes out tomorrow's.
+  const soon = now.getTime() + 14 * 86400000;
   const rank: Record<PlannedNote['kind'], number> = { reminder: 0, overdue: 0, refill: 0, med: 0, supply: 1, groom: 2, anniversary: 3 };
+  const bucket = (n: PlannedNote) => (n.at.getTime() <= soon ? 0 : 1);
   const others = out
     .filter((n) => n.kind !== 'med')
-    .sort((a, b) => rank[a.kind] - rank[b.kind] || a.at.getTime() - b.at.getTime())
+    .sort((a, b) => bucket(a) - bucket(b) || rank[a.kind] - rank[b.kind] || a.at.getTime() - b.at.getTime())
     .slice(0, MAX_NOTES - meds.length);
   return [...meds, ...others].sort((a, b) => a.at.getTime() - b.at.getTime());
 }

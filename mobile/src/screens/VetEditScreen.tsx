@@ -70,7 +70,7 @@ export default function VetEditScreen({ params }: { params: any }) {
       <Field label="看診時間" value={v.hours} onChangeText={(t) => set('hours', t)} placeholder="例如：09:00–21:00、24 小時" />
       {!er && store.pets.length > 1 ? <Toggle label="套用到所有寵物" value={all} onChange={setAll} /> : null}
       <View>
-        <Sub>{er ? '緊急求助頁會顯示這家醫院，可一鍵撥打與導航。' : '緊急求助、AI 健康助理和健康紀錄都會使用這裡的電話。'}</Sub>
+        <Sub>{er ? '緊急求助頁會顯示這家醫院，可一鍵撥打與導航。' : '緊急求助、症狀檢查和健康紀錄都會使用這裡的電話。'}</Sub>
       </View>
     </Screen>
   );

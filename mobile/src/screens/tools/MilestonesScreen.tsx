@@ -5,6 +5,7 @@ import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { entriesFor, isRoutineReminder } from '../../lib/domain';
 import { daysBetween, today } from '../../lib/date';
+import { daysTogether } from '../../lib/domain';
 import { choosePhotos, usePendingFiles, deleteFile, sharePdf, pdfShell, esc, imageDataUri } from '../../lib/files';
 import { useBackHandler } from '../../nav';
 import { uid } from '../../lib/seed';
@@ -19,7 +20,7 @@ function occurrence(md: string, year: number) {
 }
 
 export default function MilestonesScreen(_: { params: any }) {
-  const { store, update, toast, petId, setPetId, day } = useStore();
+  const { store, update, toast, petId, setPetId, day, afterSave } = useStore();
   const pet = usePet();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [orig, setOrig] = useState('');
@@ -83,7 +84,7 @@ export default function MilestonesScreen(_: { params: any }) {
     const left = daysBetween(day, next);
     if (age > 0) bday = left === 0 ? `今天是${pet.name}的 ${age} 歲生日，生日快樂！` : `距離${pet.name} ${age} 歲生日還有 ${left} 天`;
   }
-  const together = pet.adopted ? daysBetween(pet.adopted, day) : null;
+  const together = daysTogether(pet, day);
 
   const openDraft = (d: Draft) => {
     setDraft(d);
@@ -101,7 +102,7 @@ export default function MilestonesScreen(_: { params: any }) {
       if (i >= 0) d.milestones[i] = rec;
       else d.milestones.push(rec);
     });
-    files.commit();
+    files.commit(afterSave);
     setDraft(null);
     toast('已儲存里程碑');
   };
@@ -174,9 +175,9 @@ export default function MilestonesScreen(_: { params: any }) {
       ) : null}
 
       {bday ? <Card style={{ backgroundColor: C.yellowBg, borderWidth: 0 }}><Text style={{ fontSize: 15, fontWeight: '700', color: '#5E4512' }}>{bday}</Text></Card> : null}
-      {together !== null && together >= 0 ? (
+      {together !== null ? (
         <Card style={{ backgroundColor: C.greenBg, borderWidth: 0 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#3F5A3B' }}>{pet.name}來家第 {together + 1} 天</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#3F5A3B' }}>{pet.name}來家第 {together} 天</Text>
         </Card>
       ) : null}
 

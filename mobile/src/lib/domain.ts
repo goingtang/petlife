@@ -191,6 +191,15 @@ export function groomDueText(g: GroomTask, td = today()): string {
   return `${n} 天後`;
 }
 
+// ---------- Pets ----------
+
+/** "來家第 N 天" (the adoption day is day 1). null when the date is unknown or in the future. */
+export function daysTogether(pet: Pet, td = today()): number | null {
+  if (!pet.adopted) return null;
+  const n = daysBetween(pet.adopted, td);
+  return n < 0 ? null : n + 1;
+}
+
 // ---------- Misc ----------
 
 export const money = (n: number) => 'NT$' + Math.round(n).toLocaleString('en-US');

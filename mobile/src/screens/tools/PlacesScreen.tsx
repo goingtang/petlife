@@ -10,7 +10,7 @@ import { useNav } from '../../nav';
 import { uid } from '../../lib/seed';
 import type { FavPlace } from '../../lib/types';
 import MapPreview from './MapPreview';
-import { haversine, samePlace, validCoord, phoneDigits } from '../../lib/life';
+import { haversine, samePlace, validCoord, phoneDigits, roundCoord } from '../../lib/life';
 
 type Cat = 'all' | 'vet' | 'exotic' | 'shop' | 'groom' | 'dogpark' | 'park' | 'fav';
 const CATS: { value: Cat; label: string }[] = [
@@ -28,7 +28,6 @@ const FILTERS: Record<Exclude<Cat, 'fav'>, string[]> = {
 };
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   'https://overpass.private.coffee/api/interpreter',
 ];
 const FALLBACK = [
@@ -43,6 +42,9 @@ const TOTAL_CAP_MS = 50000;
 const OVERPASS_BUDGET_MS = 26000;
 const PAGE = 20;
 const UA = 'PetPal/1.0 (+https://github.com/goingtang/petlife)';
+/** Browsers don't allow setting User-Agent; native requests identify the app as the OSM services ask. */
+const UA_HEADERS = Platform.OS === 'web' ? undefined : { 'User-Agent': UA };
+const ATTRIBUTION = '地圖資料 © OpenStreetMap 貢獻者';
 
 interface Place {
   id: string; name: string; lat: number; lon: number; dist: number; kind: string;
@@ -126,7 +128,7 @@ async function fetchOverpass(query: string, signal: AbortSignal): Promise<any[]>
     const left = deadline - Date.now();
     if (left < 2000) break;
     try {
-      const j = await fetchJson(`${ENDPOINTS[i]}?data=${encodeURIComponent(query)}`, Math.min(i === 0 ? 10000 : 8000, left), signal);
+      const j = await fetchJson(`${ENDPOINTS[i]}?data=${encodeURIComponent(query)}`, Math.min(i === 0 ? 10000 : 8000, left), signal, UA_HEADERS);
       if (j && Array.isArray(j.elements) && !j.remark) return j.elements;
     } catch {
       // try the next mirror
@@ -206,7 +208,7 @@ function toPlaces(elements: any[], pos: { lat: number; lon: number }): Place[] {
   return list.sort((a, b) => a.dist - b.dist).slice(0, 60);
 }
 
-type Phase = 'idle' | 'locating' | 'denied' | 'searching' | 'done' | 'error';
+type Phase = 'consent' | 'idle' | 'locating' | 'denied' | 'searching' | 'done' | 'error';
 
 export default function PlacesScreen(_: { params: any }) {
   const { store, update, toast, petId, setPetId } = useStore();
@@ -217,7 +219,7 @@ export default function PlacesScreen(_: { params: any }) {
   const [radius, setRadius] = useState<'1000' | '3000' | '5000'>('3000');
   const [view, setView] = useState<'list' | 'map'>('list');
   const [pos, setPos] = useState<{ lat: number; lon: number } | null>(null);
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [phase, setPhase] = useState<Phase>(store.locConsent ? 'idle' : 'consent');
   const [places, setPlaces] = useState<Place[]>([]);
   const [stale, setStale] = useState(false);
   const alive = useRef(true);
@@ -271,7 +273,10 @@ export default function PlacesScreen(_: { params: any }) {
     ctl.current = c;
     const cap = setTimeout(() => c.abort(), TOTAL_CAP_MS);
     const r = Number(radius);
-    const key = `${cat}|${r}|${pos.lat.toFixed(3)}|${pos.lon.toFixed(3)}`;
+    // Only a rounded position (about 100 m) is sent to the map services.
+    const qlat = roundCoord(pos.lat);
+    const qlon = roundCoord(pos.lon);
+    const key = `${cat}|${r}|${qlat}|${qlon}`;
     const hit = cache.get(key);
     const filterCat = (list: Place[]) => (cat === 'exotic' ? list.filter((p) => p.exotic) : list);
     if (hit) {
@@ -285,7 +290,7 @@ export default function PlacesScreen(_: { params: any }) {
     } else setPhase('searching');
     const body = FILTERS[cat].map((f) => {
       const [k, v] = f.split('=');
-      return `nwr["${k}"="${v}"](around:${r},${pos.lat},${pos.lon});`;
+      return `nwr["${k}"="${v}"](around:${r},${qlat},${qlon});`;
     }).join('');
     const query = `[out:json][timeout:25];(${body});out center tags 200;`;
     try {
@@ -294,7 +299,7 @@ export default function PlacesScreen(_: { params: any }) {
         elements = await fetchOverpass(query, c.signal);
       } catch (e) {
         if (c.signal.aborted) throw e;
-        elements = await fetchNominatim(cat, r, pos.lat, pos.lon, c.signal);
+        elements = await fetchNominatim(cat, r, qlat, qlon, c.signal);
       }
       if (!alive.current || mine !== seq.current) return; // a newer search has started
       cache.set(key, { at: Date.now(), elements });
@@ -315,10 +320,16 @@ export default function PlacesScreen(_: { params: any }) {
     if (cat !== 'fav') return;
     ctl.current?.abort();
     seq.current++;
-    if (phaseRef.current === 'searching') setPhase('idle');
+    // Keep what was found so far; coming back re-runs the search (from cache when recent).
+    if (phaseRef.current === 'searching') setPhase('done');
   }, [cat]);
 
-  useEffect(() => { locate(); }, [locate]);
+  // Ask for location only after the user has read what it is used for (once).
+  useEffect(() => { if (store.locConsent) locate(); }, [locate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allowLocation = () => {
+    update((d) => { d.locConsent = true; });
+    locate();
+  };
   useEffect(() => { if (pos) search(); }, [pos, search]);
 
   const km = Number(radius) / 1000;
@@ -407,22 +418,58 @@ export default function PlacesScreen(_: { params: any }) {
     </>
   );
 
+  const status = (
+    <>
+      {phase === 'consent' && cat !== 'fav' ? (
+        <Card style={{ gap: 10 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>用你的位置找附近地點</Text>
+          <Sub>按下「使用目前位置」後，手機會詢問是否允許定位。PetPal 會把位置模糊到約 100 公尺，再向 OpenStreetMap 的公開地圖服務查詢附近的動物醫院、用品店與公園；位置不會被儲存或用在其他地方。</Sub>
+          <Btn title="使用目前位置" onPress={allowLocation} />
+          <Sub style={{ fontSize: 12 }}>不想使用定位，也可以用下方的 Google 地圖搜尋，或看「收藏」。</Sub>
+        </Card>
+      ) : null}
+      {phase === 'denied' && cat !== 'fav' ? (
+    <Card style={{ gap: 10, backgroundColor: C.yellowBg, borderWidth: 0 }}>
+      <Text style={{ fontSize: 14, color: '#5E4512', lineHeight: 21 }}>需要定位權限才能找附近的地點。請到手機設定允許定位，回到 App 後會自動重新搜尋；也可以用下方的 Google 地圖搜尋。</Text>
+      <Row gap={8}>
+        <Btn small kind="dark" title="開啟設定" onPress={() => Linking.openSettings().catch(() => {})} />
+        <Btn small kind="outline" title="重試" onPress={locate} />
+      </Row>
+    </Card>
+  ) : null}
+
+  {(phase === 'locating' || phase === 'searching' || phase === 'idle') && cat !== 'fav' ? (
+    <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 24 }}>
+      <ActivityIndicator color={C.accent} />
+      <Sub>{phase === 'searching' ? '正在搜尋附近地點…（最多約 50 秒）' : '正在取得你的位置…'}</Sub>
+      {phase === 'searching' ? <Btn small kind="ghost" title="停止" onPress={() => { ctl.current?.abort(); setPhase('error'); }} /> : null}
+    </Card>
+  ) : null}
+
+  {phase === 'error' && cat !== 'fav' ? (
+    <Banner kind="danger" text="暫時無法取得位置或附近地點。地圖資料伺服器可能忙碌，請稍後再試，或用下方 Google 地圖搜尋。" action={{ label: '重試', onPress: () => (pos ? search() : locate()) }} />
+  ) : null}
+    </>
+  );
+
   // Map view: no ScrollView, so dragging the map never fights page scrolling.
   if (isMap && pos) {
     return (
-      <Screen title="找醫院與友善地點" scroll={false}>
+      <Screen title="附近地點" scroll={false}>
         {controls}
         <Sub>
           {cat === 'fav' ? `收藏的地點 ${shown.length} 筆` : phase === 'searching' ? '正在搜尋附近地點…' : `半徑 ${Number(radius) / 1000} 公里 · ${shown.length} 筆${stale ? ' · 上次結果' : ''}`}
           　藍點是你的位置，點紅色標記看名稱。
         </Sub>
+        {phase === 'done' || cat === 'fav' ? null : status}
         <MapPreview center={pos} places={mapPlaces} style={{ flex: 1, height: undefined, minHeight: 240 }} />
+        <Sub style={{ fontSize: 12 }}>{ATTRIBUTION}</Sub>
       </Screen>
     );
   }
 
   return (
-    <Screen title="找醫院與友善地點" subtitle="依你目前的位置，找附近的動物醫院、用品店與公園">
+    <Screen title="附近地點" subtitle="依你目前的位置，找附近的動物醫院、用品店與公園">
       {pet ? (
         <View style={{ gap: 10 }}>
           <Label>主治醫院</Label>
@@ -448,27 +495,7 @@ export default function PlacesScreen(_: { params: any }) {
 
       {controls}
 
-      {phase === 'denied' && cat !== 'fav' ? (
-        <Card style={{ gap: 10, backgroundColor: C.yellowBg, borderWidth: 0 }}>
-          <Text style={{ fontSize: 14, color: '#5E4512', lineHeight: 21 }}>需要定位權限才能找附近的地點。請到手機設定允許定位，回到 App 後會自動重新搜尋；也可以用下方的 Google 地圖搜尋。</Text>
-          <Row gap={8}>
-            <Btn small kind="dark" title="開啟設定" onPress={() => Linking.openSettings().catch(() => {})} />
-            <Btn small kind="outline" title="重試" onPress={locate} />
-          </Row>
-        </Card>
-      ) : null}
-
-      {(phase === 'locating' || phase === 'searching' || phase === 'idle') && cat !== 'fav' ? (
-        <Card style={{ alignItems: 'center', gap: 10, paddingVertical: 24 }}>
-          <ActivityIndicator color={C.accent} />
-          <Sub>{phase === 'searching' ? '正在搜尋附近地點…（最多約 50 秒）' : '正在取得你的位置…'}</Sub>
-          {phase === 'searching' ? <Btn small kind="ghost" title="停止" onPress={() => { ctl.current?.abort(); setPhase('error'); }} /> : null}
-        </Card>
-      ) : null}
-
-      {phase === 'error' && cat !== 'fav' ? (
-        <Banner kind="danger" text="暫時無法取得位置或附近地點。地圖資料伺服器可能忙碌，請稍後再試，或用下方 Google 地圖搜尋。" action={{ label: '重試', onPress: () => (pos ? search() : locate()) }} />
-      ) : null}
+      {status}
 
       {(phase === 'done' || cat === 'fav') ? (
         <View style={{ gap: 12 }}>
@@ -478,7 +505,12 @@ export default function PlacesScreen(_: { params: any }) {
             </Sub>
             {cat !== 'fav' ? <Btn small kind="soft" title="重新定位" onPress={locate} /> : null}
           </Row>
-          {view === 'map' && pos ? <MapPreview center={pos} places={mapPlaces} /> : null}
+          {view === 'map' && pos ? (
+            <View style={{ gap: 4 }}>
+              <MapPreview center={pos} places={mapPlaces} />
+              <Sub style={{ fontSize: 12 }}>{ATTRIBUTION}</Sub>
+            </View>
+          ) : null}
           {shown.length ? shown.slice(0, limit).map((p) => {
             const fav = isFav(p);
             return (
@@ -516,7 +548,7 @@ export default function PlacesScreen(_: { params: any }) {
         </View>
       ) : null}
 
-      <Sub>地點資料來自 OpenStreetMap，可能不完整；營業時間請以店家公告為準。</Sub>
+      <Sub>{ATTRIBUTION}（開放資料，可能不完整）；營業時間請以店家公告為準。</Sub>
 
       <Label>用 Google 地圖搜尋</Label>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

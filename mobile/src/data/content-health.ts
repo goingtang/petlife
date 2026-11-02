@@ -98,3 +98,13 @@ export const EXTRA_TOXIC: ToxicItem[] = [
   { id: 'nicotine', cat: '居家用品', lv: [3, 3, 3, 3], name: '香菸、電子菸油', note: '尼古丁中毒，嘔吐、顫抖、心跳快' },
   { id: 'salt', cat: '食物', lv: [2, 2, 2, 3], name: '高鹽食物、滷味', note: '鈉中毒與腸胃不適，常含洋蔥、蒜' },
 ];
+
+/**
+ * General references behind the first-aid, CPR and toxic content. Shown as a footer on those screens.
+ * These are summaries in our own words, not quotations; always defer to a vet.
+ */
+export const HEALTH_SOURCES = {
+  firstAid: '參考來源：Merck Veterinary Manual（默克獸醫手冊）急救與中毒章節。本頁為一般性整理，不能取代獸醫診斷與處置。',
+  cpr: '參考來源：RECOVER 犬貓心肺復甦指引（RECOVER CPR Guidelines）。實際操作請以獸醫或急救課程指導為準。',
+  toxic: '參考來源：ASPCA 動物毒物控制中心（Animal Poison Control Center）公開清單、Merck Veterinary Manual 毒物學章節。',
+} as const;

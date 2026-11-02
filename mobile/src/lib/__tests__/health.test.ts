@@ -29,6 +29,20 @@ describe('red flags', () => {
     expect(findRedFlags('吞下藥丸')).toEqual([]);
     expect(findRedFlags('頻尿')).toEqual([]);
   });
+  test('無故 / 無力 / 沒力 are not negations', () => {
+    expect(findRedFlags('無故抽搐')).toEqual(['抽搐']);
+    expect(findRedFlags('無力抽搐')).toEqual(['抽搐']);
+    expect(findRedFlags('沒力吐血')).toEqual(['吐血']);
+    expect(findRedFlags('沒再抽搐')).toEqual([]);
+  });
+  test('swallowed objects are flagged, pills are not', () => {
+    expect(findRedFlags('吞下電池')).toContain('吞下電池');
+    expect(findRedFlags('剛剛吞了一隻襪子')).toContain('吞下襪子');
+    expect(findRedFlags('吞下藥丸')).toEqual([]);
+  });
+  test('frequent urination: emergency for male cats, see a vet today otherwise', () => {
+    expect(assessSymptoms('頻尿', 'dog').warnings).toContain('頻尿');
+  });
   test('male cat urinary signs are flagged', () => {
     expect(findRedFlags('公貓尿不出來').length).toBeGreaterThan(0);
     expect(findRedFlags('公貓一直頻尿')).toContain('公貓頻尿');
@@ -89,12 +103,43 @@ describe('medication edits', () => {
     expect(n.count).toBe(9); // the removed 20:00 pill is given back
   });
 
-  test('stopping gives back today\'s pills', () => {
-    const d: MedDraft = { meds: [med({})], doses: { [doseKey(td, 'm', '08:00')]: 'taken', [doseKey(addDays(td, -1), 'm', '08:00')]: 'taken' } };
+  test('stopping keeps doses already given today and silences the rest of today', () => {
+    const d: MedDraft = { meds: [med({ times: ['08:00', '20:00'] })], doses: { [doseKey(td, 'm', '08:00')]: 'taken', [doseKey(addDays(td, -1), 'm', '08:00')]: 'taken' } };
+    expect(stopMed(d, 'm', td)).toBe('stopped');
+    expect(d.meds[0].end).toBe(td);
+    expect(d.meds[0].count).toBe(10);
+    expect(d.doses[doseKey(td, 'm', '08:00')]).toBe('taken');
+    expect(d.doses[doseKey(td, 'm', '20:00')]).toBe('skip');
+    expect(d.doses[doseKey(addDays(td, -1), 'm', '08:00')]).toBe('taken');
+  });
+
+  test('stopping with nothing given today ends the course yesterday', () => {
+    const d: MedDraft = { meds: [med({})], doses: {} };
     expect(stopMed(d, 'm', td)).toBe('stopped');
     expect(d.meds[0].end).toBe(addDays(td, -1));
-    expect(d.meds[0].count).toBe(11);
-    expect(d.doses[doseKey(addDays(td, -1), 'm', '08:00')]).toBe('taken');
+  });
+
+  test('changing a started daily course to weekly splits it instead of rewriting history', () => {
+    const d: MedDraft = { meds: [med({})], doses: { [doseKey(addDays(td, -3), 'm', '08:00')]: 'taken' } };
+    const id = applyMedEdit(d, 'm', { ...med({ freq: 'weekly' }) }, td, 'w');
+    expect(id).toBe('w');
+    const old = d.meds.find((m) => m.id === 'm')!;
+    const w = d.meds.find((m) => m.id === 'w')!;
+    expect(old.freq).toBe('daily');
+    expect(old.start).toBe('2026-10-01');
+    expect(old.end).toBe(addDays(w.start, -1));
+    expect(w.start >= td).toBe(true);
+    // 2026-10-01 is a Thursday; the weekly anchor keeps the weekday.
+    expect(new Date(w.start + 'T00:00').getDay()).toBe(new Date('2026-10-01T00:00').getDay());
+    expect(d.doses[doseKey(addDays(td, -3), 'm', '08:00')]).toBe('taken');
+  });
+
+  test('a later start keeps today\'s records in the old course', () => {
+    const d: MedDraft = { meds: [med({ times: ['08:00', '20:00'] })], doses: { [doseKey(td, 'm', '08:00')]: 'taken' } };
+    applyMedEdit(d, 'm', { ...med({}), times: ['09:00'], start: addDays(td, 3) }, td, 'n');
+    expect(d.meds.find((m) => m.id === 'm')!.end).toBe(addDays(td, 2));
+    expect(d.meds.find((m) => m.id === 'n')!.start).toBe(addDays(td, 3));
+    expect(d.doses[doseKey(td, 'm', '08:00')]).toBe('taken');
   });
 
   test('a course starting today is removed when stopped', () => {

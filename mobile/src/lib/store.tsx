@@ -68,6 +68,9 @@ export function migrate(raw: any): Store {
     .filter((p: any) => p && typeof p === 'object' && p.id)
     .map((p: any) => ({ kind: 'other', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#E8D9B5', ...p, name: str(p.name) || '寵物' }));
   out.ownerPhone = str(out.ownerPhone);
+  out.sample = raw.sample === true;
+  out.disclaimerOk = raw.disclaimerOk === true;
+  out.locConsent = raw.locConsent === true;
   const lost: any = {};
   for (const [k, v] of Object.entries(out.lost || {})) lost[k] = { ...(v as any), sightings: arr((v as any)?.sightings) };
   out.lost = lost;
@@ -103,17 +106,32 @@ interface Ctx {
   replace: (s: Store) => void;
   petId: string | null;
   setPetId: (id: string) => void;
-  toast: (msg: string) => void;
+  toast: (msg: string, opts?: ToastOpts) => void;
+  /** The newest data, including changes made after this render (for jobs that run later). */
+  getStore: () => Store;
   /** Run `fn` once the next save has reached the disk (e.g. delete a replaced photo file). */
   afterSave: (fn: () => void) => void;
   /** Today's date; changes when the app is reopened on a new day, so screens re-render. */
   day: string;
 }
 
+export interface ToastOpts {
+  /** A button in the toast, e.g. { label: '復原', onPress: undo }. The toast then stays about 5 seconds. */
+  action?: { label: string; onPress: () => void };
+}
+export interface ToastState {
+  msg: string;
+  action?: ToastOpts['action'];
+  id: number;
+}
+
 const StoreCtx = createContext<Ctx | null>(null);
-/** Toast text lives in its own context so showing a toast doesn't re-render every screen. */
-const ToastCtx = createContext<string | null>(null);
+/** Toast lives in its own context so showing a toast doesn't re-render every screen. */
+const ToastCtx = createContext<{ toast: ToastState | null; dismiss: () => void }>({ toast: null, dismiss: () => {} });
 export const useToastMsg = () => useContext(ToastCtx);
+
+/** Text fields with unsaved typing register a flush here, so leaving the app saves them first. */
+const DraftCtx = createContext<Set<() => void> | null>(null);
 
 const RETRY_MS = [2000, 5000, 15000, 30000, 60000];
 
@@ -121,7 +139,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<Store>(emptyStore);
   const [ready, setReady] = useState(false);
   const [petId, setPetIdState] = useState<string | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<ToastState | null>(null);
   const [day, setDay] = useState(today());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -130,12 +148,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const failures = useRef(0);
   const savedOnce = useRef(false);
   const afterSaveQueue = useRef<(() => void)[]>([]);
+  const dirty = useRef(false);
+  /** Set once data was loaded (from a file or the old AsyncStorage copy); the old copy may then be removed. */
+  const loadedSomething = useRef(false);
+  const drafts = useRef(new Set<() => void>()).current;
+  const toastSeq = useRef(0);
 
-  const toast = useCallback((msg: string) => {
+  const dismissToast = useCallback(() => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMsg(msg);
-    toastTimer.current = setTimeout(() => setToastMsg(null), 2600);
+    setToastMsg(null);
   }, []);
+  const toast = useCallback((msg: string, opts?: ToastOpts) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMsg({ msg, action: opts?.action, id: ++toastSeq.current });
+    toastTimer.current = setTimeout(() => setToastMsg(null), opts?.action ? 5000 : 2600);
+  }, []);
+  const toastValue = useMemo(() => ({ toast: toastMsg, dismiss: dismissToast }), [toastMsg, dismissToast]);
 
   const writeNow = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -144,6 +172,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Serialize writes so two saves never interleave.
     saving.current = saving.current.then(async () => {
       try {
+        dirty.current = false;
         await saveRaw(JSON.stringify({ ...latest.current, _savedAt: Date.now() }));
         failures.current = 0;
         jobs.forEach((fn) => {
@@ -153,15 +182,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // ignore
           }
         });
-        if (!savedOnce.current) {
+        if (!savedOnce.current && loadedSomething.current) {
           savedOnce.current = true;
           clearLegacy();
         }
       } catch {
+        dirty.current = true;
         afterSaveQueue.current.unshift(...jobs); // keep them for the next successful save
         const n = failures.current++;
         if (n === 0) toast('資料沒有存成功，請確認手機空間；App 會自動再試');
-        if (n < RETRY_MS.length) saveTimer.current = setTimeout(writeNow, RETRY_MS[n]);
+        // Keep retrying (every minute after the first few tries). If a newer save is already
+        // scheduled, leave it: overwriting the timer would orphan it and write twice.
+        if (!saveTimer.current) saveTimer.current = setTimeout(writeNow, RETRY_MS[Math.min(n, RETRY_MS.length - 1)]);
       }
     });
   }, [toast]);
@@ -185,6 +217,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const apply = useCallback(
     (s: Store) => {
       latest.current = s;
+      dirty.current = true;
       setStore(s);
       persist();
     },
@@ -203,6 +236,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // housekeeping must never block opening the app
           }
           latest.current = s;
+          loadedSomething.current = true;
           setStore(s);
           if (r.source === 'tmp' || r.source === 'bak') toast('上次儲存沒有完成，已從最近的完整資料還原');
           persist(50); // writes the migrated file (and moves data out of the old AsyncStorage key)
@@ -217,12 +251,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [persist, toast]);
 
   // Save right away when the app goes to the background: the OS may close it without warning.
+  // Typing that hasn't been committed yet is flushed first, then written in the same tick
+  // (Android only sends 'background', and a timer started now may never fire).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
-      if ((st === 'background' || st === 'inactive') && saveTimer.current) writeNow();
+      if (st !== 'background' && st !== 'inactive') return;
+      drafts.forEach((flush) => {
+        try {
+          flush();
+        } catch {
+          // ignore
+        }
+      });
+      if (dirty.current || saveTimer.current) writeNow();
     });
     return () => sub.remove();
-  }, [writeNow]);
+  }, [writeNow, drafts]);
 
   // New day while the app was in the background: refresh screens and run housekeeping.
   const dayRef = useRef(day);
@@ -245,18 +289,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [apply]);
 
   const update = useCallback((fn: Updater) => apply(produce(latest.current, fn)), [apply]);
-  const replace = useCallback((s: Store) => apply(s), [apply]);
+  // Replacing everything (restore a backup, load samples): run the daily housekeeping on the new data too,
+  // so fixed monthly expenses that are due get posted now rather than tomorrow.
+  const replace = useCallback(
+    (s: Store) => {
+      let next = s;
+      try {
+        next = produce(s, (d) => dailyMaintenance(d));
+      } catch {
+        // keep the data as given
+      }
+      apply(next);
+    },
+    [apply],
+  );
+  const getStore = useCallback(() => latest.current, []);
 
   // Keep the selected pet valid as pets are added/removed.
   const currentPet = store.pets.find((p) => p.id === petId) ? petId : store.pets[0]?.id ?? null;
 
   const value = useMemo<Ctx>(
-    () => ({ store, ready, update, replace, petId: currentPet, setPetId: setPetIdState, toast, afterSave, day }),
-    [store, ready, update, replace, currentPet, toast, afterSave, day],
+    () => ({ store, ready, update, replace, petId: currentPet, setPetId: setPetIdState, toast, getStore, afterSave, day }),
+    [store, ready, update, replace, currentPet, toast, getStore, afterSave, day],
   );
   return (
     <StoreCtx.Provider value={value}>
-      <ToastCtx.Provider value={toastMsg}>{children}</ToastCtx.Provider>
+      <DraftCtx.Provider value={drafts}>
+        <ToastCtx.Provider value={toastValue}>{children}</ToastCtx.Provider>
+      </DraftCtx.Provider>
     </StoreCtx.Provider>
   );
 }
@@ -275,41 +335,57 @@ export function usePet(): Pet | null {
 
 /**
  * Text that is saved to the store while typing, without writing on every keystroke:
- * commits 600 ms after the last change and when the screen closes.
+ * commits 600 ms after the last change, when the field loses focus (call the returned `flush`),
+ * when the screen closes, and — via the provider — right before the app goes to the background.
+ *
+ * The commit function may tidy the text (e.g. trim it). The field keeps what the user typed as long
+ * as the stored value only differs by surrounding spaces, so spaces are not eaten mid-typing.
  */
-export function useDraft(value: string, commit: (v: string) => void): [string, (v: string) => void] {
+export function useDraft(value: string, commit: (v: string) => void): [string, (v: string) => void, () => void] {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<string | null>(null);
   const commitRef = useRef(commit);
   commitRef.current = commit;
+  const drafts = useContext(DraftCtx);
   useEffect(() => {
-    if (pending.current === null) setDraft(value);
+    if (pending.current === null) setDraft((cur) => (cur.trim() === value.trim() ? cur : value));
   }, [value]);
+  const flush = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    const v = pending.current;
+    pending.current = null;
+    if (v !== null) commitRef.current(v);
+  }, []);
   useEffect(() => {
-    const flush = () => {
-      if (timer.current) clearTimeout(timer.current);
-      if (pending.current !== null) commitRef.current(pending.current);
-      pending.current = null;
-    };
-    const sub = AppState.addEventListener('change', (st) => {
-      if (st !== 'active') flush();
-    });
+    drafts?.add(flush);
     return () => {
-      sub.remove();
+      drafts?.delete(flush);
       flush();
     };
-  }, []);
+  }, [drafts, flush]);
   const set = (v: string) => {
     setDraft(v);
     pending.current = v;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      if (pending.current !== null) commitRef.current(pending.current);
-      pending.current = null;
-    }, 600);
+    timer.current = setTimeout(flush, 600);
   };
-  return [draft, set];
+  return [draft, set, flush];
+}
+
+/** Run `fn` right before the app goes to the background (and the save that follows), e.g. to commit typing. */
+export function useFlushOnBackground(fn: () => void) {
+  const drafts = useContext(DraftCtx);
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    const f = () => ref.current();
+    drafts?.add(f);
+    return () => {
+      drafts?.delete(f);
+    };
+  }, [drafts]);
 }
 
 export function memberName(store: Store, id: string): string {

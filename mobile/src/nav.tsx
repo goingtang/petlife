@@ -39,7 +39,8 @@ let handlerSeq = 0;
 export function NavProvider({ children }: { children: React.ReactNode }) {
   const [tab, setTabState] = useState<TabName>('today');
   const [stack, setStack] = useState<Route[]>([]);
-  // Per screen, a stack of handlers (several sub-views on one screen may each register one); newest runs first.
+  // Per screen, a stack of handlers (several sub-views on one screen may each register one);
+  // the most recently mounted runs first.
   const handlers = useRef(new Map<string, { id: number; fn: BackFn }[]>());
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -67,7 +68,8 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
   const back = useCallback(() => {
     const top = stackRef.current[stackRef.current.length - 1];
     if (!top) {
-      runHandlers(`tab:${tabRef.current}`);
+      // Same as the Android back key on a tab: close a sub-view, otherwise go to 今天.
+      if (!runHandlers(`tab:${tabRef.current}`) && tabRef.current !== 'today') setTabState('today');
       return;
     }
     if (runHandlers(top.key)) return;
@@ -79,7 +81,12 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
   }, []);
   const registerBack = useCallback((routeKey: string, id: number, fn: BackFn | null) => {
     const list = (handlers.current.get(routeKey) ?? []).filter((h) => h.id !== id);
-    if (fn) list.push({ id, fn });
+    if (fn) {
+      list.push({ id, fn });
+      // Keep handlers in the order their components first mounted (ids grow with mount order), so a
+      // handler that switches off and on again doesn't jump ahead of a sub-view opened after it.
+      list.sort((a, b) => a.id - b.id);
+    }
     if (list.length) handlers.current.set(routeKey, list);
     else handlers.current.delete(routeKey);
   }, []);

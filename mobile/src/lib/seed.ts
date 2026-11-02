@@ -47,7 +47,18 @@ export function emptyStore(): Store {
     favPlaces: [],
     scans: [],
     hideRecorder: false,
+    sample: false,
+    disclaimerOk: false,
+    locConsent: false,
   };
+}
+
+/** Phone numbers used by the sample data. They are not real and must never be dialled. */
+export const SAMPLE_PHONES = ['02-0000-1234', '0900-000-678', '02-0000-5678', '0900-000-111', '02-0000-9999'];
+const digits = (x: string) => x.replace(/[^0-9]/g, '');
+const SAMPLE_DIGITS = new Set(SAMPLE_PHONES.map(digits));
+export function isSamplePhone(phone: string): boolean {
+  return SAMPLE_DIGITS.has(digits(phone));
 }
 
 /** Default daily care routine for a new pet of the given kind. */
@@ -86,6 +97,7 @@ export function sampleStore(): Store {
   const td = today();
   const d = (n: number) => addDays(td, n);
   s.onboarded = true;
+  s.sample = true;
   s.members = [
     { id: 'me', name: '我', color: MEMBER_COLORS[0] },
     { id: 'mom', name: '媽媽', color: MEMBER_COLORS[1] },
@@ -143,15 +155,15 @@ export function sampleStore(): Store {
   ];
 
   s.contacts = [
-    { id: uid('c'), petId: 'dou', name: '安心動物醫院', rel: '主治醫院', phone: '02-2700-1234', primary: true },
-    { id: uid('c'), petId: 'dou', name: '媽媽', rel: '家人', phone: '0912-345-678', primary: false },
-    { id: uid('c'), petId: 'mochi', name: '安心動物醫院', rel: '主治醫院', phone: '02-2700-1234', primary: true },
-    { id: uid('c'), petId: 'bai', name: '森林異寵專科', rel: '主治醫院', phone: '02-2700-5678', primary: true },
+    { id: uid('c'), petId: 'dou', name: '安心動物醫院', rel: '主治醫院', phone: '02-0000-1234', primary: true },
+    { id: uid('c'), petId: 'dou', name: '媽媽', rel: '家人', phone: '0900-000-678', primary: false },
+    { id: uid('c'), petId: 'mochi', name: '安心動物醫院', rel: '主治醫院', phone: '02-0000-1234', primary: true },
+    { id: uid('c'), petId: 'bai', name: '森林異寵專科', rel: '主治醫院', phone: '02-0000-5678', primary: true },
   ];
   s.vets = {
-    dou: { name: '安心動物醫院', doctor: '王醫師', phone: '02-2700-1234', addr: '台北市大安區安和路一段 100 號（範例）', hours: '24 小時' },
-    mochi: { name: '安心動物醫院', doctor: '林醫師', phone: '02-2700-1234', addr: '台北市大安區安和路一段 100 號（範例）', hours: '24 小時' },
-    bai: { name: '森林異寵專科', doctor: '陳醫師', phone: '02-2700-5678', addr: '台北市大安區復興南路二段 50 號（範例）', hours: '09:00–21:00' },
+    dou: { name: '安心動物醫院', doctor: '王醫師', phone: '02-0000-1234', addr: '台北市大安區安和路一段 100 號（範例）', hours: '24 小時' },
+    mochi: { name: '安心動物醫院', doctor: '林醫師', phone: '02-0000-1234', addr: '台北市大安區安和路一段 100 號（範例）', hours: '24 小時' },
+    bai: { name: '森林異寵專科', doctor: '陳醫師', phone: '02-0000-5678', addr: '台北市大安區復興南路二段 50 號（範例）', hours: '09:00–21:00' },
   };
 
   const J = (petId: string, day: number, time: string, author: string, mood: string, acts: string[], title: string, body: string, priv = false) =>
@@ -200,8 +212,8 @@ export function sampleStore(): Store {
   s.recurring = [{ id: uid('rc'), cat: '保險', amt: 650, petId: 'all', note: '寵物保險月繳', day: 1, lastPosted: td.slice(0, 7) }];
 
   s.groom = [...defaultGroom(dou, true), ...defaultGroom(mochi, true), ...defaultGroom(bai, true)];
-  s.ownerPhone = '0912-000-111';
-  s.erVet = { name: '星光夜間急診動物醫院（範例）', doctor: '', phone: '02-2700-9999', addr: '台北市大安區範例路 1 號', hours: '24 小時' };
+  s.ownerPhone = '0900-000-111';
+  s.erVet = { name: '星光夜間急診動物醫院（範例）', doctor: '', phone: '02-0000-9999', addr: '台北市大安區範例路 1 號', hours: '24 小時' };
   s.care = {};
   return s;
 }

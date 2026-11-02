@@ -11,7 +11,12 @@ export const FORM_TILES = [
   { form: 'growth', title: '成長', desc: '體重與體態', color: '#E3EBDD' },
   { form: 'reminder', title: '提醒', desc: '疫苗、驅蟲、回診', color: '#DDE6EE' },
   { form: 'diary', title: '日記', desc: '留住今天的小事', color: '#EEE0F0' },
-  { form: 'contact', title: '緊急聯絡人', desc: '醫院、家人、保母', color: '#E6E2C8' },
+];
+
+// Frequent jobs that live in their own tool screens.
+const TOOL_TILES = [
+  { route: 'meds', title: '用藥打卡', desc: '今天的藥吃了沒', color: '#D7E7E4' },
+  { route: 'expense', title: '花費', desc: '記一筆支出', color: '#E6E2C8' },
 ];
 
 export default function LogPickerScreen() {
@@ -24,6 +29,18 @@ export default function LogPickerScreen() {
           <Pressable
             key={t.form}
             onPress={() => nav.replace('form', { form: t.form, petId: pet?.id })}
+            style={({ pressed }) => [{ width: '48%', minHeight: 96, borderRadius: 22, backgroundColor: t.color, padding: 14, justifyContent: 'space-between' }, pressed && { opacity: 0.8 }]}
+            accessibilityRole="button"
+            accessibilityLabel={t.title}
+          >
+            <Text style={{ fontSize: 18, fontWeight: '700', color: C.ink }}>{t.title}</Text>
+            <Sub style={{ fontSize: 12 }}>{t.desc}</Sub>
+          </Pressable>
+        ))}
+        {TOOL_TILES.map((t) => (
+          <Pressable
+            key={t.route}
+            onPress={() => nav.replace(t.route, t.route === 'expense' ? { add: true } : {})}
             style={({ pressed }) => [{ width: '48%', minHeight: 96, borderRadius: 22, backgroundColor: t.color, padding: 14, justifyContent: 'space-between' }, pressed && { opacity: 0.8 }]}
             accessibilityRole="button"
             accessibilityLabel={t.title}

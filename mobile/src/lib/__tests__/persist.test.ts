@@ -85,3 +85,31 @@ describe('migrate with damaged nested data', () => {
     expect(s.erVet).toBeNull();
   });
 });
+
+describe('chooseCopy prefers the main file over the clock', () => {
+  test('a .bak with a later _savedAt (clock moved back) does not beat a readable main file', () => {
+    const r = chooseCopy([
+      { name: 'main', exists: true, data: d(1, 'main') },
+      { name: 'tmp', exists: false, data: null },
+      { name: 'bak', exists: true, data: d(9, 'bak') },
+    ]);
+    expect(r.source).toBe('main');
+  });
+  test('no readable file at all → nothing, so the old AsyncStorage copy is tried', () => {
+    const r = chooseCopy([
+      { name: 'main', exists: false, data: null },
+      { name: 'tmp', exists: true, data: null },
+      { name: 'bak', exists: false, data: null },
+    ]);
+    expect(r.data).toBeNull();
+    expect(r.anyFile).toBe(true);
+  });
+});
+
+describe('migrate flags', () => {
+  test('sample and disclaimer flags are booleans', () => {
+    expect(migrate({}).sample).toBe(false);
+    expect(migrate({ sample: true, disclaimerOk: true }).sample).toBe(true);
+    expect(migrate({ disclaimerOk: 'yes' }).disclaimerOk).toBe(false);
+  });
+});

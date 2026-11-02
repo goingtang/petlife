@@ -151,7 +151,7 @@ export default function HealthScreen() {
                     <Sub style={{ fontSize: 12 }}>
                       {r.date.replace(/-/g, '/')} · {REPEAT_LABEL[r.repeat]}
                       {last ? ` · 上次完成 ${last.slice(0, 4) === td.slice(0, 4) ? shortDate(last) : last.replace(/-/g, '/')}` : ''}
-                      {r.notify && st !== 'done' ? ' · 會通知' : ''}
+                      {r.notify && st !== 'done' && store.notifyEnabled ? ' · 會通知' : ''}
                     </Sub>
                   </View>
                   <Badge text={reminderLabel(r)} bg={bg} fg={fg} />
@@ -161,11 +161,21 @@ export default function HealthScreen() {
                       kind="outline"
                       title="完成"
                       onPress={() => {
+                        const before = JSON.parse(JSON.stringify(r));
                         update((d) => {
                           const x = d.reminders.find((y) => y.id === r.id);
                           if (x) completeReminder(x);
                         });
-                        toast(r.repeat === 'once' ? `已完成「${r.title}」` : `已完成，下次提醒已排好`);
+                        toast(r.repeat === 'once' ? `已完成「${r.title}」` : `已完成，下次提醒已排好`, {
+                          action: {
+                            label: '復原',
+                            onPress: () =>
+                              update((d) => {
+                                const i = d.reminders.findIndex((y) => y.id === r.id);
+                                if (i >= 0) d.reminders[i] = before;
+                              }),
+                          },
+                        });
                       }}
                     />
                   ) : null}
@@ -174,7 +184,7 @@ export default function HealthScreen() {
             })}
           </ListCard>
         ) : (
-          <Empty text="還沒有提醒。可以加入疫苗、驅蟲或回診日期" />
+          <Empty text="還沒有提醒。可以加入疫苗、驅蟲或回診日期" action={{ label: '新增提醒', onPress: () => nav.push('form', { form: 'reminder', petId: pet.id }) }} />
         )}
       </Section>
 
@@ -211,7 +221,7 @@ export default function HealthScreen() {
             );
           })
         ) : (
-          <Empty text="還沒有健康紀錄" />
+          <Empty text="還沒有健康紀錄" action={{ label: '新增第一筆', onPress: () => nav.push('form', { form: 'health', petId: pet.id }) }} />
         )}
         {allHealth.length > health.length ? <Btn kind="ghost" small title={`顯示更多（還有 ${allHealth.length - health.length} 筆）`} onPress={() => setLimit((n) => n + 20)} /> : null}
       </Section>

@@ -1,11 +1,12 @@
 import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
-import { useStore, usePet, memberName, memberColor, initialOf } from '../lib/store';
+import { Pressable, Text, View } from 'react-native';
+import { useStore, usePet, memberName, memberColor } from '../lib/store';
 import { useNav } from '../nav';
-import { Avatar, Badge, Btn, Card, Chip, ChipRow, Empty, ListCard, P, Progress, Row, Screen, Section, Sub } from '../ui/kit';
+import { Avatar, Badge, Banner, Btn, Card, Chip, ChipRow, Empty, ListCard, P, Progress, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
-import { dateLabel, greeting, today, relTime, ageText, shortDate } from '../lib/date';
-import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, medDueOn, doseKey, KIND_LABEL, SEX_LABEL } from '../lib/domain';
+import { dateLabel, greeting, today, relTime, ageText, shortDate, hm } from '../lib/date';
+import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, medDueOn, doseKey, KIND_LABEL, SEX_LABEL } from '../lib/domain';
+import type { Reminder } from '../lib/types';
 import { CONTENT } from '../data/content';
 
 const TIP_BY_KIND: Record<string, string> = { dog: 'a1', cat: 'a2', rabbit: 'a3', bird: 'a4' };
@@ -20,11 +21,8 @@ export default function TodayScreen() {
     <Row style={{ justifyContent: 'space-between' }}>
       <Sub style={{ fontWeight: '500' }}>{dateLabel()}</Sub>
       <Row gap={6}>
-        <Pressable onPress={() => nav.push('sos')} style={{ height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
-          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 }}>SOS</Text>
-        </Pressable>
-        <Pressable onPress={() => nav.push('settings')} style={{ height: 44, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="設定">
-          <Text style={{ color: C.ink, fontWeight: '700', fontSize: 13 }}>設定</Text>
+        <Pressable onPress={() => nav.push('sos')} style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
+          <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 }}>SOS 緊急</Text>
         </Pressable>
       </Row>
     </Row>
@@ -46,29 +44,54 @@ export default function TodayScreen() {
   const tasks = tasksFor(store, pet.id);
   const done = (id: string) => doneBy(store, id, td);
   const doneCount = tasks.filter((t) => done(t.id)).length;
-  const next = tasks.find((t) => !done(t.id));
-  const markDone = (id: string) =>
+  // 下一件事 follows the clock: the earliest task whose time has passed comes first (overdue), else the next one coming up.
+  const now = hm();
+  const pending = tasks.filter((t) => !done(t.id));
+  const next = pending.find((t) => t.time <= now) ?? pending.find((t) => t.time > now) ?? pending[0];
+  const nextLate = !!next && next.time <= now;
+  const setDone = (id: string, who: string | null) =>
     update((d) => {
-      d.taskDone[td] = { ...(d.taskDone[td] || {}), [id]: d.me };
+      const day = { ...(d.taskDone[td] || {}) };
+      if (who) day[id] = who;
+      else delete day[id];
+      d.taskDone[td] = day;
     });
-  const toggle = (id: string) => {
+  const markDone = (id: string, title: string) => {
+    setDone(id, store.me);
+    toast(`已完成「${title}」`, { action: { label: '復原', onPress: () => setDone(id, null) } });
+  };
+  const toggle = (id: string, title: string) => {
     const who = done(id);
     if (who && who !== store.me) {
       toast(`${memberName(store, who)} 已經完成了，不用再做`);
       return;
     }
-    update((d) => {
-      const day = { ...(d.taskDone[td] || {}) };
-      if (day[id]) delete day[id];
-      else day[id] = d.me;
-      d.taskDone[td] = day;
-    });
+    if (!who) return markDone(id, title);
+    setDone(id, null);
+    toast(`已取消「${title}」的完成`, { action: { label: '復原', onPress: () => setDone(id, who) } });
   };
 
   const rems = store.reminders
     .filter((r) => r.petId === pet.id && reminderState(r).state !== 'done')
     .sort((a, b) => (a.date < b.date ? -1 : 1));
   const rem = rems[0];
+  const finishRem = (r: Reminder) => {
+    const before: Reminder = JSON.parse(JSON.stringify(r));
+    update((d) => {
+      const x = d.reminders.find((y) => y.id === r.id);
+      if (x) completeReminder(x);
+    });
+    toast(r.repeat === 'once' ? `已完成「${r.title}」` : `已完成，下次「${r.title}」已排好`, {
+      action: {
+        label: '復原',
+        onPress: () =>
+          update((d) => {
+            const i = d.reminders.findIndex((y) => y.id === r.id);
+            if (i >= 0) d.reminders[i] = before;
+          }),
+      },
+    });
+  };
 
   const medsToday = store.meds.filter((m) => m.petId === pet.id && medDueOn(m, td));
   const doseTotal = medsToday.reduce((a, m) => a + m.times.length, 0);
@@ -81,6 +104,9 @@ export default function TodayScreen() {
   return (
     <Screen root>
       {header}
+      {store.sample ? (
+        <Banner kind="warn" text="目前顯示的是範例資料，電話與醫院都是虛構的。開始使用前請到設定清除範例資料。" action={{ label: '前往設定', onPress: () => nav.push('settings') }} />
+      ) : null}
       <Row style={{ alignItems: 'flex-end' }}>
         <Text style={{ flex: 1, fontSize: 24, fontWeight: '700', color: C.ink, lineHeight: 32 }}>
           {greeting()}，今天也好好照顧{pet.name}吧
@@ -93,7 +119,7 @@ export default function TodayScreen() {
               </View>
             ))}
           </Row>
-          <Sub style={{ fontSize: 11 }}>{store.members.length} 人共同照顧</Sub>
+          <Sub style={{ fontSize: 12 }}>{store.members.length > 1 ? `${store.members.length} 人共同照顧` : '家人成員'}</Sub>
         </Pressable>
       </Row>
 
@@ -104,34 +130,28 @@ export default function TodayScreen() {
         <Chip label="＋ 新增" onPress={() => nav.push('petEdit', {})} style={{ borderStyle: 'dashed' }} />
       </ChipRow>
 
-      <Pressable onPress={() => nav.push('profile', { petId: pet.id })} accessibilityRole="button" accessibilityLabel={`${pet.name} 的檔案`}>
-        <View style={{ height: 250, borderRadius: 32, overflow: 'hidden', backgroundColor: pet.color, justifyContent: 'flex-end' }}>
-          {pet.photo ? (
-            <Image source={{ uri: pet.photo }} style={{ position: 'absolute', width: '100%', height: '100%' }} resizeMode="cover" />
-          ) : (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 70, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontSize: 90, color: 'rgba(59,47,40,.85)', fontWeight: '700' }}>{initialOf(pet.name)}</Text>
-              <Text style={{ fontSize: 12, color: C.ink, opacity: 0.7 }}>點這裡到檔案頁加入照片</Text>
-            </View>
-          )}
-          <View style={{ margin: 12, padding: 14, borderRadius: 22, backgroundColor: C.card, flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 23, fontWeight: '700', color: C.ink }}>{pet.name}</Text>
-              <Sub>{sub}</Sub>
-            </View>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent }}>查看檔案 ›</Text>
-          </View>
+      <Pressable
+        onPress={() => nav.push('profile', { petId: pet.id })}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, paddingRight: 16, borderRadius: 24, backgroundColor: C.card, borderWidth: 1.5, borderColor: C.line }}
+        accessibilityRole="button"
+        accessibilityLabel={`${pet.name} 的檔案`}
+      >
+        <Avatar name={pet.name} color={pet.color} size={52} photo={pet.photo} textColor={C.ink} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 19, fontWeight: '700', color: C.ink }}>{pet.name}</Text>
+          <Sub numberOfLines={1}>{sub}</Sub>
         </View>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent }}>檔案 ›</Text>
       </Pressable>
 
       <View style={{ backgroundColor: C.ink, borderRadius: 24, padding: 16, paddingLeft: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ color: C.yellow, fontSize: 12, fontWeight: '700' }}>下一件事</Text>
+          <Text style={{ color: nextLate ? '#F6B8A0' : C.yellow, fontSize: 12, fontWeight: '700' }}>{nextLate ? '下一件事 · 已過時間' : '下一件事'}</Text>
           <Text style={{ color: C.bg, fontSize: 19, fontWeight: '700' }}>{next ? next.title : tasks.length ? '今天的照護都完成了' : '還沒有設定每日照護'}</Text>
           {next ? <Text style={{ color: '#D8C8B4', fontSize: 13 }}>{next.time} · 輪到{memberName(store, next.who)}</Text> : null}
         </View>
         {next ? (
-          <Btn small title="完成打卡" onPress={() => { markDone(next.id); toast('已打卡'); }} style={{ backgroundColor: C.yellow, minHeight: 46, borderRadius: 23 }} textStyle={{ color: C.ink, fontSize: 15 }} />
+          <Btn small title="完成打卡" onPress={() => markDone(next.id, next.title)} style={{ backgroundColor: C.yellow, minHeight: 46, borderRadius: 23 }} textStyle={{ color: C.ink, fontSize: 15 }} />
         ) : !tasks.length ? (
           <Btn small title="設定" onPress={() => nav.push('tasks', { petId: pet.id })} style={{ backgroundColor: C.yellow }} textStyle={{ color: C.ink }} />
         ) : null}
@@ -154,13 +174,15 @@ export default function TodayScreen() {
               const who = done(t.id);
               const w = who || t.who;
               return (
-                <Pressable key={t.id} onPress={() => toggle(t.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10 }} accessibilityRole="checkbox" accessibilityState={{ checked: !!who }} accessibilityLabel={t.title}>
+                <Pressable key={t.id} onPress={() => toggle(t.id, t.title)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 14, paddingVertical: 10 }} accessibilityRole="checkbox" accessibilityState={{ checked: !!who }} accessibilityLabel={t.title}>
                   <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: who ? C.green : '#CDBBA6', backgroundColor: who ? C.green : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
                     {who ? <Text style={{ color: '#fff', fontWeight: '700' }}>✓</Text> : null}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 15, fontWeight: '500', color: who ? C.faint : C.ink, textDecorationLine: who ? 'line-through' : 'none' }}>{t.title}</Text>
-                    <Sub style={{ fontSize: 12 }}>{who ? `${memberName(store, who)}已完成` : `${t.time} · 輪到${memberName(store, t.who)}`}</Sub>
+                    <Sub style={{ fontSize: 12, color: !who && t.time <= now ? C.danger : C.sub }}>
+                      {who ? `${memberName(store, who)}已完成` : `${t.time}${t.time <= now ? ' · 已過時間' : ''} · 輪到${memberName(store, t.who)}`}
+                    </Sub>
                   </View>
                   <Avatar name={memberName(store, w)} color={memberColor(store, w)} size={26} />
                 </Pressable>
@@ -174,16 +196,20 @@ export default function TodayScreen() {
       </Section>
 
       {rem ? (
-        <Card onPress={() => nav.setTab('health')} style={{ backgroundColor: reminderState(rem).state === 'overdue' ? C.dangerBg : C.yellowBg, borderWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <View style={{ width: 58, height: 58, borderRadius: 18, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{shortDate(rem.date)}</Text>
-          </View>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: reminderState(rem).state === 'overdue' ? C.danger : '#8A6416' }}>{reminderLabel(rem)}</Text>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>{rem.title}</Text>
-            <Sub style={{ fontSize: 12 }}>到「健康」頁標記完成或修改日期</Sub>
-          </View>
-          <Text style={{ fontSize: 20, color: '#8A6416' }}>›</Text>
+        <Card style={{ backgroundColor: reminderState(rem).state === 'overdue' ? C.dangerBg : C.yellowBg, borderWidth: 0, gap: 12 }}>
+          <Pressable onPress={() => nav.push('form', { form: 'reminder', petId: pet.id, editId: rem.id })} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }} accessibilityRole="button" accessibilityLabel={`${rem.title}，${reminderLabel(rem)}，點一下修改`}>
+            <View style={{ width: 58, height: 58, borderRadius: 18, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{shortDate(rem.date)}</Text>
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: reminderState(rem).state === 'overdue' ? C.danger : '#8A6416' }}>{reminderLabel(rem)}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>{rem.title}</Text>
+            </View>
+          </Pressable>
+          <Row gap={8}>
+            <Btn small title="完成" onPress={() => finishRem(rem)} style={{ flex: 1 }} />
+            <Btn small kind="soft" title="全部提醒" onPress={() => nav.setTab('health')} style={{ flex: 1 }} />
+          </Row>
         </Card>
       ) : null}
 

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, Text, View } from 'react-native';
 import { Screen, Btn, Card, Chip, ChipRow, Choice, Field, DateField, Toggle, Badge, PetChips, Sub, Row, Label, Empty, Banner, confirm } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
@@ -78,7 +78,7 @@ function syncReminder(s: Store, doc: Doc, remind: boolean) {
 const MAX_PAGES = 30;
 
 function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null; onDone: () => void; dirty: React.MutableRefObject<boolean> }) {
-  const { store, update, toast } = useStore();
+  const { store, update, toast, afterSave } = useStore();
   const files = usePendingFiles();
   const [file, setFile] = useState<Picked | null>(doc?.fileUri ? { uri: doc.fileUri, name: doc.fileName, mime: doc.mime } : null);
   const [pages, setPages] = useState<string[]>(doc?.pages ?? []);
@@ -100,7 +100,13 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
 
   const choose = async (k: 'camera' | 'library' | 'pdf') => {
     if (k === 'pdf' && pages.length) {
-      const ok = await new Promise<boolean>((res) => confirm('改用 PDF？', `PDF 只能放一個檔案，已加入的 ${pages.length} 頁照片會移除。`, () => res(true), '改用 PDF'));
+      const ok = await new Promise<boolean>((res) => {
+        if (Platform.OS === 'web') return res(window.confirm(`改用 PDF？PDF 只能放一個檔案，已加入的 ${pages.length} 頁照片會移除。`));
+        Alert.alert('改用 PDF？', `PDF 只能放一個檔案，已加入的 ${pages.length} 頁照片會移除。`, [
+          { text: '取消', style: 'cancel', onPress: () => res(false) },
+          { text: '改用 PDF', style: 'destructive', onPress: () => res(true) },
+        ], { cancelable: true, onDismiss: () => res(false) });
+      });
       if (!ok) return;
     }
     const p = await pickSource(k);
@@ -147,7 +153,7 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
       else s.docs.push(d);
       syncReminder(s, d, remind && !!d.exp);
     });
-    files.commit();
+    files.commit(afterSave);
     dirty.current = false;
     toast(remind && exp && exp >= today() ? '已儲存，到期前 30 天、7 天和前一天會提醒' : '文件已儲存');
     onDone();
@@ -388,7 +394,6 @@ export default function DocsScreen(_: { params: any }) {
       const imgHtml: Record<string, string> = {};
       for (const d of docs) {
         const chunks: string[] = [];
-        parts.push(`<h2>${esc(d.title)}</h2><p style="color:#7A685B;margin:0 0 8px">${esc([d.cat, d.date.replace(/-/g, '/'), d.exp ? '到期 ' + d.exp.replace(/-/g, '/') : ''].filter(Boolean).join(' · '))}</p>`);
         if (isPdf(d) && d.fileUri) pdfNames.push(d.fileName || d.title);
         for (const u of imagesOf(d)) {
           if (pagesLeft <= 0) {

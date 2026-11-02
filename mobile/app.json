@@ -13,7 +13,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "tw.petpal.app"
+      "bundleIdentifier": "tw.petpal.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "zh_TW",
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "android": {
       "package": "tw.petpal.app",
@@ -23,7 +30,14 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,18 +47,37 @@
       "@react-native-community/datetimepicker",
       [
         "expo-location",
-        { "locationWhenInUsePermission": "PetPal 會用你的位置尋找附近的動物醫院、寵物用品店與公園。" }
+        {
+          "locationWhenInUsePermission": "PetPal 只在你打開「附近地點」時使用位置，用來搜尋附近的動物醫院、寵物用品店與公園。位置會先模糊到約 100 公尺再查詢，不會被儲存。",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "isAndroidForegroundServiceEnabled": false
+        }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "PetPal 需要存取照片，讓你加入寵物照片、日記照片與文件。",
-          "cameraPermission": "PetPal 需要使用相機，讓你拍攝寵物照片、收據與文件。"
+          "photosPermission": "PetPal 需要存取你選擇的照片，用來加入寵物照片、日記照片、收據與文件。",
+          "cameraPermission": "PetPal 需要使用相機，讓你拍攝寵物照片、收據與文件。",
+          "microphonePermission": false
         }
       ],
       [
         "expo-notifications",
-        { "color": "#C4602F" }
+        {
+          "color": "#C4602F"
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#F7F0E6"
+        }
       ]
     ]
   }

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { Screen, Card, Btn, Field, DateField, PetChips, Row, Sub, Label, Toggle, Banner, Empty } from '../../ui/kit';
 import { C } from '../../ui/theme';
-import { useStore, usePet, useDraft, memberName } from '../../lib/store';
+import { useStore, usePet, useDraft, useFlushOnBackground, memberName } from '../../lib/store';
 import { chunk } from '../../lib/life';
 import { tasksFor, latestGrowth, KIND_LABEL, SEX_LABEL } from '../../lib/domain';
 import { addDays, ageText, daysBetween, parseYmd, today, weekday } from '../../lib/date';
@@ -60,6 +60,8 @@ export default function CareSheetScreen(_: { params: any }) {
   const from = sheet.from || today();
   const to = sheet.to || addDays(from, 3);
   const badRange = to < from;
+  const MAX_DAYS = 31;
+  const tooLong = !badRange && daysBetween(from, to) + 1 > MAX_DAYS;
 
   const setSheetFor = (k: string, patch: Partial<typeof sheet>) =>
     update((d) => {
@@ -81,6 +83,7 @@ export default function CareSheetScreen(_: { params: any }) {
   const flushRef = useRef(flushNotes);
   flushRef.current = flushNotes;
   useEffect(() => () => flushRef.current(), []);
+  useFlushOnBackground(() => flushRef.current()); // leaving the app within 600 ms of typing still saves
   if (nd.key !== key && !pending.current) setNd({ key, text: sheet.notes });
   const notes = nd.key === key ? nd.text : sheet.notes;
   const setNotes = (text: string) => {
@@ -129,6 +132,7 @@ export default function CareSheetScreen(_: { params: any }) {
 
   const makePdf = async () => {
     if (badRange) return toast('結束日期不能早於開始日期');
+    if (tooLong) return toast(`照顧期間最多 ${MAX_DAYS} 天，請分成幾份`);
     const days = daysBetween(from, to) + 1;
     const dates = Array.from({ length: days }, (_, i) => addDays(from, i));
     const weeks = chunk(dates, 7);
@@ -162,7 +166,7 @@ export default function CareSheetScreen(_: { params: any }) {
         <Label>照顧期間</Label>
         <Row gap={8}>
           <View style={{ flex: 1 }}><DateField label="開始" value={from} onChange={(v) => v && setSheet({ from: v })} /></View>
-          <View style={{ flex: 1 }}><DateField label="結束" value={to} onChange={(v) => v && setSheet({ to: v })} error={badRange ? '結束日期不能早於開始日期' : null} /></View>
+          <View style={{ flex: 1 }}><DateField label="結束" value={to} onChange={(v) => v && setSheet({ to: v })} error={badRange ? '結束日期不能早於開始日期' : tooLong ? `最多 ${MAX_DAYS} 天` : null} /></View>
         </Row>
         <Field label="家中注意事項" value={notes} onChangeText={setNotes} multiline placeholder="例如：鑰匙在信箱、怕打雷要開音樂、不能上床" />
         {!store.ownerPhone || editingPhone ? (

@@ -5,7 +5,7 @@ import { today } from '../lib/date';
 import { useNav, useBackHandler } from '../nav';
 import { Btn, Choice, DateField, Field, Label, Row, Screen, Segment, Sub, Toggle, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
-import { choosePhotos, deleteFile, usePendingFiles } from '../lib/files';
+import { choosePhotos, deleteFile, deleteIfUnused, usePendingFiles } from '../lib/files';
 import { PET_COLORS, defaultGroom, defaultTasks, uid } from '../lib/seed';
 import type { Pet, PetKind } from '../lib/types';
 
@@ -17,20 +17,32 @@ const BREEDS: Record<PetKind, string[]> = {
   other: ['倉鼠', '天竺鼠', '烏龜', '守宮'],
 };
 
+const KINDS: { value: PetKind; label: string }[] = [
+  { value: 'dog', label: '狗' },
+  { value: 'cat', label: '貓' },
+  { value: 'rabbit', label: '兔' },
+  { value: 'bird', label: '鳥' },
+  { value: 'other', label: '其他' },
+];
+
 export default function PetEditScreen({ params }: { params: any }) {
-  const { store, update, toast, setPetId, afterSave } = useStore();
+  const { store, update, toast, setPetId, afterSave, getStore } = useStore();
   const nav = useNav();
   const existing = params.petId ? store.pets.find((p) => p.id === params.petId) : undefined;
   const [p, setP] = useState<Pet>(
     existing ?? { id: uid('p'), name: '', kind: 'dog', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: PET_COLORS[store.pets.length % PET_COLORS.length] },
   );
   const [tried, setTried] = useState(false);
+  // New pets: choose the kind first (no default, so a cat owner doesn't end up with dog care tasks).
+  const [kindPicked, setKindPicked] = useState(!!existing);
+  const [more, setMore] = useState(!!existing);
   const [initial] = useState(p);
   const set = <K extends keyof Pet>(k: K, v: Pet[K]) => setP((o) => ({ ...o, [k]: v }));
   const pf = usePendingFiles();
   const setPhoto = (uri: string | undefined) => {
     if (uri) pf.added(uri);
-    pf.removed(p.photo);
+    // The saved photo may also be the lost-pet poster's photo, so it is deleted on save only if nothing else uses it.
+    if (p.photo !== existing?.photo) pf.removed(p.photo);
     set('photo', uri);
   };
   useBackHandler(
@@ -44,12 +56,15 @@ export default function PetEditScreen({ params }: { params: any }) {
 
   const save = () => {
     setTried(true);
-    if (!p.name.trim()) return;
+    if (!p.name.trim() || !kindPicked) return;
     const clean = { ...p, name: p.name.trim(), breed: p.breed.trim(), chip: p.chip.trim(), allergy: p.allergy.trim() };
     update((d) => {
       if (existing) {
         const i = d.pets.findIndex((x) => x.id === existing.id);
         if (i >= 0) d.pets[i] = clean;
+        // The lost-pet poster defaults to the profile photo; keep it pointing at a file that still exists.
+        const lost = d.lost[existing.id];
+        if (lost && lost.photo === existing.photo && existing.photo !== clean.photo) lost.photo = clean.photo;
       } else {
         d.pets.push(clean);
         d.tasks.push(...defaultTasks(clean, d.me));
@@ -58,6 +73,8 @@ export default function PetEditScreen({ params }: { params: any }) {
       }
     });
     pf.commit(afterSave);
+    const old = existing?.photo;
+    if (old && old !== clean.photo) afterSave(() => deleteIfUnused(old, getStore()));
     if (!existing) setPetId(clean.id);
     toast(existing ? '已更新寵物資料' : `已新增${clean.name}，每日照護項目也幫你建好了`);
     if (params.first) nav.popToRoot();
@@ -121,9 +138,33 @@ export default function PetEditScreen({ params }: { params: any }) {
 
       <Field label="名字" required value={p.name} onChangeText={(t) => set('name', t)} placeholder="例如：豆豆" error={tried && !p.name.trim() ? '請填寫名字' : null} />
       <View style={{ gap: 8 }}>
-        <Label>種類</Label>
-        <Segment options={[{ value: 'dog', label: '狗' }, { value: 'cat', label: '貓' }, { value: 'rabbit', label: '兔' }, { value: 'bird', label: '鳥' }, { value: 'other', label: '其他' }]} value={p.kind} onChange={(k) => set('kind', k)} />
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Label>種類</Label>
+          <Text style={{ fontSize: 12, color: tried && !kindPicked ? C.danger : C.faint }}>{tried && !kindPicked ? '請選擇種類' : '必填'}</Text>
+        </Row>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {KINDS.map((k) => {
+            const on = kindPicked && p.kind === k.value;
+            return (
+              <Pressable
+                key={k.value}
+                onPress={() => {
+                  if (p.kind !== k.value) setP((o) => ({ ...o, kind: k.value, breed: '' }));
+                  setKindPicked(true);
+                }}
+                style={{ flexGrow: 1, flexBasis: '30%', minHeight: 56, borderRadius: 18, borderWidth: 1.5, borderColor: on ? C.ink : C.line, backgroundColor: on ? C.ink : C.card, alignItems: 'center', justifyContent: 'center' }}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={k.label}
+              >
+                <Text style={{ fontSize: 17, fontWeight: '700', color: on ? C.bg : C.ink }}>{k.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
+      {more ? (
+        <>
       <View style={{ gap: 8 }}>
         <Field label="品種" value={p.breed} onChangeText={(t) => set('breed', t)} placeholder="例如：米克斯" />
         <Choice options={BREEDS[p.kind].map((b) => ({ value: b, label: b }))} value={p.breed} onChange={(b) => set('breed', b)} />
@@ -141,10 +182,14 @@ export default function PetEditScreen({ params }: { params: any }) {
         <Label>代表色</Label>
         <Row gap={10}>
           {PET_COLORS.map((c) => (
-            <Pressable key={c} onPress={() => set('color', c)} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: c, borderWidth: p.color === c ? 3 : 1, borderColor: p.color === c ? C.ink : C.line }} accessibilityRole="button" accessibilityLabel={`顏色 ${c}`} accessibilityState={{ selected: p.color === c }} />
+            <Pressable key={c} onPress={() => set('color', c)} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c, borderWidth: p.color === c ? 3 : 1, borderColor: p.color === c ? C.ink : C.line }} accessibilityRole="button" accessibilityLabel={`顏色 ${c}`} accessibilityState={{ selected: p.color === c }} />
           ))}
         </Row>
       </View>
+        </>
+      ) : (
+        <Btn kind="soft" title="＋ 更多資料（品種、生日、晶片…選填）" onPress={() => setMore(true)} />
+      )}
       {!existing ? <Sub>儲存後會依種類自動建立建議的每日照護和美容項目，之後都可以修改。</Sub> : null}
     </Screen>
   );

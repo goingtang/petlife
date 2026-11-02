@@ -79,6 +79,7 @@ export function defaultPhone(store: Store, petId: string): string {
 }
 
 function LostForm({ pet, store, initial, onSave, onCancel, dirtyRef }: { pet: Pet; store: Store; initial?: LostInfo; onSave: (info: LostInfo) => void; onCancel?: () => void; dirtyRef?: React.MutableRefObject<(() => boolean) | null> }) {
+  const { afterSave } = useStore();
   const files = usePendingFiles();
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo ?? pet.photo);
   const [since, setSince] = useState(initial?.since ?? today());
@@ -128,7 +129,7 @@ function LostForm({ pet, store, initial, onSave, onCancel, dirtyRef }: { pet: Pe
       sinceTime,
       sightings: initial?.sightings ?? [],
     };
-    files.commit();
+    files.commit(afterSave);
     onSave(info);
   };
 

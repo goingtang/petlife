@@ -10,7 +10,7 @@ import { KIND_LABEL, SEX_LABEL, entriesFor, medActiveOn, mapsSearch, primaryVetP
 import { ageText, today } from '../../lib/date';
 import { callPhone, copyText, openUrl } from '../../lib/files';
 import { CONTENT } from '../../data/content';
-import { EXTRA_FIRST_AID } from '../../data/content-health';
+import { EXTRA_FIRST_AID, HEALTH_SOURCES } from '../../data/content-health';
 
 const ALL_AID = [...CONTENT.firstAid.map((a) => ({ id: a.id, name: a.name, steps: [...a.steps] })), ...EXTRA_FIRST_AID];
 const CPR = ALL_AID.find((a) => a.id === 'fa_cpr')!;
@@ -124,6 +124,7 @@ export default function SosScreen({ params }: { params: any }) {
           </Row>
         ))}
         <CprMetronome />
+        <Sub style={{ fontSize: 12 }}>{HEALTH_SOURCES.cpr}</Sub>
       </Card>
     </Section>
   );
@@ -159,6 +160,7 @@ export default function SosScreen({ params }: { params: any }) {
         );
       })}
       <Sub>以上為一般急救原則，處理後仍請立即就醫。</Sub>
+      <Sub style={{ fontSize: 12 }}>{HEALTH_SOURCES.firstAid}</Sub>
     </Section>
   );
 
@@ -239,7 +241,7 @@ export default function SosScreen({ params }: { params: any }) {
       <Section title="相關工具">
         <Row>
           <Btn small kind="soft" title="有毒查詢" style={{ flex: 1 }} onPress={() => nav.pushUnique('toxic')} />
-          <Btn small kind="soft" title="AI 助理" style={{ flex: 1 }} onPress={() => nav.pushUnique('ai')} />
+          <Btn small kind="soft" title="症狀檢查 · 問 AI" style={{ flex: 1 }} onPress={() => nav.pushUnique('ai')} />
           <Btn small kind="soft" title="走失協尋" style={{ flex: 1 }} onPress={() => nav.pushUnique('lost')} />
         </Row>
       </Section>

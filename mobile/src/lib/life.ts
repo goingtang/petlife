@@ -87,3 +87,11 @@ export function mentionsGrape(text: string): boolean {
   const t = text.toLowerCase().replace(/葡萄糖|葡萄柚[^、,，;；\n]*|grapefruit[^,;\n]*|grape ?seed[^,;\n]*/g, '');
   return /葡萄|raisin|\bgrapes?\b/.test(t);
 }
+
+/**
+ * Round a coordinate to 3 decimals (about 100 m) before it leaves the phone, so map services
+ * see the neighbourhood, not the user's exact home.
+ */
+export function roundCoord(x: number): number {
+  return Math.round(x * 1000) / 1000;
+}

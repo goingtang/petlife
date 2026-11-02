@@ -278,7 +278,7 @@ export default function ReportScreen(_: { params: any }) {
           ) : (
             <Sub>請至少選一個要包含的內容。</Sub>
           )}
-          <Text style={{ fontSize: 11, color: C.faint }}>{footer}</Text>
+          <Text style={{ fontSize: 12, color: C.faint }}>{footer}</Text>
         </Card>
       </Section>
 
