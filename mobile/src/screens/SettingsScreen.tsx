@@ -2,17 +2,22 @@ import React, { useState } from 'react';
 import { Platform, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
-import { useStore, sampleStore, emptyStore, migrate } from '../lib/store';
+import { useStore, useDraft, sampleStore, emptyStore, migrate } from '../lib/store';
 import { useNav } from '../nav';
-import { Banner, Btn, Card, KV, ListCard, Screen, Section, Sub, Toggle, confirm } from '../ui/kit';
+import { Banner, Btn, Card, Field, KV, ListCard, Screen, Section, Sub, Toggle, confirm } from '../ui/kit';
 import { askPermission, syncNotifications, testNotification } from '../lib/notify';
-import { shareTextFile } from '../lib/files';
+import { cleanupOrphans, shareTextFile } from '../lib/files';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
   const { store, update, replace, toast } = useStore();
   const nav = useNav();
   const [count, setCount] = useState<number | null>(null);
+  const [phone, setPhone] = useDraft(store.ownerPhone, (v) =>
+    update((d) => {
+      d.ownerPhone = v.trim();
+    }),
+  );
   const web = Platform.OS === 'web';
 
   const toggleNotify = async (on: boolean) => {
@@ -45,6 +50,7 @@ export default function SettingsScreen() {
       if (!data || !Array.isArray(data.pets)) throw new Error('bad');
       confirm('用備份取代目前資料？', `備份內有 ${data.pets.length} 隻寵物。目前這支手機上的資料會被取代。`, () => {
         replace({ ...migrate(data), onboarded: true });
+        // Photos in a backup point at the old phone's files; they show as blank until re-added.
         nav.popToRoot();
         toast('已還原備份');
       }, '還原');
@@ -82,6 +88,14 @@ export default function SettingsScreen() {
         ) : null}
       </Section>
 
+      <Section title="飼主與急診">
+        <Field label="飼主電話" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="會出現在照顧須知、協尋海報和給醫院的資料" />
+        <Card onPress={() => nav.push('vetEdit', { er: true })} style={{ gap: 4 }}>
+          <Sub style={{ fontWeight: '700' }}>夜間／假日急診醫院</Sub>
+          <Sub>{store.erVet ? `${store.erVet.name} · ${store.erVet.phone}` : '尚未設定，點這裡新增'}</Sub>
+        </Card>
+      </Section>
+
       <Section title="資料">
         <ListCard>
           {stats.map(([k, v]) => (
@@ -95,6 +109,16 @@ export default function SettingsScreen() {
           onPress={() => shareTextFile(`petpal-備份-${today()}.json`, JSON.stringify(store), 'application/json')}
         />
         <Btn kind="outline" title="從備份檔還原" onPress={importBackup} />
+        {!web ? (
+          <Btn
+            kind="soft"
+            title="清理未使用的照片與檔案"
+            onPress={() => {
+              const r = cleanupOrphans(store);
+              toast(r.count ? `已刪除 ${r.count} 個沒用到的檔案，釋放 ${(r.bytes / 1048576).toFixed(1)} MB` : '沒有需要清理的檔案');
+            }}
+          />
+        ) : null}
       </Section>
 
       <Section title="重新開始">

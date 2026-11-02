@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
-import { useNav } from '../nav';
+import { useNav, useBackHandler } from '../nav';
 import { Btn, Choice, DateField, Field, Label, Row, Screen, Segment, Sub, Toggle, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
-import { choosePhotos, deleteFile } from '../lib/files';
+import { choosePhotos, deleteFile, usePendingFiles } from '../lib/files';
 import { PET_COLORS, defaultGroom, defaultTasks, uid } from '../lib/seed';
 import type { Pet, PetKind } from '../lib/types';
 
@@ -24,7 +24,22 @@ export default function PetEditScreen({ params }: { params: any }) {
     existing ?? { id: uid('p'), name: '', kind: 'dog', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: PET_COLORS[store.pets.length % PET_COLORS.length] },
   );
   const [tried, setTried] = useState(false);
+  const [initial] = useState(p);
   const set = <K extends keyof Pet>(k: K, v: Pet[K]) => setP((o) => ({ ...o, [k]: v }));
+  const pf = usePendingFiles();
+  const setPhoto = (uri: string | undefined) => {
+    if (uri) pf.added(uri);
+    pf.removed(p.photo);
+    set('photo', uri);
+  };
+  useBackHandler(
+    JSON.stringify(p) !== JSON.stringify(initial) && !params.first
+      ? () => {
+          confirm('放棄未儲存的內容？', '剛才修改的資料不會保存。', () => nav.pop(), '放棄');
+          return true;
+        }
+      : null,
+  );
 
   const save = () => {
     setTried(true);
@@ -38,8 +53,10 @@ export default function PetEditScreen({ params }: { params: any }) {
         d.pets.push(clean);
         d.tasks.push(...defaultTasks(clean, d.me));
         d.groom.push(...defaultGroom(clean));
+        if (params.first) d.ownerId = d.me;
       }
     });
+    pf.commit();
     if (!existing) setPetId(clean.id);
     toast(existing ? '已更新寵物資料' : `已新增${clean.name}，每日照護項目也幫你建好了`);
     if (params.first) nav.popToRoot();
@@ -47,11 +64,15 @@ export default function PetEditScreen({ params }: { params: any }) {
   };
 
   const remove = () =>
-    confirm(`刪除${existing?.name}？`, '這隻寵物的所有紀錄、日記、提醒和照片都會一起刪除，無法復原。', () => {
+    confirm(`刪除${existing?.name}？`, '這隻寵物的紀錄、日記、提醒、文件和照片都會一起刪除，無法復原。花費紀錄會保留，方便對帳。', () => {
       const id = existing!.id;
       deleteFile(existing!.photo);
       update((d) => {
         d.journal.filter((j) => j.petId === id).forEach((j) => j.photos.forEach((u) => deleteFile(u)));
+        d.entries.filter((e) => e.petId === id).forEach((e) => (e.v?.docs || []).forEach((u: string) => deleteFile(u)));
+        d.docs.filter((x) => x.petId === id).forEach((x) => [x.fileUri, ...(x.pages || [])].forEach((u) => deleteFile(u)));
+        d.milestones.filter((m) => m.petId === id).forEach((m) => deleteFile(m.photo));
+        deleteFile(d.lost[id]?.photo);
         d.pets = d.pets.filter((x) => x.id !== id);
         d.tasks = d.tasks.filter((x) => x.petId !== id);
         d.entries = d.entries.filter((x) => x.petId !== id);
@@ -60,7 +81,6 @@ export default function PetEditScreen({ params }: { params: any }) {
         d.journal = d.journal.filter((x) => x.petId !== id);
         d.meds = d.meds.filter((x) => x.petId !== id);
         d.docs = d.docs.filter((x) => x.petId !== id);
-        d.expenses = d.expenses.filter((x) => x.petId !== id);
         d.supplies = d.supplies.filter((x) => x.petId !== id);
         d.groom = d.groom.filter((x) => x.petId !== id);
         d.milestones = d.milestones.filter((x) => x.petId !== id);
@@ -84,12 +104,12 @@ export default function PetEditScreen({ params }: { params: any }) {
       }
     >
       <Row>
-        <Pressable onPress={() => choosePhotos(1, (u) => u[0] && set('photo', u[0]))} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: p.color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="選擇寵物照片">
+        <Pressable onPress={() => choosePhotos(1, (u) => u[0] && setPhoto(u[0]))} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: p.color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="選擇寵物照片">
           {p.photo ? <Image source={{ uri: p.photo }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: 13, color: C.ink, textAlign: 'center' }}>加入{'\n'}照片</Text>}
         </Pressable>
         <View style={{ flex: 1, gap: 8 }}>
-          <Btn small kind="outline" title={p.photo ? '更換照片' : '拍照或選照片'} onPress={() => choosePhotos(1, (u) => u[0] && set('photo', u[0]))} />
-          {p.photo ? <Btn small kind="ghost" title="移除照片" onPress={() => set('photo', undefined)} /> : null}
+          <Btn small kind="outline" title={p.photo ? '更換照片' : '拍照或選照片'} onPress={() => choosePhotos(1, (u) => u[0] && setPhoto(u[0]))} />
+          {p.photo ? <Btn small kind="ghost" title="移除照片" onPress={() => setPhoto(undefined)} /> : null}
         </View>
       </Row>
 

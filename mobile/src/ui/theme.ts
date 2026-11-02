@@ -6,7 +6,7 @@ export const C = {
   lineSoft: '#F0E5D6',
   ink: '#3B2F28',
   sub: '#7A685B',
-  faint: '#9C8B7E',
+  faint: '#776557', // hint text: ≥4.5:1 on the cream background
   body: '#4F4239',
   accent: '#C4602F',
   accentDark: '#9E4A22',

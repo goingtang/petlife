@@ -6,7 +6,28 @@ import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import * as Clipboard from 'expo-clipboard';
 import { File, Directory, Paths } from 'expo-file-system';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { useCallback, useEffect, useRef } from 'react';
 import { uid } from './seed';
+import { safeFileName } from './domain';
+import type { Store } from './types';
+
+const MAX_SIDE = 1280;
+
+/** Shrink a photo so its longest side is at most 1280 px (JPEG 0.75). Returns the original uri if that fails. */
+async function shrink(uri: string, w?: number, h?: number): Promise<string> {
+  if (Platform.OS === 'web') return uri;
+  try {
+    const ctx = ImageManipulator.manipulate(uri);
+    if (w && h && Math.max(w, h) > MAX_SIDE) ctx.resize(w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE });
+    else if (!w || !h) ctx.resize({ width: MAX_SIDE });
+    const img = await ctx.renderAsync();
+    const out = await img.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
+    return out.uri;
+  } catch {
+    return uri;
+  }
+}
 
 /** Copy a picked file into the app's own folder so it survives cache clean-ups. */
 export async function persistFile(srcUri: string, ext: string): Promise<string> {
@@ -59,7 +80,10 @@ export async function pickPhotos(opts: { camera?: boolean; max?: number } = {}):
     }
     if (res.canceled) return [];
     const out: string[] = [];
-    for (const a of res.assets.slice(0, max)) out.push(await persistFile(a.uri, extOf(a.uri, 'jpg')));
+    for (const a of res.assets.slice(0, max)) {
+      const small = await shrink(a.uri, a.width, a.height);
+      out.push(await persistFile(small, small === a.uri ? extOf(a.uri, 'jpg') : 'jpg'));
+    }
     return out;
   } catch {
     Alert.alert('無法開啟照片', '請確認已允許存取照片後再試一次。');
@@ -85,8 +109,11 @@ export async function pickDocument(): Promise<{ uri: string; name: string; mime:
     const res = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], copyToCacheDirectory: true });
     if (res.canceled || !res.assets?.length) return null;
     const a = res.assets[0];
-    const uri = await persistFile(a.uri, extOf(a.name || a.uri, 'pdf'));
-    return { uri, name: a.name || '文件', mime: a.mimeType || '' };
+    const isImg = (a.mimeType || '').startsWith('image/');
+    const src = isImg ? await shrink(a.uri) : a.uri;
+    const uri = await persistFile(src, isImg ? 'jpg' : extOf(a.name || a.uri, 'pdf'));
+    removeCacheFile(a.uri);
+    return { uri, name: a.name || '文件', mime: isImg ? 'image/jpeg' : a.mimeType || 'application/pdf' };
   } catch {
     Alert.alert('無法選取檔案', '請再試一次。');
     return null;
@@ -99,6 +126,26 @@ export async function shareText(message: string, title?: string) {
   } catch {
     await copyText(message);
   }
+}
+
+/** Delete a temporary file in the cache folder (never anything in the app's documents). */
+export function removeCacheFile(uri?: string | null) {
+  if (!uri || Platform.OS === 'web' || uri.includes('/petpal/')) return;
+  try {
+    const f = new File(uri);
+    if (f.exists && /cache/i.test(uri)) f.delete();
+  } catch {
+    // ignore
+  }
+}
+
+export function mimeOf(uri: string): string {
+  const e = extOf(uri, '');
+  if (e === 'pdf') return 'application/pdf';
+  if (e === 'png') return 'image/png';
+  if (e === 'heic') return 'image/heic';
+  if (e === 'webp') return 'image/webp';
+  return 'image/jpeg';
 }
 
 export async function shareFile(uri: string, mimeType?: string, dialogTitle?: string) {
@@ -140,15 +187,18 @@ export async function sharePdf(html: string, name: string) {
     }
     const { uri } = await Print.printToFileAsync({ html, width: 595, height: 842 });
     let target = uri;
+    const clean = safeFileName(name);
     try {
-      const dest = new File(Paths.cache, `${name}.pdf`);
+      const dest = new File(Paths.cache, `${clean}.pdf`);
       if (dest.exists) dest.delete();
-      await new File(uri).copy(dest);
+      await new File(uri).move(dest);
       target = dest.uri;
     } catch {
       // keep the generated name
     }
-    await shareFile(target, 'application/pdf', name);
+    await shareFile(target, 'application/pdf', clean);
+    // The PDF holds health and personal data: don't leave it lying in the cache.
+    setTimeout(() => removeCacheFile(target), 60000);
   } catch {
     Alert.alert('無法產生 PDF', '請再試一次。');
   }
@@ -188,7 +238,90 @@ export function callPhone(phone: string) {
   return openUrl('tel:' + phone.replace(/[^0-9+]/g, ''), '無法撥打電話');
 }
 
-export const esc = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export const esc = (x: unknown) =>
+  String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+/**
+ * Track photos/files picked while a form is open.
+ * - `added(uri)`: a new file was copied into the app for this form.
+ * - `removed(uri)`: the user took a file out of the form.
+ * - `commit()`: call when the form is saved — deletes the files that were removed.
+ * - unsaved forms: when the screen closes without commit, files added during this visit are deleted.
+ */
+export function usePendingFiles() {
+  const add = useRef<string[]>([]);
+  const rem = useRef<string[]>([]);
+  const done = useRef(false);
+  useEffect(
+    () => () => {
+      if (!done.current) add.current.forEach((u) => deleteFile(u));
+    },
+    [],
+  );
+  const added = useCallback((uris: string | string[]) => {
+    add.current.push(...(Array.isArray(uris) ? uris : [uris]));
+  }, []);
+  const removed = useCallback((uri?: string | null) => {
+    if (!uri) return;
+    if (add.current.includes(uri)) {
+      add.current = add.current.filter((x) => x !== uri);
+      deleteFile(uri); // never saved, safe to delete now
+    } else rem.current.push(uri);
+  }, []);
+  const commit = useCallback(() => {
+    done.current = true;
+    rem.current.forEach((u) => deleteFile(u));
+    rem.current = [];
+    add.current = [];
+    done.current = false;
+  }, []);
+  const discard = useCallback(() => {
+    add.current.forEach((u) => deleteFile(u));
+    add.current = [];
+    rem.current = [];
+  }, []);
+  return { added, removed, commit, discard };
+}
+
+/** Every file uri the data still points at. */
+export function referencedFiles(s: Store): Set<string> {
+  const out = new Set<string>();
+  const add = (u?: string | null) => u && out.add(u);
+  s.pets.forEach((p) => add(p.photo));
+  s.journal.forEach((j) => j.photos.forEach(add));
+  s.entries.forEach((e) => (e.v?.docs || []).forEach(add));
+  s.docs.forEach((d) => {
+    add(d.fileUri);
+    (d.pages || []).forEach(add);
+  });
+  s.milestones.forEach((m) => add(m.photo));
+  Object.values(s.lost).forEach((l) => add(l?.photo));
+  s.expenses.forEach((x) => add(x.receipt));
+  return out;
+}
+
+/** Delete files in the app folder that nothing refers to any more. Returns how many were removed. */
+export function cleanupOrphans(s: Store): { count: number; bytes: number } {
+  if (Platform.OS === 'web') return { count: 0, bytes: 0 };
+  try {
+    const dir = new Directory(Paths.document, 'petpal');
+    if (!dir.exists) return { count: 0, bytes: 0 };
+    const keep = referencedFiles(s);
+    const keepNames = new Set([...keep].map((u) => u.split('/').pop()));
+    let count = 0;
+    let bytes = 0;
+    for (const item of dir.list()) {
+      if (!(item instanceof File)) continue;
+      if (keepNames.has(item.uri.split('/').pop())) continue;
+      bytes += item.size ?? 0;
+      item.delete();
+      count++;
+    }
+    return { count, bytes };
+  } catch {
+    return { count: 0, bytes: 0 };
+  }
+}
 
 /** Shared PDF page shell in PetPal colours. */
 export function pdfShell(title: string, body: string) {

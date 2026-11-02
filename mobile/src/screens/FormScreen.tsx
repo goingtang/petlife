@@ -3,13 +3,13 @@
 import React, { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { useStore, memberName } from '../lib/store';
-import { useNav } from '../nav';
+import { useNav, useBackHandler } from '../nav';
 import {
   Banner, Btn, Choice, DateField, Field, Label, PhotoGrid, Screen, Segment, Stepper, Sub, Toggle, confirm,
 } from '../ui/kit';
 import { today, hm, addDays } from '../lib/date';
 import { latestGrowth, tasksFor, doneBy, primaryVetPhone, FOOD_LABEL } from '../lib/domain';
-import { choosePhotos, callPhone, deleteFile } from '../lib/files';
+import { choosePhotos, callPhone, deleteFile, usePendingFiles } from '../lib/files';
 import { uid } from '../lib/seed';
 import type { Entry, JournalEntry, Reminder, Contact } from '../lib/types';
 
@@ -66,6 +66,27 @@ export default function FormScreen({ params }: { params: any }) {
 
   const [v, setV] = useState<any>(init);
   const [date, setDate] = useState<string>(existingEntry ? existingEntry.at.slice(0, 10) : today());
+  const [initDate] = useState(date);
+  const [alsoMed, setAlsoMed] = useState(false);
+  const pf = usePendingFiles();
+  const dirty = JSON.stringify(v) !== JSON.stringify(init) || date !== initDate;
+  useBackHandler(
+    dirty
+      ? () => {
+          confirm('放棄未儲存的內容？', '剛才填的資料不會保存。', () => nav.pop(), '放棄');
+          return true;
+        }
+      : null,
+  );
+  const addPhotos = (key: 'docs' | 'photos', max: number) =>
+    choosePhotos(max - v[key].length, (u) => {
+      pf.added(u);
+      set(key, [...v[key], ...u].slice(0, max));
+    });
+  const removePhoto = (key: 'docs' | 'photos', i: number) => {
+    pf.removed(v[key][i]);
+    set(key, v[key].filter((_: string, j: number) => j !== i));
+  };
   const [tried, setTried] = useState(false);
   const [dupOk, setDupOk] = useState(false);
   const set = (k: string, x: any) => {
@@ -139,6 +160,9 @@ export default function FormScreen({ params }: { params: any }) {
         } else {
           const e: Entry = { id: uid('e'), petId, form: form as Entry['form'], at: entryAt(), who: d.me, v: clean };
           d.entries.push(e);
+          if (form === 'health' && v.hType === 'med' && alsoMed) {
+            d.meds.push({ id: uid('m'), petId, name: clean.medName, dose: '', times: ['08:00'], start: date, end: null, notify: true, freq: 'daily', count: null, refillAt: 0 });
+          }
           if (form === 'feed' && date === today()) {
             const words = FOOD_TASK_WORDS[v.food] ?? [];
             const t = tasksFor(d, petId).find((x) => !doneBy(d, x.id) && slot(x.time) === slot(nowT) && words.some((w) => x.title.includes(w)));
@@ -146,7 +170,8 @@ export default function FormScreen({ params }: { params: any }) {
           }
         }
       });
-      toast(existingEntry ? '已更新' : '已記錄');
+      pf.commit();
+      toast(existingEntry ? '已更新' : alsoMed && v.hType === 'med' && form === 'health' ? '已記錄，並加入用藥打卡（每天 08:00，可到用藥打卡修改）' : '已記錄');
       nav.pop();
       return;
     }
@@ -174,6 +199,7 @@ export default function FormScreen({ params }: { params: any }) {
           d.journal.push(j);
         }
       });
+      pf.commit();
       toast(existingJ ? '日記已更新' : '日記已儲存');
       nav.pop();
       return;
@@ -285,7 +311,7 @@ export default function FormScreen({ params }: { params: any }) {
           {v.hType === 'med' && (
             <>
               <Field label="藥品名稱" required value={v.medName} onChangeText={(t) => set('medName', t)} placeholder="例如：外用藥膏" error={err('medName')} />
-              <Banner kind="info" text="需要每天按時吃的藥，建議到「用藥打卡」設定，到時間會提醒你。" action={{ label: '前往用藥打卡', onPress: () => nav.replace('meds') }} />
+              {!editId ? <Toggle label="同時加入用藥打卡" hint="每天提醒與打卡；時間、天數之後可在用藥打卡修改" value={alsoMed} onChange={setAlsoMed} /> : null}
             </>
           )}
           {v.hType === 'visit' && (
@@ -293,7 +319,7 @@ export default function FormScreen({ params }: { params: any }) {
               <Field label="醫院" required value={v.clinic} onChangeText={(t) => set('clinic', t)} placeholder="例如：安心動物醫院" error={err('clinic')} />
               <View style={{ gap: 8 }}>
                 <Label>收據／診斷書照片（最多 4 張）</Label>
-                <PhotoGrid photos={v.docs} max={4} onRemove={(i) => set('docs', v.docs.filter((_: string, j: number) => j !== i))} onAdd={() => choosePhotos(4 - v.docs.length, (u) => set('docs', [...v.docs, ...u].slice(0, 4)))} />
+                <PhotoGrid photos={v.docs} max={4} onRemove={(i) => removePhoto('docs', i)} onAdd={() => addPhotos('docs', 4)} />
               </View>
             </>
           )}
@@ -340,7 +366,7 @@ export default function FormScreen({ params }: { params: any }) {
           </View>
           <View style={{ gap: 8 }}>
             <Label>照片（最多 4 張）</Label>
-            <PhotoGrid photos={v.photos} max={4} onRemove={(i) => set('photos', v.photos.filter((_: string, j: number) => j !== i))} onAdd={() => choosePhotos(4 - v.photos.length, (u) => set('photos', [...v.photos, ...u].slice(0, 4)))} />
+            <PhotoGrid photos={v.photos} max={4} onRemove={(i) => removePhoto('photos', i)} onAdd={() => addPhotos('photos', 4)} />
           </View>
           <View style={{ gap: 8 }}>
             <Label>今天的心情</Label>

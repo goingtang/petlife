@@ -6,7 +6,7 @@ import { Badge, Btn, Card, Empty, KV, ListCard, Row, Screen, Section, Sub } from
 import { C } from '../ui/theme';
 import { ageText, daysBetween, today, relTime } from '../lib/date';
 import { latestGrowth, KIND_LABEL, SEX_LABEL, mapsSearch } from '../lib/domain';
-import { callPhone, choosePhotos, openUrl } from '../lib/files';
+import { callPhone, choosePhotos, deleteFile, openUrl } from '../lib/files';
 
 export default function ProfileScreen({ params }: { params: any }) {
   const { store, update, toast } = useStore();
@@ -26,10 +26,12 @@ export default function ProfileScreen({ params }: { params: any }) {
   const setPhoto = () =>
     choosePhotos(1, (u) => {
       if (!u[0]) return;
+      const old = pet.photo;
       update((d) => {
         const x = d.pets.find((y) => y.id === pet.id);
         if (x) x.photo = u[0];
       });
+      deleteFile(old);
       toast('照片已更新');
     });
 

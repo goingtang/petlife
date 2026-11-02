@@ -17,6 +17,9 @@ export function emptyStore(): Store {
     v: STORE_VERSION,
     onboarded: false,
     me: 'me',
+    ownerId: 'me',
+    ownerPhone: '',
+    erVet: null,
     members: [{ id: 'me', name: '我', color: MEMBER_COLORS[0] }],
     pets: [],
     tasks: [],
@@ -30,7 +33,9 @@ export function emptyStore(): Store {
     doses: {},
     docs: [],
     expenses: [],
+    recurring: [],
     budget: 5000,
+    catBudgets: {},
     supplies: [],
     groom: [],
     milestones: [],
@@ -39,6 +44,9 @@ export function emptyStore(): Store {
     care: {},
     timer: null,
     notifyEnabled: false,
+    favPlaces: [],
+    scans: [],
+    hideRecorder: false,
   };
 }
 
@@ -57,8 +65,9 @@ export function defaultTasks(pet: Pet, me: string) {
   }
 }
 
-export function defaultGroom(pet: Pet) {
-  const G = (name: string, every: number, ago: number) => ({ id: uid('g'), petId: pet.id, name, every, last: addDays(today(), -ago) });
+/** Suggested grooming items. `ago` is only used for sample data; real users start from today. */
+export function defaultGroom(pet: Pet, sample = false) {
+  const G = (name: string, every: number, ago: number) => ({ id: uid('g'), petId: pet.id, name, every, last: addDays(today(), sample ? -ago : 0), history: [] as string[] });
   switch (pet.kind) {
     case 'dog':
       return [G('洗澡', 30, 26), G('剪指甲', 21, 14), G('刷牙', 1, 1), G('清耳朵', 7, 10), G('梳毛', 3, 2)];
@@ -155,9 +164,10 @@ export function sampleStore(): Store {
   ];
 
   s.meds = [
-    { id: uid('m'), petId: 'dou', name: '外用藥膏', dose: '薄擦一層', times: ['08:00', '20:00'], start: d(-6), end: d(3), notify: true },
-    { id: uid('m'), petId: 'mochi', name: '益生菌', dose: '1 包', times: ['09:00'], start: d(-23), end: null, notify: true },
-    { id: uid('m'), petId: 'dou', name: '關節保健', dose: '1 顆', times: ['18:00'], start: d(-53), end: null, notify: true },
+    { id: uid('m'), petId: 'dou', name: '外用藥膏', dose: '薄擦一層', times: ['08:00', '20:00'], start: d(-6), end: d(3), notify: true, freq: 'daily', count: null, refillAt: 0 },
+    { id: uid('m'), petId: 'mochi', name: '益生菌', dose: '1 包', times: ['09:00'], start: d(-23), end: null, notify: true, freq: 'daily', count: 12, refillAt: 5 },
+    { id: uid('m'), petId: 'dou', name: '關節保健', dose: '1 顆', times: ['18:00'], start: d(-53), end: null, notify: true, freq: 'daily', count: 25, refillAt: 7 },
+    { id: uid('m'), petId: 'dou', name: '心絲蟲預防藥', dose: '1 錠', times: ['09:00'], start: addMonths(td, -3), end: null, notify: true, freq: 'monthly', count: 3, refillAt: 1 },
   ];
   for (let i = 1; i <= 6; i++) {
     const day = d(-i);
@@ -169,10 +179,10 @@ export function sampleStore(): Store {
   s.doses[`${td}|${s.meds[0].id}|08:00`] = 'taken';
 
   s.docs = [
-    { id: uid('d'), petId: 'dou', cat: '疫苗證明', title: '狂犬病注射證明', date: addMonths(d(5), -12), exp: d(5), fileUri: null, fileName: '', mime: '' },
-    { id: uid('d'), petId: 'dou', cat: '證件', title: '寵物登記證', date: addMonths(td, -26), exp: null, fileUri: null, fileName: '', mime: '' },
-    { id: uid('d'), petId: 'dou', cat: '保險', title: '寵物保險保單', date: addMonths(td, -8), exp: addMonths(td, 4), fileUri: null, fileName: '', mime: '' },
-    { id: uid('d'), petId: 'dou', cat: '檢驗報告', title: '血液檢查報告', date: d(-36), exp: null, fileUri: null, fileName: '', mime: '' },
+    { id: uid('d'), petId: 'dou', cat: '疫苗證明', title: '狂犬病注射證明', date: addMonths(d(5), -12), exp: d(5), fileUri: null, fileName: '', mime: '', pages: [] },
+    { id: uid('d'), petId: 'dou', cat: '證件', title: '寵物登記證', date: addMonths(td, -26), exp: null, fileUri: null, fileName: '', mime: '', pages: [] },
+    { id: uid('d'), petId: 'dou', cat: '保險', title: '寵物保險保單', date: addMonths(td, -8), exp: addMonths(td, 4), fileUri: null, fileName: '', mime: '', pages: [] },
+    { id: uid('d'), petId: 'dou', cat: '檢驗報告', title: '血液檢查報告', date: d(-36), exp: null, fileUri: null, fileName: '', mime: '', pages: [] },
   ];
 
   const X = (date: string, cat: string, amt: number, petId: string, note = '') => ({ id: uid('x'), date, cat, amt, petId, note });
@@ -183,12 +193,15 @@ export function sampleStore(): Store {
     if (m % 2 === 0) s.expenses.push(X(day, '醫療', 1800 + m * 150, 'dou', '回診'));
     if (m % 3 === 0) s.expenses.push(X(day, '美容', 800, 'dou', '洗澡美容'));
   }
-  s.expenses.push(X(d(-6), '食物', 1280, 'dou', '乾糧 7kg'), X(d(-4), '食物', 960, 'mochi', '主食罐 x12'), X(d(-3), '醫療', 1500, 'dou', '皮膚科'), X(d(-1), '用品', 320, 'mochi', '逗貓棒'), X(td, '食物', 450, 'bai', '牧草'), X(td, '保險', 650, 'all', '寵物保險月繳'));
+  s.expenses.push(X(d(-6), '食物', 1280, 'dou', '乾糧 7kg'), X(d(-4), '食物', 960, 'mochi', '主食罐 x12'), X(d(-3), '醫療', 1500, 'dou', '皮膚科'), X(d(-1), '用品', 320, 'mochi', '逗貓棒'), X(td, '食物', 450, 'bai', '牧草'), { ...X(td.slice(0, 8) + '01', '保險', 650, 'all', '寵物保險月繳'), recurringId: 'sample' });
 
-  const SP = (petId: string, name: string, unit: string, stock: number, use: number, pack: number) => ({ id: uid('s'), petId, name, unit, stock, use, pack, asOf: td, inCart: false });
-  s.supplies = [SP('dou', '乾糧', 'kg', 2.1, 0.18, 7), SP('mochi', '貓砂', 'kg', 3, 0.4, 10), SP('bai', '牧草', 'kg', 0.6, 0.08, 1), SP('dou', '尿布墊', '片', 22, 2, 50), SP('dou', '潔牙骨', '支', 5, 1, 30)];
+  const SP = (petId: string, name: string, unit: string, stock: number, use: number, pack: number, price: number) => ({ id: uid('s'), petId, name, unit, stock, use, pack, asOf: td, inCart: false, price });
+  s.supplies = [SP('dou', '乾糧', 'kg', 2.1, 0.18, 7, 1280), SP('mochi', '貓砂', 'kg', 3, 0.4, 10, 450), SP('bai', '牧草', 'kg', 0.6, 0.08, 1, 450), SP('dou', '尿布墊', '片', 22, 2, 50, 399), SP('dou', '潔牙骨', '支', 5, 1, 30, 520)];
+  s.recurring = [{ id: uid('rc'), cat: '保險', amt: 650, petId: 'all', note: '寵物保險月繳', day: 1, lastPosted: td.slice(0, 7) }];
 
-  s.groom = [...defaultGroom(dou), ...defaultGroom(mochi), ...defaultGroom(bai)];
+  s.groom = [...defaultGroom(dou, true), ...defaultGroom(mochi, true), ...defaultGroom(bai, true)];
+  s.ownerPhone = '0912-000-111';
+  s.erVet = { name: '星光夜間急診動物醫院（範例）', doctor: '', phone: '02-2700-9999', addr: '台北市大安區範例路 1 號', hours: '24 小時' };
   s.care = {};
   return s;
 }

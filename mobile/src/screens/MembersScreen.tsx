@@ -37,6 +37,7 @@ export default function MembersScreen() {
       update((d) => {
         d.members = d.members.filter((m) => m.id !== id);
         if (d.me === id) d.me = d.members[0].id;
+        if (d.ownerId === id) d.ownerId = d.members[0].id;
         d.tasks.forEach((t) => {
           if (t.who === id) t.who = d.me;
         });
@@ -84,6 +85,7 @@ export default function MembersScreen() {
                 <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{m.name}</Text>
                 <Sub style={{ fontSize: 12 }}>負責 {store.tasks.filter((t) => t.who === m.id).length} 項照護</Sub>
               </View>
+              {m.id === store.ownerId ? <Badge text="擁有者" bg={C.yellowBg} fg={C.yellowInk} /> : null}
               {m.id === store.me ? <Badge text="目前使用者" bg={C.greenBg} fg={C.greenDark} /> : null}
               <Text style={{ color: C.sub, fontSize: 18 }}>›</Text>
             </Card>

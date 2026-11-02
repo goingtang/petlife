@@ -69,6 +69,8 @@ export interface Reminder {
   notify: boolean;
   history: string[]; // dates it was completed (YYYY-MM-DD)
   doneOnce?: boolean; // for 'once' reminders that are completed
+  lead?: number[]; // extra notices N days before (default: the evening before only)
+  docId?: string; // created from a document's expiry date
 }
 
 export interface Contact {
@@ -101,6 +103,8 @@ export interface JournalEntry {
   private: boolean;
 }
 
+export type MedFreq = 'daily' | 'weekly' | 'monthly';
+
 export interface Med {
   id: string;
   petId: string;
@@ -110,6 +114,9 @@ export interface Med {
   start: string;
   end: string | null; // inclusive, null = ongoing
   notify: boolean;
+  freq: MedFreq; // daily; weekly on the start weekday; monthly on the start day-of-month
+  count: number | null; // doses left in the pack (null = not tracked)
+  refillAt: number; // remind to refill when count <= this
 }
 
 export interface Doc {
@@ -119,9 +126,10 @@ export interface Doc {
   title: string;
   date: string;
   exp: string | null;
-  fileUri: string | null;
+  fileUri: string | null; // PDF or the first page image
   fileName: string;
   mime: string;
+  pages: string[]; // extra page images (page 2, 3…)
 }
 
 export interface Expense {
@@ -131,6 +139,18 @@ export interface Expense {
   amt: number;
   petId: string; // 'all' for shared
   note: string;
+  receipt?: string; // photo uri
+  recurringId?: string; // created automatically from a RecurringExpense
+}
+
+export interface RecurringExpense {
+  id: string;
+  cat: string;
+  amt: number;
+  petId: string;
+  note: string;
+  day: number; // day of month 1–28
+  lastPosted: string; // YYYY-MM of the last month it was added
 }
 
 export interface Supply {
@@ -143,6 +163,7 @@ export interface Supply {
   pack: number;
   asOf: string; // YYYY-MM-DD
   inCart: boolean;
+  price?: number; // NT$ per pack
 }
 
 export interface GroomTask {
@@ -151,6 +172,7 @@ export interface GroomTask {
   name: string;
   every: number; // days
   last: string; // YYYY-MM-DD
+  history: string[]; // past completion dates, newest last
 }
 
 export interface Milestone {
@@ -170,6 +192,34 @@ export interface LostInfo {
   phone: string;
   photo?: string;
   since?: string;
+  sinceTime?: string;
+  sightings: Sighting[];
+}
+
+export interface Sighting {
+  id: string;
+  at: string; // YYYY-MM-DDTHH:mm
+  place: string;
+  note: string;
+}
+
+export interface FavPlace {
+  id: string;
+  name: string;
+  lat: number;
+  lon: number;
+  addr: string;
+  phone: string;
+  kind: string;
+}
+
+export interface ScanResult {
+  id: string;
+  name: string;
+  date: string;
+  score: number;
+  protein?: number; // dry-matter %
+  text: string;
 }
 
 export interface CareSheet { from: string; to: string; notes: string }
@@ -184,6 +234,9 @@ export interface Store {
   v: number;
   onboarded: boolean;
   me: string; // member id of the person using this phone
+  ownerId: string; // member who created this household (can delete anything)
+  ownerPhone: string;
+  erVet: Vet | null; // night / holiday emergency hospital, shared by all pets
   members: Member[];
   pets: Pet[];
   tasks: CareTask[];
@@ -197,7 +250,9 @@ export interface Store {
   doses: Record<string, 'taken' | 'skip'>; // `${date}|${medId}|${time}`
   docs: Doc[];
   expenses: Expense[];
+  recurring: RecurringExpense[];
   budget: number;
+  catBudgets: Record<string, number>;
   supplies: Supply[];
   groom: GroomTask[];
   milestones: Milestone[];
@@ -206,4 +261,7 @@ export interface Store {
   care: Record<string, CareSheet>;
   timer: ActivityTimer | null;
   notifyEnabled: boolean;
+  favPlaces: FavPlace[];
+  scans: ScanResult[];
+  hideRecorder: boolean; // hide family names in reports given to the vet
 }

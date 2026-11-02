@@ -1,6 +1,6 @@
 // Business rules shared by several screens.
 import type { Store, Reminder, Med, Supply, Entry, Pet, GroomTask } from './types';
-import { addDays, addMonths, daysBetween, today } from './date';
+import { addDays, addMonths, daysBetween, parseYmd, today } from './date';
 
 export const KIND_LABEL: Record<Pet['kind'], string> = { dog: '狗', cat: '貓', rabbit: '兔子', bird: '鳥', other: '其他' };
 export const SEX_LABEL = { male: '公', female: '母' } as const;
@@ -88,7 +88,7 @@ export function entrySummary(e: Entry): string {
       return `${HT[v.hType] ?? '健康'} · ${d}`;
     }
     case 'growth':
-      return `體重 ${v.weight} kg · ${v.length} cm · ${BODY[v.body] ?? ''}`;
+      return [`體重 ${v.weight} kg`, v.length ? `${v.length} cm` : null, BODY[v.body] ?? null].filter(Boolean).join(' · ');
     case 'activity':
       return `活動 ${v.min} 分鐘`;
   }
@@ -97,23 +97,52 @@ export function entrySummary(e: Entry): string {
 
 // ---------- Meds ----------
 
+/** The course covers this date (between start and end). */
 export function medActiveOn(m: Med, date: string): boolean {
   return m.start <= date && (!m.end || m.end >= date);
 }
+
+/** A dose is due on this date: active, and it is a dosing day for the frequency. */
+export function medDueOn(m: Med, date: string): boolean {
+  if (!medActiveOn(m, date)) return false;
+  const f = m.freq ?? 'daily';
+  if (f === 'daily') return true;
+  if (f === 'weekly') return daysBetween(m.start, date) % 7 === 0;
+  // monthly: same day of month as the start (clamped to the month's last day)
+  const s = parseYmd(m.start).getDate();
+  const d = parseYmd(date);
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return d.getDate() === Math.min(s, last);
+}
+
+export const FREQ_LABEL = { daily: '每天', weekly: '每週', monthly: '每月' } as const;
 
 export function doseKey(date: string, medId: string, time: string) {
   return `${date}|${medId}|${time}`;
 }
 
-/** Share of scheduled doses taken over the last 7 days (today counts only once marked). */
-export function adherence(store: Store, petId: string | null) {
+/** Next date (from `from`, inclusive) on which a dose is due, or null if the course has ended. */
+export function nextDueDate(m: Med, from = today()): string | null {
+  for (let i = 0; i < 62; i++) {
+    const d = addDays(from, i);
+    if (m.end && d > m.end) return null;
+    if (medDueOn(m, d)) return d;
+  }
+  return null;
+}
+
+/**
+ * Share of scheduled doses taken over the last 7 days (today counts only once marked).
+ * Returns pct null when nothing was scheduled.
+ */
+export function adherence(store: Store, petId: string | null): { sched: number; taken: number; pct: number | null } {
   const td = today();
   let sched = 0;
   let taken = 0;
   for (let i = -6; i <= 0; i++) {
     const day = addDays(td, i);
     store.meds
-      .filter((m) => (!petId || m.petId === petId) && medActiveOn(m, day))
+      .filter((m) => (!petId || m.petId === petId) && medDueOn(m, day))
       .forEach((m) =>
         m.times.forEach((t) => {
           const st = store.doses[doseKey(day, m.id, t)];
@@ -124,7 +153,7 @@ export function adherence(store: Store, petId: string | null) {
         }),
       );
   }
-  return { sched, taken, pct: sched ? Math.round((taken / sched) * 100) : 100 };
+  return { sched, taken, pct: sched ? Math.round((taken / sched) * 100) : null };
 }
 
 // ---------- Supplies ----------
@@ -135,14 +164,31 @@ export function supplyNow(s: Supply, td = today()): number {
   return Math.max(0, Math.round((s.stock - used) * 100) / 100);
 }
 
+/** Whole days of stock left; Infinity when no daily use is set. */
 export function supplyDaysLeft(s: Supply): number {
-  return s.use > 0 ? Math.floor(supplyNow(s) / s.use) : 999;
+  return s.use > 0 ? Math.floor(supplyNow(s) / s.use) : Infinity;
+}
+
+export function supplyStatusText(s: Supply): string {
+  const left = supplyDaysLeft(s);
+  if (supplyNow(s) <= 0) return '已用完';
+  if (!isFinite(left)) return '未設定每日用量';
+  if (left <= 7) return `快用完了 · 約剩 ${left} 天`;
+  return `約剩 ${left} 天`;
 }
 
 // ---------- Grooming ----------
 
 export function groomDue(g: GroomTask, td = today()): number {
   return g.every - daysBetween(g.last, td);
+}
+
+export function groomDueText(g: GroomTask, td = today()): string {
+  const n = groomDue(g, td);
+  if (n < 0) return `逾期 ${-n} 天`;
+  if (n === 0) return '今天';
+  if (n === 1) return '明天';
+  return `${n} 天後`;
 }
 
 // ---------- Misc ----------
@@ -157,9 +203,23 @@ export function mapsSearch(q: string) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
 
+/** The pet's vet: the saved 主治醫院, or a contact marked as a hospital. Never a family member or sitter. */
 export function primaryVetPhone(store: Store, petId: string): { name: string; phone: string } | null {
   const v = store.vets[petId];
   if (v?.phone) return { name: v.name || '主治醫院', phone: v.phone };
-  const c = store.contacts.find((x) => x.petId === petId && x.primary) ?? store.contacts.find((x) => x.petId === petId);
+  const isVet = (rel: string) => /醫院|獸醫|醫師/.test(rel);
+  const c =
+    store.contacts.find((x) => x.petId === petId && isVet(x.rel) && x.primary) ??
+    store.contacts.find((x) => x.petId === petId && isVet(x.rel));
   return c ? { name: c.name, phone: c.phone } : null;
+}
+
+/** Monthly chores (deworming, heartworm) — not worth a milestone each time. */
+export function isRoutineReminder(r: Reminder): boolean {
+  return r.repeat === 'monthly';
+}
+
+/** File name safe for iOS/Android share sheets. */
+export function safeFileName(s: string): string {
+  return s.replace(/[\\/:*?"<>|\n\r]+/g, '-').trim() || 'petpal';
 }

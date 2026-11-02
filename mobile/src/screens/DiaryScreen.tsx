@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useStore, memberName, memberColor, petName } from '../lib/store';
+import { useStore, memberName, memberColor, petName, isOwner } from '../lib/store';
 import { useNav } from '../nav';
 import { Avatar, Badge, Btn, Card, Chip, ChipRow, Empty, Row, Screen, Sub, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
@@ -112,7 +112,7 @@ export default function DiaryScreen() {
             <Row gap={8} style={{ borderTopWidth: 1.5, borderTopColor: C.lineSoft, paddingTop: 10 }}>
               <Btn small kind="soft" title="分享" onPress={() => share(j)} />
               <Btn small kind="soft" title="編輯" onPress={() => nav.push('form', { form: 'diary', editId: j.id, petId: j.petId })} />
-              {j.author === store.me || store.me === store.members[0]?.id ? <Btn small kind="soft" title="刪除" onPress={() => remove(j)} textStyle={{ color: C.danger }} /> : null}
+              {j.author === store.me || isOwner(store) ? <Btn small kind="soft" title="刪除" onPress={() => remove(j)} textStyle={{ color: C.danger }} /> : null}
             </Row>
           </Card>
         ))}

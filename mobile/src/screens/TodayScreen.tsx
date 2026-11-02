@@ -5,7 +5,7 @@ import { useNav } from '../nav';
 import { Avatar, Badge, Btn, Card, Chip, ChipRow, Empty, ListCard, P, Progress, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
 import { dateLabel, greeting, today, relTime, ageText, shortDate } from '../lib/date';
-import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, medActiveOn, doseKey, KIND_LABEL, SEX_LABEL } from '../lib/domain';
+import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, medDueOn, doseKey, KIND_LABEL, SEX_LABEL } from '../lib/domain';
 import { CONTENT } from '../data/content';
 
 const TIP_BY_KIND: Record<string, string> = { dog: 'a1', cat: 'a2', rabbit: 'a3', bird: 'a4' };
@@ -70,7 +70,7 @@ export default function TodayScreen() {
     .sort((a, b) => (a.date < b.date ? -1 : 1));
   const rem = rems[0];
 
-  const medsToday = store.meds.filter((m) => m.petId === pet.id && medActiveOn(m, td));
+  const medsToday = store.meds.filter((m) => m.petId === pet.id && medDueOn(m, td));
   const doseTotal = medsToday.reduce((a, m) => a + m.times.length, 0);
   const doseDone = medsToday.reduce((a, m) => a + m.times.filter((t) => store.doses[doseKey(td, m.id, t)]).length, 0);
 

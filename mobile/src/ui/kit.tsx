@@ -35,10 +35,12 @@ export function Label({ children, style }: { children: React.ReactNode; style?: 
  * pushed screens get a back button.
  */
 export function Screen({
-  title, subtitle, children, right, root, scroll = true, footer, bg,
+  title, subtitle, children, right, root, scroll = true, footer, bg, scrollRef,
 }: {
   title?: string; subtitle?: string; children: React.ReactNode; right?: React.ReactNode; root?: boolean;
   scroll?: boolean; footer?: React.ReactNode; bg?: string;
+  /** Pass a ref to scroll programmatically, e.g. to an edit form that just opened. */
+  scrollRef?: React.RefObject<any>;
 }) {
   const insets = useSafeAreaInsets();
   const nav = useNav();
@@ -46,7 +48,7 @@ export function Screen({
     <View style={{ gap: 4, marginBottom: 6 }}>
       {!root && (
         <View style={s.headRow}>
-          <Pressable onPress={nav.pop} style={s.back} accessibilityRole="button" accessibilityLabel="返回" hitSlop={8}>
+          <Pressable onPress={nav.back} style={s.back} accessibilityRole="button" accessibilityLabel="返回" hitSlop={8}>
             <Text style={{ fontSize: 15, color: C.ink, fontWeight: '500' }}>‹ 返回</Text>
           </Pressable>
           {right}
@@ -65,7 +67,7 @@ export function Screen({
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: bg ?? C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       {scroll ? (
-        <ScrollView contentContainerStyle={[pad, { gap: 16 }]} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} contentContainerStyle={[pad, { gap: 16 }]} keyboardShouldPersistTaps="handled">
           {header}
           {children}
         </ScrollView>
@@ -251,7 +253,7 @@ export function Field({
       {label ? (
         <Row style={{ justifyContent: 'space-between' }}>
           <Label>{label}</Label>
-          {required ? <Text style={{ fontSize: 11, color: C.faint }}>必填</Text> : null}
+          {required ? <Text style={{ fontSize: 12, color: C.faint }}>必填</Text> : null}
         </Row>
       ) : null}
       <TextInput
@@ -265,6 +267,50 @@ export function Field({
         style={[s.input, multiline && { minHeight: 90, paddingTop: 12, textAlignVertical: 'top' }, error ? { borderColor: C.danger } : null]}
         accessibilityLabel={label ?? placeholder}
       />
+      {error ? <Text style={{ fontSize: 12, color: C.danger, fontWeight: '500' }}>{error}</Text> : null}
+    </View>
+  );
+}
+
+/** Number input with a keypad (decimals allowed unless `integer`). Empty input reports null. */
+export function NumberField({
+  label, value, onChange, unit, integer, placeholder, error, required, min = 0,
+}: {
+  label?: string; value: number | null; onChange: (v: number | null) => void; unit?: string; integer?: boolean;
+  placeholder?: string; error?: string | null; required?: boolean; min?: number;
+}) {
+  const [text, setText] = useState(value === null || value === undefined ? '' : String(value));
+  React.useEffect(() => {
+    const cur = text === '' ? null : Number(text);
+    if (cur !== value) setText(value === null || value === undefined ? '' : String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  return (
+    <View style={{ gap: 6 }}>
+      {label ? (
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Label>{label}</Label>
+          {required ? <Text style={{ fontSize: 12, color: C.faint }}>必填</Text> : null}
+        </Row>
+      ) : null}
+      <View style={[s.input, { flexDirection: 'row', alignItems: 'center', paddingRight: 12 }, error ? { borderColor: C.danger } : null]}>
+        <TextInput
+          value={text}
+          onChangeText={(t) => {
+            const clean = integer ? t.replace(/[^0-9]/g, '') : t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+            setText(clean);
+            if (clean === '' || clean === '.') return onChange(null);
+            const n = Number(clean);
+            if (!isNaN(n)) onChange(Math.max(min, n));
+          }}
+          keyboardType={integer ? 'number-pad' : 'decimal-pad'}
+          placeholder={placeholder}
+          placeholderTextColor={C.faint}
+          style={{ flex: 1, fontSize: 16, color: C.ink, minHeight: 46 }}
+          accessibilityLabel={label ?? placeholder}
+        />
+        {unit ? <Text style={{ fontSize: 15, color: C.sub }}>{unit}</Text> : null}
+      </View>
       {error ? <Text style={{ fontSize: 12, color: C.danger, fontWeight: '500' }}>{error}</Text> : null}
     </View>
   );
@@ -499,10 +545,10 @@ export const s = StyleSheet.create({
   sub: { fontSize: 13, color: C.sub, lineHeight: 19 },
   label: { fontSize: 13, color: C.sub, fontWeight: '500' },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  back: { height: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' },
+  back: { height: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' },
   card: { backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1.5, borderColor: C.line, padding: 16 },
   btn: { minHeight: 50, borderRadius: 25, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  btnSmall: { minHeight: 36, borderRadius: 18, paddingHorizontal: 14 },
+  btnSmall: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card },
   seg: { flexDirection: 'row', padding: 4, borderRadius: 22, backgroundColor: C.sand2 },
   segItem: { flex: 1, minHeight: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },

@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { StoreProvider, useStore } from './src/lib/store';
-import { NavProvider, useNav, TabName } from './src/nav';
+import { NavProvider, useNav, TabName, RouteKeyCtx, Route } from './src/nav';
 import { SCREENS } from './src/screens/registry';
 import TodayScreen from './src/screens/TodayScreen';
 import DiaryScreen from './src/screens/DiaryScreen';
@@ -74,10 +74,20 @@ function Toast() {
 
 /** Keep phone notifications in step with reminders and medication schedules. */
 function NotificationSync() {
-  const { store, ready } = useStore();
+  const { store, ready, day } = useStore();
   const key = useMemo(
-    () => JSON.stringify([store.notifyEnabled, store.reminders, store.meds, store.pets.map((p) => [p.id, p.name])]),
-    [store.notifyEnabled, store.reminders, store.meds, store.pets],
+    () =>
+      JSON.stringify([
+        day,
+        store.notifyEnabled,
+        store.reminders,
+        store.meds,
+        Object.keys(store.doses).filter((k) => k >= day),
+        store.supplies,
+        store.groom,
+        store.pets.map((p) => [p.id, p.name, p.birthday, p.adopted]),
+      ]),
+    [day, store.notifyEnabled, store.reminders, store.meds, store.doses, store.supplies, store.groom, store.pets],
   );
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -93,6 +103,44 @@ function NotificationSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, ready]);
   return null;
+}
+
+const W = Dimensions.get('window').width;
+
+/** A pushed screen: slides in from the right; on iOS it can be dragged back from the left edge. */
+function StackScreen({ route, visible }: { route: Route; visible: boolean }) {
+  const { back } = useNav();
+  const x = useRef(new Animated.Value(Platform.OS === 'web' ? 0 : W)).current;
+  useEffect(() => {
+    Animated.timing(x, { toValue: 0, duration: 220, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [x]);
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (e, g) => Platform.OS === 'ios' && g.x0 < 24 && g.dx > 8 && Math.abs(g.dy) < Math.abs(g.dx),
+      onPanResponderMove: (e, g) => x.setValue(Math.max(0, g.dx)),
+      onPanResponderRelease: (e, g) => {
+        if (g.dx > W / 3 || g.vx > 0.8) {
+          Animated.timing(x, { toValue: W, duration: 160, useNativeDriver: true }).start(() => {
+            x.setValue(0);
+            back();
+          });
+        } else Animated.spring(x, { toValue: 0, useNativeDriver: true }).start();
+      },
+      onPanResponderTerminate: () => Animated.spring(x, { toValue: 0, useNativeDriver: true }).start(),
+    }),
+  ).current;
+  const S = SCREENS[route.name];
+  if (!S) return null;
+  return (
+    <Animated.View
+      {...pan.panHandlers}
+      style={[StyleSheet.absoluteFill, { backgroundColor: C.bg, display: visible ? 'flex' : 'none', transform: [{ translateX: x }] }]}
+    >
+      <RouteKeyCtx.Provider value={route.key}>
+        <S params={route.params} />
+      </RouteKeyCtx.Provider>
+    </Animated.View>
+  );
 }
 
 function Shell() {
@@ -113,15 +161,9 @@ function Shell() {
         <TabScreen />
         <TabBar />
       </View>
-      {stack.map((r, i) => {
-        const S = SCREENS[r.name];
-        if (!S) return null;
-        return (
-          <View key={r.key} style={[StyleSheet.absoluteFill, { backgroundColor: C.bg, display: i === stack.length - 1 ? 'flex' : 'none' }]}>
-            <S params={r.params} />
-          </View>
-        );
-      })}
+      {stack.map((r, i) => (
+        <StackScreen key={r.key} route={r} visible={i === stack.length - 1} />
+      ))}
     </View>
   );
 }
