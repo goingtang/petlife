@@ -1,9 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { Screen, Btn, Banner, PetChips, Section, Field, Sub, P, Row, Label, Card, DateField, TimeField, Toggle, confirm } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet, initialOf } from '../../lib/store';
-import { useBackHandler } from '../../nav';
+import { useBackHandler, useNav } from '../../nav';
 import type { LostInfo, Pet, Store, Sighting } from '../../lib/types';
 import { KIND_LABEL, SEX_LABEL, mapsSearch, money } from '../../lib/domain';
 import { ageText, hm, today } from '../../lib/date';
@@ -21,7 +21,7 @@ function rewardText(r?: string) {
 }
 
 function when(L: LostInfo) {
-  return [L.since ? L.since.replace(/-/g, '/') : '', L.sinceTime || '', L.time || ''].filter(Boolean).join(' ');
+  return [L.since ? L.since.replace(/-/g, '/') : '', L.sinceTime || ''].filter(Boolean).join(' ');
 }
 
 function lostText(pet: Pet, L: LostInfo) {
@@ -31,6 +31,7 @@ function lostText(pet: Pet, L: LostInfo) {
     petLine(pet),
     `走失時間：${when(L) || '不詳'}`,
     `最後出現地點：${L.place}`,
+    L.time ? `補充說明：${L.time}` : '',
     L.features ? `特徵：${L.features}` : '',
     pet.chip ? `晶片號碼：${pet.chip}` : '',
     reward ? `酬謝金：${reward}` : '',
@@ -45,31 +46,40 @@ function lostText(pet: Pet, L: LostInfo) {
 }
 
 async function posterPdf(pet: Pet, L: LostInfo, bw: boolean) {
-  const img = await imageDataUri(L.photo || pet.photo);
+  const img = await imageDataUri(L.photo || pet.photo, 1000);
   const reward = rewardText(L.reward);
   const row = (k: string, v: string) => (v ? `<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>` : '');
   const accent = bw ? '#000' : '#A0442A';
   const bg = bw ? '#fff' : /^#[0-9a-fA-F]{6}$/.test(pet.color) ? pet.color : '#EADDCB';
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
+  @page{size:A4;margin:10mm}html,body{height:auto}
   body{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;margin:0;color:#000}
-  .top{${bw ? 'border:6px solid #000;color:#000' : 'background:#A0442A;color:#fff'};text-align:center;font-size:54px;font-weight:800;padding:22px 0;letter-spacing:4px}
-  .ph{margin:20px auto 0;width:82%;height:380px;border-radius:24px;background:${bg} center/cover no-repeat;${img ? `background-image:url('${img}');` : ''}${bw ? 'filter:grayscale(1);border:2px solid #000;' : ''}display:flex;align-items:center;justify-content:center;font-size:160px;font-weight:700}
-  h1{text-align:center;font-size:52px;margin:16px 0 4px}.sub{text-align:center;font-size:20px;color:#333;margin:0 0 14px}
-  table{width:82%;margin:0 auto;border-collapse:collapse;font-size:20px}td{padding:8px;border-bottom:1px solid ${bw ? '#999' : '#EADDCB'};vertical-align:top}td.k{color:${accent};font-weight:700;width:30%}
-  .tel{margin-top:20px;${bw ? 'border:6px solid #000;color:#000' : 'background:#A0442A;color:#fff'};text-align:center;font-size:36px;font-weight:800;padding:18px 0}
+  .top{${bw ? 'border:6px solid #000;color:#000' : 'background:#A0442A;color:#fff'};text-align:center;font-size:46px;font-weight:800;padding:14px 0;letter-spacing:4px}
+  .ph{margin:14px auto 0;width:78%;height:320px;border-radius:24px;background:${bg} center/cover no-repeat;${img ? `background-image:url('${img}');` : ''}${bw ? 'filter:grayscale(1);border:2px solid #000;' : ''}display:flex;align-items:center;justify-content:center;font-size:140px;font-weight:700}
+  h1{text-align:center;font-size:44px;margin:10px 0 2px}.sub{text-align:center;font-size:18px;color:#333;margin:0 0 8px}
+  table{width:82%;margin:0 auto;border-collapse:collapse;font-size:18px;page-break-inside:avoid}td{padding:5px 8px;border-bottom:1px solid ${bw ? '#999' : '#EADDCB'};vertical-align:top}td.k{color:${accent};font-weight:700;width:30%}
+  .tel{margin-top:14px;page-break-inside:avoid;${bw ? 'border:6px solid #000;color:#000' : 'background:#A0442A;color:#fff'};text-align:center;font-size:32px;font-weight:800;padding:12px 0}
   </style></head><body>
   <div class="top">協尋走失寵物</div>
   <div class="ph">${img ? '' : esc(initialOf(pet.name))}</div>
   <h1>${esc(pet.name)}</h1><p class="sub">${esc(petLine(pet))}</p>
-  <table>${row('走失時間', when(L))}${row('最後出現', L.place)}${row('特徵', L.features)}${row('晶片號碼', pet.chip)}${row('酬謝金', reward)}</table>
+  <table>${row('走失時間', when(L))}${row('最後出現', L.place)}${row('補充說明', L.time)}${row('特徵', L.features)}${row('晶片號碼', pet.chip)}${row('酬謝金', reward)}</table>
   <div class="tel">看到請聯絡 ${esc(L.phone)}</div>
   </body></html>`;
-  await sharePdf(html, `${pet.name}-協尋海報${bw ? '-黑白' : ''}`);
+  return sharePdf(html, `${pet.name}-協尋海報${bw ? '-黑白' : ''}`);
 }
 
-function LostForm({ pet, store, initial, onSave, onCancel }: { pet: Pet; store: Store; initial?: LostInfo; onSave: (info: LostInfo) => void; onCancel?: () => void }) {
+/** Default phone for the poster: the owner's own number, else the pet's primary family contact (never a vet or pet sitter). */
+export function defaultPhone(store: Store, petId: string): string {
+  const own = (store.ownerPhone || '').trim();
+  if (own) return own;
+  const ok = (c: Store['contacts'][number]) => c.petId === petId && !!c.phone.trim() && !/醫院|獸醫/.test(c.rel + c.name) && !/保母/.test(c.rel);
+  const c = store.contacts.find((x) => ok(x) && x.primary) ?? store.contacts.find((x) => ok(x) && x.rel === '家人') ?? store.contacts.find(ok);
+  return c?.phone.trim() ?? '';
+}
+
+function LostForm({ pet, store, initial, onSave, onCancel, dirtyRef }: { pet: Pet; store: Store; initial?: LostInfo; onSave: (info: LostInfo) => void; onCancel?: () => void; dirtyRef?: React.MutableRefObject<(() => boolean) | null> }) {
   const files = usePendingFiles();
-  const primary = store.contacts.find((c) => c.petId === pet.id && c.primary && c.rel !== '主治醫院') ?? store.contacts.find((c) => c.petId === pet.id && c.rel === '家人');
   const [photo, setPhoto] = useState<string | undefined>(initial?.photo ?? pet.photo);
   const [since, setSince] = useState(initial?.since ?? today());
   const [sinceTime, setSinceTime] = useState(initial?.sinceTime ?? hm());
@@ -77,8 +87,22 @@ function LostForm({ pet, store, initial, onSave, onCancel }: { pet: Pet; store: 
   const [time, setTime] = useState(initial?.time ?? '');
   const [features, setFeatures] = useState(initial?.features ?? '');
   const [reward, setReward] = useState(initial?.reward && initial.reward !== '0' ? initial.reward : '');
-  const [phone, setPhone] = useState(initial?.phone ?? store.ownerPhone ?? primary?.phone ?? '');
+  const [phone, setPhone] = useState(initial?.phone ?? defaultPhone(store, pet.id));
   const [tried, setTried] = useState(false);
+  const startPhoto = useRef(photo).current;
+  const startPhone = useRef(phone).current;
+  if (dirtyRef)
+    dirtyRef.current = () =>
+      photo !== startPhoto ||
+      place.trim() !== (initial?.place ?? '') ||
+      time.trim() !== (initial?.time ?? '') ||
+      features.trim() !== (initial?.features ?? '') ||
+      reward.replace(/[^0-9]/g, '') !== (initial?.reward && initial.reward !== '0' ? initial.reward.replace(/[^0-9]/g, '') : '') ||
+      phone.trim() !== startPhone.trim() ||
+      (!!initial && (since !== initial.since || sinceTime !== (initial.sinceTime ?? sinceTime)));
+  useEffect(() => () => {
+    if (dirtyRef) dirtyRef.current = null;
+  }, [dirtyRef]);
 
   const replacePhoto = (u: string) => {
     files.added(u);
@@ -181,16 +205,29 @@ export default function LostScreen(_: { params: any }) {
   const [busy, setBusy] = useState(false);
   const [bw, setBw] = useState(false);
   const scrollRef = useRef<any>(null);
+  const nav = useNav();
+  const formDirty = useRef<(() => boolean) | null>(null);
+  const isDirty = () => !!formDirty.current?.();
 
-  useBackHandler(
-    editing || addSighting
-      ? () => {
-          setEditing(false);
-          setAddSighting(false);
-          return true;
-        }
-      : null,
-  );
+  useBackHandler(() => {
+    if (addSighting) {
+      setAddSighting(false);
+      return true;
+    }
+    if (isDirty()) {
+      confirm('放棄尚未儲存的內容？', '剛才填寫的協尋資料不會保存。', () => {
+        formDirty.current = null;
+        if (editing) setEditing(false);
+        else nav.pop();
+      }, '放棄');
+      return true;
+    }
+    if (editing) {
+      setEditing(false);
+      return true;
+    }
+    return false;
+  });
 
   if (!pet) {
     return (
@@ -205,7 +242,8 @@ export default function LostScreen(_: { params: any }) {
   const makePoster = async (info: LostInfo) => {
     setBusy(true);
     try {
-      await posterPdf(pet, info, bw);
+      const ok = await posterPdf(pet, info, bw);
+      if (!ok) toast('海報沒有產生，請再試一次');
     } finally {
       setBusy(false);
     }
@@ -248,6 +286,7 @@ export default function LostScreen(_: { params: any }) {
             pet={pet}
             store={store}
             initial={L}
+            dirtyRef={formDirty}
             onCancel={() => setEditing(false)}
             onSave={(info) => {
               update((d) => {
@@ -328,6 +367,7 @@ export default function LostScreen(_: { params: any }) {
             key={'new' + pet.id}
             pet={pet}
             store={store}
+            dirtyRef={formDirty}
             onSave={(info) => {
               update((d) => {
                 d.lost[pet.id] = info;

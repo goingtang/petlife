@@ -53,22 +53,29 @@ function Thumb({ d, size = 56 }: { d: Doc; size?: number }) {
   );
 }
 
-/** Keep the expiry reminder linked to a document in step with it. */
+/**
+ * Keep the expiry reminder linked to a document in step with it.
+ * Only the title, date and pet follow the document; the user's own changes to the reminder
+ * (notice days, notify on/off) are kept. An expired document keeps its existing reminder history.
+ */
 function syncReminder(s: Store, doc: Doc, remind: boolean) {
   const existing = s.reminders.find((r) => r.docId === doc.id);
-  if (remind && doc.exp) {
-    const r = existing ?? { id: uid('r'), petId: doc.petId, title: '', date: doc.exp, repeat: 'once' as const, notify: true, history: [], docId: doc.id };
-    r.title = `${doc.title} 到期`;
-    r.date = doc.exp;
-    r.petId = doc.petId;
-    r.lead = [30, 7];
-    r.notify = true;
-    r.doneOnce = false;
-    if (!existing) s.reminders.push(r);
-  } else if (existing) {
-    s.reminders = s.reminders.filter((r) => r.docId !== doc.id);
+  if (!remind || !doc.exp) {
+    if (existing) s.reminders = s.reminders.filter((r) => r.docId !== doc.id);
+    return;
   }
+  if (existing) {
+    if (existing.date !== doc.exp) existing.doneOnce = false;
+    existing.title = `${doc.title} 到期`;
+    existing.date = doc.exp;
+    existing.petId = doc.petId;
+    return;
+  }
+  if (doc.exp < today()) return; // already expired: nothing left to remind
+  s.reminders.push({ id: uid('r'), petId: doc.petId, title: `${doc.title} 到期`, date: doc.exp, repeat: 'once', notify: true, history: [], docId: doc.id, lead: [30, 7, 1] });
 }
+
+const MAX_PAGES = 30;
 
 function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null; onDone: () => void; dirty: React.MutableRefObject<boolean> }) {
   const { store, update, toast } = useStore();
@@ -92,6 +99,10 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
   };
 
   const choose = async (k: 'camera' | 'library' | 'pdf') => {
+    if (k === 'pdf' && pages.length) {
+      const ok = await new Promise<boolean>((res) => confirm('改用 PDF？', `PDF 只能放一個檔案，已加入的 ${pages.length} 頁照片會移除。`, () => res(true), '改用 PDF'));
+      if (!ok) return;
+    }
     const p = await pickSource(k);
     if (!p) return;
     touch();
@@ -134,7 +145,7 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
       const i = s.docs.findIndex((x) => x.id === d.id);
       if (i >= 0) s.docs[i] = d;
       else s.docs.push(d);
-      syncReminder(s, d, remind && !!d.exp && d.exp >= today());
+      syncReminder(s, d, remind && !!d.exp);
     });
     files.commit();
     dirty.current = false;
@@ -158,7 +169,22 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
             {firstIsPdf ? (
               <Badge text={`PDF · ${file.name || '文件'}`} />
             ) : (
-              <Image source={{ uri: file.uri }} style={{ width: 72, height: 86, borderRadius: 10 }} />
+              <Pressable
+                onPress={() =>
+                  confirm('移除第 1 頁？', pages.length ? '第 2 頁會變成第 1 頁。' : '', () => {
+                    touch();
+                    files.removed(file.uri);
+                    if (pages.length) {
+                      setFile({ uri: pages[0], name: '', mime: 'image/jpeg' });
+                      setPages((cur) => cur.slice(1));
+                    } else setFile(null);
+                  }, '移除')
+                }
+                accessibilityRole="button"
+                accessibilityLabel="第 1 頁，點一下移除"
+              >
+                <Image source={{ uri: file.uri }} style={{ width: 72, height: 86, borderRadius: 10 }} />
+              </Pressable>
             )}
             {pages.map((u, i) => (
               <Pressable
@@ -342,27 +368,51 @@ export default function DocsScreen(_: { params: any }) {
     .filter((d) => d.petId === pet.id && (cat === '全部' || d.cat === cat) && (!query || d.title.toLowerCase().includes(query) || d.cat.includes(query)))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 
+  const visibleSel = list.filter((d) => sel.includes(d.id));
+  const hiddenSel = sel.length - visibleSel.length;
   const merge = async () => {
-    const docs = store.docs.filter((d) => sel.includes(d.id));
+    // Only what the user can see is merged; selections hidden by the search or category are left out.
+    const docs = visibleSel;
     if (!docs.length) return;
     setBusy(true);
     try {
       const parts: string[] = [];
       const pdfNames: string[] = [];
+      let pagesLeft = MAX_PAGES;
+      let skipped = 0;
+      docs.forEach((d, idx) => {
+        if (idx > 0) parts.push('<div style="page-break-before:always"></div>');
+        parts.push(`<h2>${esc(d.title)}</h2><p style="color:#7A685B;margin:0 0 8px">${esc([d.cat, d.date.replace(/-/g, '/'), d.exp ? '到期 ' + d.exp.replace(/-/g, '/') : ''].filter(Boolean).join(' · '))}</p>`);
+        parts.push(`@@IMAGES:${d.id}@@`);
+      });
+      const imgHtml: Record<string, string> = {};
       for (const d of docs) {
+        const chunks: string[] = [];
         parts.push(`<h2>${esc(d.title)}</h2><p style="color:#7A685B;margin:0 0 8px">${esc([d.cat, d.date.replace(/-/g, '/'), d.exp ? '到期 ' + d.exp.replace(/-/g, '/') : ''].filter(Boolean).join(' · '))}</p>`);
         if (isPdf(d) && d.fileUri) pdfNames.push(d.fileName || d.title);
         for (const u of imagesOf(d)) {
-          const src = await imageDataUri(u);
-          if (src) parts.push(`<div style="page-break-inside:avoid;margin:8px 0"><img src="${src}" style="max-width:100%;max-height:740px;display:block;margin:0 auto"/></div>`);
+          if (pagesLeft <= 0) {
+            skipped++;
+            continue;
+          }
+          const src = await imageDataUri(u, 1000);
+          if (src) {
+            pagesLeft--;
+            chunks.push(`<div style="page-break-inside:avoid;margin:8px 0"><img src="${src}" style="max-width:100%;max-height:740px;display:block;margin:0 auto"/></div>`);
+          }
         }
-        if (!d.fileUri && !imagesOf(d).length) parts.push('<p style="color:#776557">（尚未附檔）</p>');
-        parts.push('<div style="page-break-after:always"></div>');
+        if (!d.fileUri && !imagesOf(d).length) chunks.push('<p style="color:#776557">（尚未附檔）</p>');
+        imgHtml[d.id] = chunks.join('');
       }
-      if (pdfNames.length) parts.push(`<h2>另附 PDF 檔</h2><p>${pdfNames.map(esc).join('、')}（PDF 檔需另外分享）</p>`);
-      await sharePdf(pdfShell(`${pet.name} 文件`, `<h1>${esc(pet.name)} 文件（${docs.length} 份）</h1>${parts.join('')}`), `${pet.name}-文件合併`);
-      setSelecting(false);
-      setSel([]);
+      let html = parts.join('').replace(/@@IMAGES:([^@]+)@@/g, (_m, id) => imgHtml[id] ?? '');
+      if (pdfNames.length) html += `<h2>另附 PDF 檔</h2><p>${pdfNames.map(esc).join('、')}（PDF 檔需另外分享）</p>`;
+      if (skipped) html += `<p style="color:#776557">為避免檔案過大，只放入前 ${MAX_PAGES} 頁，另有 ${skipped} 頁未放入。</p>`;
+      const ok = await sharePdf(pdfShell(`${pet.name} 文件`, `<h1>${esc(pet.name)} 文件（${docs.length} 份）</h1>${html}`), `${pet.name}-文件合併`);
+      if (ok) {
+        setSelecting(false);
+        setSel([]);
+        if (skipped) toast(`只放入前 ${MAX_PAGES} 頁，另有 ${skipped} 頁沒有放入`);
+      } else toast('沒有分享出去，勾選保留，可以再試一次');
     } catch {
       toast('合併失敗，請再試一次');
     } finally {
@@ -381,10 +431,11 @@ export default function DocsScreen(_: { params: any }) {
       </ChipRow>
       {selecting ? (
         <Card style={{ gap: 10, backgroundColor: C.blueBg, borderWidth: 0 }}>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: C.blueInk }}>已選 {sel.length} 份，合併成一份 PDF</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.blueInk }}>已選 {visibleSel.length} 份，合併成一份 PDF</Text>
+          {hiddenSel > 0 ? <Sub>另有 {hiddenSel} 份已勾選但被搜尋或分類隱藏，不會放入。</Sub> : null}
           <Sub>適合申請寵物保險理賠（收據＋診斷證明）或寄宿時提供疫苗證明。</Sub>
           <Row>
-            <Btn title={busy ? '產生中…' : '合併並分享'} style={{ flex: 1 }} disabled={!sel.length || busy} onPress={merge} />
+            <Btn title={busy ? '產生中…' : '合併並分享'} style={{ flex: 1 }} disabled={!visibleSel.length || busy} onPress={merge} />
             <Btn kind="outline" title="取消" onPress={() => { setSelecting(false); setSel([]); }} />
           </Row>
         </Card>

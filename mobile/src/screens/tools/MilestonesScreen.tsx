@@ -55,7 +55,7 @@ export default function MilestonesScreen(_: { params: any }) {
   const add = (date: string, text: string, color: string, extra: Partial<Item> = {}) => date && items.push({ key: `${date}|${text}`, date, text, color, ...extra });
   add(pet.birthday, `${pet.name} 出生`, '#C8862A');
   add(pet.adopted, '來到我們家', C.accent);
-  const growth = [...entriesFor(store, pet.id, 'growth')].reverse();
+  const growth = [...entriesFor(store, pet.id, 'growth')].reverse().filter((g) => Number.isFinite(Number(g.v?.weight)) && Number(g.v?.weight) > 0);
   if (growth.length) {
     const first = Number(growth[0].v.weight);
     add(growth[0].at.slice(0, 10), `第一次記錄體重 ${first} kg`, C.green);
@@ -117,7 +117,14 @@ export default function MilestonesScreen(_: { params: any }) {
 
   return (
     <Screen title="里程碑" subtitle="一起走過的日子">
-      <PetChips value={petId} onChange={setPetId} />
+      <PetChips
+        value={petId}
+        onChange={(id) => {
+          if (id === petId) return;
+          if (dirty) confirm('放棄未儲存的內容？', '切換寵物後，這個里程碑的修改不會儲存。', () => { files.discard(); setDraft(null); setPetId(id); }, '放棄');
+          else setPetId(id);
+        }}
+      />
 
       {draft ? (
         <Card style={{ gap: 12, borderColor: C.accent }}>

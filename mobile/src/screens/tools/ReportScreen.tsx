@@ -6,7 +6,8 @@ import { useStore, usePet, memberName } from '../../lib/store';
 import { KIND_LABEL, SEX_LABEL, adherence, entriesFor, entrySummary, medActiveOn, reminderLabel, REPEAT_LABEL } from '../../lib/domain';
 import { addDays, addMonths, ageText, parseYmd, today } from '../../lib/date';
 import { copyText, esc, imageDataUri, pdfShell, sharePdf } from '../../lib/files';
-import type { Entry } from '../../lib/types';
+import type { Entry, Med } from '../../lib/types';
+import { freqText } from '../../lib/health';
 
 const RANGES = [
   { value: '3', label: '近 3 個月' },
@@ -17,6 +18,7 @@ const SECS = ['基本資料', '主治醫院', '疫苗與預防', '完整疫苗�
 type Sec = (typeof SECS)[number];
 /** Sections that always show the current state, whatever range is picked. */
 const NO_RANGE: Sec[] = ['基本資料', '主治醫院', '疫苗與預防', '完整疫苗歷史', '證件與保單到期', '服藥率'];
+// 疫苗與預防 lists vaccines plus deworming/heartworm/flea prevention; other reminders (grooming, check-ups) are left out.
 
 interface Block {
   title: string;
@@ -27,7 +29,8 @@ interface Block {
 
 const fmt = (d: string) => d.slice(0, 10).replace(/-/g, '/');
 
-function weightSvg(points: { at: string; w: number }[]): string {
+function weightSvg(all: { at: string; w: number }[]): string {
+  const points = all.filter((p) => Number.isFinite(p.w) && p.w > 0);
   if (points.length < 2) return '';
   const W = 500;
   const H = 170;
@@ -56,6 +59,13 @@ export default function ReportScreen(_: { params: any }) {
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [questions, setQuestions] = useState('');
+  // A different pet means different symptoms and questions.
+  const [lastPet, setLastPet] = useState(petId);
+  if (lastPet !== petId) {
+    setLastPet(petId);
+    setQuestions('');
+    setPicked({});
+  }
   const td = today();
   const hide = store.hideRecorder;
   const by = (e: Entry) => (hide ? '' : `（${memberName(store, e.who)}記錄）`);
@@ -84,12 +94,12 @@ export default function ReportScreen(_: { params: any }) {
         ['目前體重', latest ? `${latest.v.weight} kg（${fmt(latest.at)}）` : '尚未記錄'],
       ],
     };
+    const medRow = (m: Med): [string, string] => [m.name, `${[m.dose, freqText(m), m.times.join('/')].filter(Boolean).join(' · ')} · ${m.start.replace(/-/g, '/')} 起${m.end ? '，至 ' + m.end.replace(/-/g, '/') : '，長期'}`];
     const meds: Block = {
       title: '用藥',
-      rows: store.meds
-        .filter((m) => m.petId === pet.id && (medActiveOn(m, td) || (m.end ?? td) >= from))
-        .map((m) => [m.name, `${[m.dose, m.times.join('/')].filter(Boolean).join(' · ')} · ${m.start.replace(/-/g, '/')} 起${m.end ? '，至 ' + m.end.replace(/-/g, '/') : '，長期'}`]),
+      rows: store.meds.filter((m) => m.petId === pet.id && (medActiveOn(m, td) || (m.end ?? td) >= from)).map(medRow),
     };
+    const currentMeds = store.meds.filter((m) => m.petId === pet.id && medActiveOn(m, td)).map(medRow);
 
     if (mode === 'visit') {
       out.push(basic);
@@ -97,7 +107,7 @@ export default function ReportScreen(_: { params: any }) {
         title: '目前症狀（近 14 天）',
         rows: recent14.filter((e) => picked[e.id] !== false).map((e) => [fmt(e.at), `${entrySummary(e)}${e.v.note ? ' · ' + e.v.note : ''}`]),
       });
-      out.push({ ...meds, title: '目前用藥', rows: meds.rows.length ? meds.rows : [] });
+      out.push({ title: '目前用藥', rows: currentMeds });
       const qs = questions.split('\n').map((q) => q.trim()).filter(Boolean);
       out.push({ title: '想問醫師的問題', rows: qs.map((q, i) => [`${i + 1}.`, q]) });
       return out;
@@ -109,11 +119,12 @@ export default function ReportScreen(_: { params: any }) {
       out.push({ title: '主治醫院', rows: v?.name ? ([['醫院', v.name], ['醫師', v.doctor || '—'], ['電話', v.phone || '—'], ['地址', v.addr || '—']] as [string, string][]) : [] });
     }
     const rs = store.reminders.filter((r) => r.petId === pet.id).sort((a, b) => (a.date < b.date ? -1 : 1));
+    const vaccines = rs.filter((r) => !r.docId && r.title.includes('疫苗'));
+    const prevention = rs.filter((r) => !r.docId && !r.title.includes('疫苗') && /驅蟲|心絲蟲|除蚤|預防/.test(r.title));
     if (on['疫苗與預防']) {
       out.push({
         title: '疫苗與預防',
-        rows: rs
-          .filter((r) => !r.docId)
+        rows: [...vaccines, ...prevention]
           .map((r) => {
             const last = (r.history || []).slice(-1)[0];
             return [r.title, `${last ? '上次 ' + fmt(last) + '；' : ''}${r.repeat === 'once' && r.doneOnce ? '已完成' : '下次 ' + fmt(r.date) + '（' + reminderLabel(r) + '）'} · ${REPEAT_LABEL[r.repeat]}`];
@@ -122,16 +133,24 @@ export default function ReportScreen(_: { params: any }) {
     }
     if (on['完整疫苗歷史']) {
       const rows: [string, string][] = [];
-      rs.filter((r) => !r.docId).forEach((r) => (r.history || []).forEach((h) => rows.push([fmt(h), r.title])));
+      vaccines.forEach((r) => (r.history || []).forEach((h) => rows.push([fmt(h), r.title])));
       rows.sort((a, b) => (a[0] < b[0] ? 1 : -1));
       out.push({ title: '完整疫苗歷史', rows });
     }
     if (on['證件與保單到期']) {
-      out.push({ title: '證件與保單到期', rows: rs.filter((r) => r.docId).map((r) => [r.title, `${fmt(r.date)}（${reminderLabel(r)}）`]) });
+      // Listed from the documents themselves, so expired ones and ones without a reminder are included.
+      const docs = store.docs.filter((x) => x.petId === pet.id && x.exp).sort((a, b) => ((a.exp ?? '') < (b.exp ?? '') ? -1 : 1));
+      out.push({
+        title: '證件與保單到期',
+        rows: docs.map((x) => {
+          const left = Math.round((parseYmd(x.exp!).getTime() - parseYmd(td).getTime()) / 864e5);
+          return [x.title, `${fmt(x.exp!)}（${left < 0 ? `已過期 ${-left} 天` : left === 0 ? '今天到期' : `${left} 天後到期`}）`];
+        }),
+      });
     }
     const g = growthAll.filter((e) => inR(e.at)).reverse();
     if (on['體重紀錄']) {
-      out.push({ title: '體重紀錄', rows: g.map((e) => [fmt(e.at), [`${e.v.weight} kg`, e.v.length ? `${e.v.length} cm` : null].filter(Boolean).join(' · ')]) });
+      out.push({ title: '體重紀錄', rows: g.map((e) => [fmt(e.at), [e.v?.weight ? `${e.v.weight} kg` : null, e.v?.length ? `${e.v.length} cm` : null].filter(Boolean).join(' · ') || '—']) });
     }
     if (on['體重趨勢圖']) {
       const svg = weightSvg(g.map((e) => ({ at: e.at.slice(0, 10), w: Number(e.v.weight) })));
@@ -185,7 +204,8 @@ export default function ReportScreen(_: { params: any }) {
               }`,
           )
           .join('');
-      await sharePdf(pdfShell(title, body), title.replace(' ', '-'));
+      const ok = await sharePdf(pdfShell(title, body), title.replace(' ', '-'));
+      if (!ok) toast('PDF 沒有分享出去，可以再試一次或改用「複製文字」');
     } finally {
       setBusy(false);
     }
@@ -198,7 +218,7 @@ export default function ReportScreen(_: { params: any }) {
 
   return (
     <Screen title="健康報告" subtitle="一鍵整理給獸醫">
-      <PetChips value={petId} onChange={(id) => { setPetId(id); setPicked({}); }} />
+      <PetChips value={petId} onChange={setPetId} />
       <Segment options={[{ value: 'full', label: '完整報告' }, { value: 'visit', label: '看診準備' }]} value={mode} onChange={setMode} />
 
       {mode === 'full' ? (

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import {
@@ -7,7 +7,8 @@ import {
 } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, petName } from '../../lib/store';
-import { money } from '../../lib/domain';
+import { money, safeFileName } from '../../lib/domain';
+import { initialLastPosted, recurringMissedThisMonth } from '../../lib/life';
 import { today, monthKey, addMonthKey, monthLabel, shortDate } from '../../lib/date';
 import { shareTextFile, choosePhotos, usePendingFiles, deleteFile } from '../../lib/files';
 import { useBackHandler } from '../../nav';
@@ -18,8 +19,11 @@ const CATS: [string, string][] = [
   ['食物', '#E7B44C'], ['醫療', '#C4602F'], ['用品', '#7E9C78'], ['美容', '#A77AA3'], ['保險', '#6E8FB0'], ['保母', '#5E9C8A'], ['其他', '#B9A894'],
 ];
 const catColor = (c: string) => CATS.find((x) => x[0] === c)?.[1] ?? '#B9A894';
+/** Categories not in the list (e.g. from an imported backup) are counted as 其他. */
+const catOf = (c: string) => (CATS.some((x) => x[0] === c) ? c : '其他');
+const PAGE = 40;
 const sum = (xs: Expense[]) => xs.reduce((a, x) => a + x.amt, 0);
-const hundreds = (n: number) => (n ? money(Math.round(n / 100) * 100) : '—');
+const hundreds = (n: number) => (!n ? '—' : n < 100 ? money(n) : money(Math.round(n / 100) * 100));
 
 interface Draft { id: string | null; amt: number | null; cat: string; petId: string; date: string; note: string; receipt?: string }
 interface RDraft { id: string | null; amt: number | null; cat: string; petId: string; note: string; day: number | null }
@@ -43,6 +47,10 @@ export default function ExpenseScreen(_: { params: any }) {
   const [rdraft, setRdraft] = useState<RDraft | null>(null);
   const [budgetEdit, setBudgetEdit] = useState(false);
   const [catEdit, setCatEdit] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState<number | null>(null);
+  const [budgetErr, setBudgetErr] = useState<string | null>(null);
+  const [offer, setOffer] = useState<RecurringExpense | null>(null);
+  const [shown, setShown] = useState(PAGE);
   const scrollRef = useRef<any>(null);
   const files = usePendingFiles();
 
@@ -57,8 +65,9 @@ export default function ExpenseScreen(_: { params: any }) {
     if (dirty) confirm('放棄未儲存的內容？', '這筆花費的修改不會儲存。', doClose, '放棄');
     else doClose();
   };
+  const rFormVisible = !!rdraft && mode === 'month';
   useBackHandler(
-    draft || rdraft
+    draft || rFormVisible
       ? () => {
           if (draft) closeDraft();
           else setRdraft(null);
@@ -78,13 +87,19 @@ export default function ExpenseScreen(_: { params: any }) {
     else go();
   };
 
+  const pageKey = `${month}|${pf}`;
+  const [pageFor, setPageFor] = useState(pageKey);
+  if (pageFor !== pageKey) {
+    setPageFor(pageKey);
+    setShown(PAGE);
+  }
   const forPet = (xs: Expense[]) => (pf === 'all' ? xs : xs.filter((x) => x.petId === pf));
   const inMonthAll = store.expenses.filter((x) => x.date.startsWith(month));
   const inMonth = forPet(inMonthAll).sort((a, b) => (a.date < b.date ? 1 : -1));
   const total = sum(inMonth);
   const sharedMonth = pf === 'all' ? 0 : sum(inMonthAll.filter((x) => x.petId === 'all'));
   const budget = store.budget || 5000;
-  const byCat = CATS.map(([c, col]) => ({ c, col, amt: sum(inMonth.filter((x) => x.cat === c)) })).filter((x) => x.amt > 0);
+  const byCat = CATS.map(([c, col]) => ({ c, col, amt: sum(inMonth.filter((x) => catOf(x.cat) === c)) })).filter((x) => x.amt > 0);
   const months = [-5, -4, -3, -2, -1, 0].map((n) => addMonthKey(month, n));
   const tots = months.map((m) => sum(forPet(store.expenses.filter((x) => x.date.startsWith(m)))));
   const tmax = Math.max(1, ...tots);
@@ -114,7 +129,7 @@ export default function ExpenseScreen(_: { params: any }) {
     if (!rows.length) return toast('沒有可以匯出的花費');
     const sorted = [...rows].sort((a, b) => (a.date < b.date ? -1 : 1));
     const lines = ['日期,分類,金額,寵物,備註', ...sorted.map((x) => [x.date, x.cat, x.amt, petName(store, x.petId), x.note].map(csvCell).join(','))];
-    shareTextFile(name, '﻿' + lines.join('\r\n') + '\r\n', 'text/csv');
+    shareTextFile(safeFileName(name.replace(/\.csv$/, '')) + '.csv', '﻿' + lines.join('\r\n') + '\r\n', 'text/csv');
   };
   const scopeName = pf === 'all' ? '全部' : petName(store, pf);
 
@@ -123,29 +138,62 @@ export default function ExpenseScreen(_: { params: any }) {
     const a = Math.round(rdraft.amt ?? 0);
     const day = Math.min(28, Math.max(1, Math.round(rdraft.day ?? 1)));
     if (!(a > 0)) return toast('請輸入大於 0 的金額');
+    const td = today();
+    let created: RecurringExpense | null = null;
     update((d) => {
       if (rdraft.id) {
         const r = d.recurring.find((x) => x.id === rdraft.id);
         if (r) Object.assign(r, { amt: a, cat: rdraft.cat, petId: rdraft.petId, note: rdraft.note.trim(), day });
       } else {
-        // Start counting from this month: if today is past the day, this month's entry is added by hand if needed.
-        const r: RecurringExpense = { id: uid('rc'), amt: a, cat: rdraft.cat, petId: rdraft.petId, note: rdraft.note.trim(), day, lastPosted: cur };
+        // If this month's day hasn't come yet, start from last month so this month posts automatically on the day.
+        const r: RecurringExpense = { id: uid('rc'), amt: a, cat: rdraft.cat, petId: rdraft.petId, note: rdraft.note.trim(), day, lastPosted: initialLastPosted(td, day) };
         d.recurring.push(r);
+        created = r;
       }
     });
     toast(`已設定，每月 ${day} 日自動記一筆`);
+    setOffer(created && recurringMissedThisMonth(td, day) ? created : null);
     setRdraft(null);
   };
 
-  // ---------- year view ----------
-  const yearRows = forPet(store.expenses.filter((x) => x.date.startsWith(year)));
-  const yearTotal = sum(yearRows);
-  const yearByCat = CATS.map(([c, col]) => ({ c, col, amt: sum(yearRows.filter((x) => x.cat === c)) })).filter((x) => x.amt > 0);
-  const yearByPet = [{ id: 'all', name: '共同（全部寵物）' }, ...store.pets.map((p) => ({ id: p.id, name: p.name }))]
-    .map((p) => ({ ...p, amt: sum(yearRows.filter((x) => x.petId === p.id)) }))
-    .filter((x) => x.amt > 0);
-  const knownPet = new Set(['all', ...store.pets.map((p) => p.id)]);
-  const removedPetAmt = sum(yearRows.filter((x) => !knownPet.has(x.petId)));
+  const postThisMonth = (r: RecurringExpense) => {
+    const date = `${cur}-${String(r.day).padStart(2, '0')}`;
+    update((d) => {
+      d.expenses.push({ id: uid('x'), date, cat: r.cat, amt: r.amt, petId: r.petId, note: r.note, recurringId: r.id });
+    });
+    setOffer(null);
+    toast(`已記入 ${shortDate(date)} 的${r.cat}`);
+  };
+
+  const saveBudget = () => {
+    const v = Math.round(budgetDraft ?? 0);
+    if (!(v >= 500)) return setBudgetErr('預算至少 NT$500');
+    update((d) => { d.budget = v; });
+    setBudgetErr(null);
+    setBudgetEdit(false);
+    toast('已更新每月預算');
+  };
+
+  // ---------- year view (only computed while it is shown) ----------
+  const yearStats = useMemo(() => {
+    if (mode !== 'year') return null;
+    const rows = store.expenses.filter((x) => x.date.startsWith(year) && (pf === 'all' || x.petId === pf));
+    const knownPet = new Set(['all', ...store.pets.map((p) => p.id)]);
+    return {
+      rows,
+      total: sum(rows),
+      byCat: CATS.map(([c, col]) => ({ c, col, amt: sum(rows.filter((x) => catOf(x.cat) === c)) })).filter((x) => x.amt > 0),
+      byPet: [{ id: 'all', name: '共同（全部寵物）' }, ...store.pets.map((p) => ({ id: p.id, name: p.name }))]
+        .map((p) => ({ ...p, amt: sum(rows.filter((x) => x.petId === p.id)) }))
+        .filter((x) => x.amt > 0),
+      removed: sum(rows.filter((x) => !knownPet.has(x.petId))),
+    };
+  }, [mode, year, pf, store.expenses, store.pets]);
+  const yearRows = yearStats?.rows ?? [];
+  const yearTotal = yearStats?.total ?? 0;
+  const yearByCat = yearStats?.byCat ?? [];
+  const yearByPet = yearStats?.byPet ?? [];
+  const removedPetAmt = yearStats?.removed ?? 0;
 
   return (
     <Screen title="花費記帳" subtitle="每月花費、預算與年度統計" scrollRef={scrollRef}>
@@ -211,14 +259,20 @@ export default function ExpenseScreen(_: { params: any }) {
                   </Text>
                   <Row gap={6}>
                     <Btn small kind="soft" title="−" accessibilityLabel="預算減少 500" onPress={() => update((d) => { d.budget = Math.max(500, (d.budget || 5000) - 500); })} />
-                    <Pressable onPress={() => setBudgetEdit(!budgetEdit)} accessibilityRole="button" accessibilityLabel="修改每月預算" style={{ minHeight: 44, justifyContent: 'center' }}>
+                    <Pressable onPress={() => { setBudgetDraft(budget); setBudgetErr(null); setBudgetEdit(!budgetEdit); }} accessibilityRole="button" accessibilityLabel="修改每月預算" style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 }}>
                       <Text style={{ fontWeight: '600', color: C.ink }}>預算 {money(budget)}</Text>
                     </Pressable>
                     <Btn small kind="soft" title="＋" accessibilityLabel="預算增加 500" onPress={() => update((d) => { d.budget = (d.budget || 5000) + 500; })} />
                   </Row>
                 </Row>
                 {budgetEdit ? (
-                  <NumberField label="每月預算（NT$）" integer value={budget} onChange={(v) => v && v > 0 && update((d) => { d.budget = Math.round(v); })} />
+                  <View style={{ gap: 8 }}>
+                    <NumberField label="每月預算（NT$）" integer value={budgetDraft} onChange={setBudgetDraft} error={budgetErr} />
+                    <Row>
+                      <Btn small title="儲存預算" style={{ flex: 1 }} onPress={saveBudget} />
+                      <Btn small kind="outline" title="取消" style={{ flex: 1 }} onPress={() => { setBudgetEdit(false); setBudgetErr(null); }} />
+                    </Row>
+                  </View>
                 ) : null}
               </>
             ) : (
@@ -242,7 +296,7 @@ export default function ExpenseScreen(_: { params: any }) {
                 </>
               ) : Object.keys(store.catBudgets).length ? (
                 Object.entries(store.catBudgets).map(([c, b]) => {
-                  const spent = sum(inMonth.filter((x) => x.cat === c));
+                  const spent = sum(inMonth.filter((x) => catOf(x.cat) === c));
                   const over = spent > b;
                   return (
                     <View key={c} style={{ gap: 4 }}>
@@ -293,7 +347,7 @@ export default function ExpenseScreen(_: { params: any }) {
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 130 }}>
               {months.map((m, i) => (
                 <Pressable key={m} onPress={() => setMonth(m)} style={{ flex: 1, alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'flex-end' }} accessibilityRole="button" accessibilityLabel={`${monthLabel(m)} ${tots[i] ? money(tots[i]) : '沒有花費'}`}>
-                  <Text style={{ fontSize: 9, color: C.sub }} numberOfLines={1}>{hundreds(tots[i])}</Text>
+                  <Text style={{ fontSize: 10, color: C.sub }} numberOfLines={1} adjustsFontSizeToFit>{hundreds(tots[i])}</Text>
                   {tots[i] ? (
                     <View style={{ width: '100%', maxWidth: 30, height: Math.max(4, Math.round((tots[i] / tmax) * 80)), borderRadius: 8, backgroundColor: m === month ? C.accent : '#E5D8C6' }} />
                   ) : null}
@@ -306,7 +360,7 @@ export default function ExpenseScreen(_: { params: any }) {
           <Section title="明細" action={draft ? undefined : { label: '＋ 記一筆', kind: 'primary', onPress: () => openDraft({ id: null, amt: null, cat: '食物', petId: pf, date: month === cur ? today() : `${month}-01`, note: '' }) }}>
             {inMonth.length ? (
               <ListCard>
-                {inMonth.map((x) => (
+                {inMonth.slice(0, shown).map((x) => (
                   <Pressable key={x.id} onPress={() => openDraft({ id: x.id, amt: x.amt, cat: x.cat, petId: x.petId, date: x.date, note: x.note, receipt: x.receipt })}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, minHeight: 56, backgroundColor: draft?.id === x.id ? C.sand : undefined }} accessibilityRole="button" accessibilityLabel={`編輯 ${x.cat} ${money(x.amt)}`}>
                     <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: catColor(x.cat) }} />
@@ -322,10 +376,20 @@ export default function ExpenseScreen(_: { params: any }) {
             ) : (
               <Empty text="這個月還沒有花費紀錄" />
             )}
+            {inMonth.length > shown ? (
+              <Btn small kind="soft" title={`顯示更多（還有 ${inMonth.length - shown} 筆）`} onPress={() => setShown(shown + PAGE)} />
+            ) : null}
           </Section>
 
-          <Section title="固定支出" action={rdraft ? undefined : { label: '＋ 新增', onPress: () => setRdraft({ id: null, amt: null, cat: '保險', petId: 'all', note: '', day: 1 }) }}>
+          <Section title="固定支出" action={rdraft ? undefined : { label: '＋ 新增固定支出', onPress: () => { setOffer(null); setRdraft({ id: null, amt: null, cat: '保險', petId: 'all', note: '', day: 1 }); } }}>
             <Sub>例如寵物保險月繳、固定保母費。每月到了指定日期會自動記一筆。</Sub>
+            {offer ? (
+              <Banner
+                kind="info"
+                text={`本月 ${offer.day} 日已經過了，這個月不會自動記。要現在補記本月的 ${money(offer.amt)} 嗎？`}
+                action={{ label: '本月也記一筆', onPress: () => postThisMonth(offer) }}
+              />
+            ) : null}
             {rdraft ? (
               <Card style={{ gap: 12 }}>
                 <NumberField label="金額（NT$）" required integer value={rdraft.amt} onChange={(v) => setRdraft({ ...rdraft, amt: v })} />
@@ -368,9 +432,9 @@ export default function ExpenseScreen(_: { params: any }) {
       ) : (
         <>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Btn small kind="soft" title="‹ 去年" onPress={() => setYear(String(Number(year) - 1))} />
+            <Btn small kind="soft" title="‹ 上一年" onPress={() => setYear(String(Number(year) - 1))} />
             <H2>{year} 年</H2>
-            <Btn small kind="soft" title="明年 ›" disabled={year >= cur.slice(0, 4)} onPress={() => setYear(String(Number(year) + 1))} />
+            <Btn small kind="soft" title="下一年 ›" disabled={year >= cur.slice(0, 4)} onPress={() => setYear(String(Number(year) + 1))} />
           </Row>
           <Card style={{ gap: 8 }}>
             <Label>{pf === 'all' ? '年度總花費' : `${petName(store, pf)}年度花費`}</Label>

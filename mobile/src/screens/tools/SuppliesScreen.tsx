@@ -9,6 +9,7 @@ import { supplyNow, supplyDaysLeft, supplyStatusText, money } from '../../lib/do
 import { today } from '../../lib/date';
 import { openUrl, shareText } from '../../lib/files';
 import { useBackHandler } from '../../nav';
+import { costPerDayText, restockCategory } from '../../lib/life';
 import { uid } from '../../lib/seed';
 import type { Supply } from '../../lib/types';
 
@@ -30,6 +31,7 @@ export default function SuppliesScreen(_: { params: any }) {
   const [tried, setTried] = useState(false);
   const [restockFor, setRestockFor] = useState<string | null>(null);
   const [openShops, setOpenShops] = useState<string | null>(null);
+  const [bulk, setBulk] = useState(false);
   const scrollRef = useRef<any>(null);
   const filter = all ? 'all' : petId ?? 'all';
 
@@ -76,18 +78,29 @@ export default function SuppliesScreen(_: { params: any }) {
     setDraft(null);
   };
 
-  const restock = (x: Supply, logExpense: boolean) => {
+  /** Add one pack to each item; optionally log the price as an expense (food items go to 食物, others to 用品). */
+  const restockMany = (items: Supply[], logExpense: boolean) => {
+    const td = today();
+    let logged = 0;
     update((d) => {
-      const y = d.supplies.find((z) => z.id === x.id);
-      if (!y) return;
-      y.stock = round2(supplyNow(y) + y.pack);
-      y.asOf = today();
-      y.inCart = false;
-      if (logExpense && y.price) d.expenses.push({ id: uid('x'), date: today(), cat: '用品', amt: y.price, petId: y.petId, note: `${y.name} 補貨 ${y.pack}${y.unit}` });
+      for (const x of items) {
+        const y = d.supplies.find((z) => z.id === x.id);
+        if (!y) continue;
+        y.stock = round2(supplyNow(y) + y.pack);
+        y.asOf = td;
+        y.inCart = false;
+        if (logExpense && y.price) {
+          d.expenses.push({ id: uid('x'), date: td, cat: restockCategory(y.name), amt: y.price, petId: y.petId, note: `${y.name} 補貨 ${y.pack}${y.unit}` });
+          logged += y.price;
+        }
+      }
     });
     setRestockFor(null);
-    toast(logExpense && x.price ? `已補貨，並記一筆 ${money(x.price)}` : '已補貨');
+    setBulk(false);
+    toast(logged ? `已補貨，並記 ${money(logged)} 花費` : items.length > 1 ? `已補貨 ${items.length} 項` : '已補貨');
   };
+  const restock = (x: Supply, logExpense: boolean) => restockMany([x], logExpense);
+  const cartPriced = cart.filter((x) => x.price);
 
   const shareCart = () => {
     const lines = cart.map((x) => `・${x.name} ${x.pack}${x.unit}（${petName(store, x.petId)}）${x.price ? ' 約 ' + money(x.price) : ''}`);
@@ -138,9 +151,21 @@ export default function SuppliesScreen(_: { params: any }) {
           <Sub style={{ color: C.blueInk }}>{cart.map((x) => x.name).join('、')}</Sub>
           <Row gap={8} style={{ flexWrap: 'wrap' }}>
             <Btn small kind="dark" title="分享清單" onPress={shareCart} />
-            <Btn small kind="outline" title="全部標記已補貨" onPress={() => confirm('全部標記已補貨？', `清單裡的 ${cart.length} 項都會加上一次補貨量。`, () => cart.forEach((x) => restock(x, false)), '確定')} />
-            <Btn small kind="ghost" title="清空清單" onPress={() => update((d) => { d.supplies.forEach((y) => { if (filter === 'all' || y.petId === filter) y.inCart = false; }); })} />
+            <Btn small kind="outline" title="全部標記已補貨" onPress={() => setBulk(true)} />
+            <Btn small kind="ghost" title="清空清單" onPress={() => confirm('清空購物清單？', `會把 ${cart.length} 項從清單移除，庫存不變。`, () => update((d) => { d.supplies.forEach((y) => { if (filter === 'all' || y.petId === filter) y.inCart = false; }); }), '清空')} />
           </Row>
+          {bulk ? (
+            <View style={{ gap: 8, padding: 12, borderRadius: 16, backgroundColor: C.card }}>
+              <Text style={{ fontSize: 14, color: C.ink }}>
+                清單裡的 {cart.length} 項都加上一次補貨量。{cartPriced.length ? `其中 ${cartPriced.length} 項有價格，合計 ${money(cartPriced.reduce((a, x) => a + (x.price ?? 0), 0))}，要一起記成花費嗎？` : ''}
+              </Text>
+              <Row gap={8} style={{ flexWrap: 'wrap' }}>
+                {cartPriced.length ? <Btn small title="補貨並記花費" onPress={() => restockMany(cart, true)} /> : null}
+                <Btn small kind={cartPriced.length ? 'outline' : 'primary'} title={cartPriced.length ? '只補貨' : '確定補貨'} onPress={() => restockMany(cart, false)} />
+                <Btn small kind="ghost" title="取消" onPress={() => setBulk(false)} />
+              </Row>
+            </View>
+          ) : null}
         </Card>
       ) : null}
 
@@ -148,14 +173,14 @@ export default function SuppliesScreen(_: { params: any }) {
         {!store.pets.length ? <Empty text="請先新增寵物" /> : null}
         {list.map(({ x, days, now }) => {
           const color = now <= 0 || days <= 3 ? C.danger : days <= 7 ? '#B5721F' : C.greenDark;
-          const perDay = x.price && x.use > 0 && x.pack > 0 ? (x.price / x.pack) * x.use : 0;
+          const perDay = costPerDayText(x.price, x.pack, x.use);
           return (
             <Card key={x.id} style={{ gap: 10, borderColor: days <= 7 ? '#E7B49A' : C.line }}>
               <Pressable onPress={() => open({ id: x.id, petId: x.petId, name: x.name, unit: x.unit, stock: now, use: x.use, pack: x.pack, price: x.price ?? null })} accessibilityRole="button" accessibilityLabel={`編輯 ${x.name}`} style={{ gap: 4 }}>
                 <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>{x.name}</Text>
-                    <Sub>{petName(store, x.petId)} · 剩 {now} {x.unit} · 每天 {x.use} {x.unit}{perDay ? ` · 每天約 ${money(perDay)}` : ''}</Sub>
+                    <Sub>{petName(store, x.petId)} · 剩 {now} {x.unit} · 每天 {x.use} {x.unit}{perDay ? ` · ${perDay}` : ''}</Sub>
                   </View>
                   <Text style={{ fontSize: 13, fontWeight: '700', color, maxWidth: 140, textAlign: 'right' }}>{supplyStatusText(x)}</Text>
                 </Row>
@@ -163,7 +188,7 @@ export default function SuppliesScreen(_: { params: any }) {
               {isFinite(days) ? <Progress pct={Math.min(100, (days / 30) * 100)} color={color} /> : null}
               {restockFor === x.id ? (
                 <View style={{ gap: 8, padding: 12, borderRadius: 16, backgroundColor: C.sand }}>
-                  <Text style={{ fontSize: 14, color: C.ink }}>補貨 {x.pack} {x.unit}{x.price ? `，同時記一筆花費 ${money(x.price)}？` : '？'}</Text>
+                  <Text style={{ fontSize: 14, color: C.ink }}>補貨 {x.pack} {x.unit}{x.price ? `，同時記一筆${restockCategory(x.name)}花費 ${money(x.price)}？` : '？'}</Text>
                   <Row gap={8} style={{ flexWrap: 'wrap' }}>
                     {x.price ? <Btn small title="補貨並記花費" onPress={() => restock(x, true)} /> : null}
                     <Btn small kind={x.price ? 'outline' : 'primary'} title={x.price ? '只補貨' : '確定補貨'} onPress={() => restock(x, false)} />
@@ -173,7 +198,7 @@ export default function SuppliesScreen(_: { params: any }) {
               ) : (
                 <Row gap={8}>
                   <Btn small kind="dark" title={`補貨 +${x.pack} ${x.unit}`} style={{ flex: 1 }} onPress={() => setRestockFor(x.id)} />
-                  <Btn small kind="outline" title={x.inCart ? '已在清單' : '加入清單'} style={{ flex: 1 }}
+                  <Btn small kind="outline" title={x.inCart ? '從清單移除' : '加入清單'} style={{ flex: 1 }}
                     onPress={() => update((d) => { const y = d.supplies.find((z) => z.id === x.id); if (y) y.inCart = !y.inCart; })} />
                 </Row>
               )}

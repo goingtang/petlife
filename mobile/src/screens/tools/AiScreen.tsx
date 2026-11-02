@@ -8,36 +8,11 @@ import { KIND_LABEL, SEX_LABEL, entriesFor, entrySummary, medActiveOn, primaryVe
 import { addDays, ageText, hm, today } from '../../lib/date';
 import { callPhone, copyText, openUrl } from '../../lib/files';
 import { uid } from '../../lib/seed';
+import { assessSymptoms, reassurance } from '../../lib/health';
 
 const QUICK = ['嘔吐', '腹瀉', '不吃東西', '搔癢', '跛腳', '誤食東西', '沒精神', '呼吸急促', '抽搐', '無法排尿', '出血'];
-
-/** Signs that need a vet now. Matched in the description and quick chips, ignoring negated mentions. */
-const RED_FLAGS = [
-  '抽搐', '痙攣', '呼吸困難', '呼吸急促', '喘不過氣', '無法排尿', '尿不出', '頻尿', '一直蹲貓砂', '大量出血', '出血不止', '出血',
-  '巧克力', '葡萄', '木糖醇', '百合', '老鼠藥', '蟑螂藥', '洋蔥', '普拿疼', '乙醯胺酚', '布洛芬', '誤食',
-  '吞異物', '吞下', '車禍', '骨折', '昏倒', '昏迷', '叫不醒', '腹部腫脹', '肚子脹', '中暑', '持續嘔吐', '吐血', '血便',
-];
-const NEGATIONS = ['沒有', '沒', '無', '不'];
-
-/** Red-flag terms present in the text, skipping ones preceded (within 3 characters) by a negation. */
-export function findRedFlags(text: string): string[] {
-  const hits = new Set<string>();
-  for (const term of RED_FLAGS) {
-    let from = 0;
-    for (;;) {
-      const i = text.indexOf(term, from);
-      if (i < 0) break;
-      const before = text.slice(Math.max(0, i - 3), i);
-      if (!NEGATIONS.some((n) => before.includes(n))) {
-        // Report the longest matching term only (e.g. "出血不止" rather than also "出血").
-        if (![...hits].some((h) => h.includes(term))) hits.add(term);
-        for (const h of [...hits]) if (term.includes(h) && term !== h) hits.delete(h);
-      }
-      from = i + term.length;
-    }
-  }
-  return [...hits];
-}
+// Quick chips that are emergencies on their own; mapped to a matching sign so the checker sees them.
+const CHIP_SIGN: Record<string, string> = { 誤食東西: '誤食', 出血: '出血', 無法排尿: '無法排尿', 抽搐: '抽搐', 呼吸急促: '呼吸急促' };
 
 const ONSET = ['今天', '1–3 天', '超過 3 天', '反覆發生'] as const;
 const FREQ = ['一次', '2–3 次', '很多次'] as const;
@@ -77,6 +52,7 @@ export default function AiScreen(_: { params: any }) {
   const [provider, setProvider] = useState<ProviderKey>('chatgpt');
   const [showPrompt, setShowPrompt] = useState(false);
   const [geminiCopied, setGeminiCopied] = useState(false);
+  const [savedFor, setSavedFor] = useState<string | null>(null);
 
   // A new pet means a new problem: start over.
   useEffect(() => {
@@ -90,7 +66,10 @@ export default function AiScreen(_: { params: any }) {
   }, [petId]);
 
   const symptoms = [chips.join('、'), text.trim()].filter(Boolean).join('；');
-  const flags = useMemo(() => findRedFlags(symptoms + (intake === '不吃不喝' ? '；不吃不喝' : '')), [symptoms, intake]);
+  // Each chip is its own clause so a negation in the free text can't reach it.
+  const checkText = [...chips.map((c) => CHIP_SIGN[c] ?? c), text.trim(), intake === '不吃不喝' ? '不吃不喝' : ''].filter(Boolean).join('。');
+  const assessment = useMemo(() => assessSymptoms(checkText, pet?.kind), [checkText, pet?.kind]);
+  const flags = assessment.flags;
   const details = [
     onset ? `發生多久：${onset}` : null,
     freq ? `頻率：${freq}` : null,
@@ -140,10 +119,8 @@ export default function AiScreen(_: { params: any }) {
       return;
     }
     await copyText(prompt);
-    if (provider === 'gemini') {
-      setGeminiCopied(true);
-      toast('提問已複製');
-    } else toast('提問已複製');
+    toast(`提問已複製，內含${pet?.name ?? ''}的健康資料`);
+    if (provider === 'gemini') setGeminiCopied(true);
     openUrl(providerUrl(provider, prompt));
   };
 
@@ -160,8 +137,10 @@ export default function AiScreen(_: { params: any }) {
         v: { hType: 'symptom', signs: chips.length ? chips : ['其他'], severity: flags.length ? 'severe' : 'moderate', note },
       });
     });
+    setSavedFor(checkText + '|' + details.join('|'));
     toast('已存成健康紀錄');
   };
+  const alreadySaved = savedFor === checkText + '|' + details.join('|');
 
   if (!pet) {
     return (
@@ -221,14 +200,15 @@ export default function AiScreen(_: { params: any }) {
             ) : null}
           </View>
         ) : (
-          <Banner kind="info" text="沒有發現明顯的緊急警訊。若症狀持續超過 24 小時、精神變差或不吃不喝，請盡快就醫。" />
+          <Banner kind={assessment.warnings.length ? 'warn' : 'info'} text={reassurance(pet.kind, pet.birthday, assessment.warnings)} />
         )
       ) : null}
 
-      {symptoms ? <Btn kind="outline" title="存成健康紀錄" onPress={saveRecord} /> : null}
+      {symptoms ? <Btn kind="outline" title={alreadySaved ? '已存成健康紀錄' : '存成健康紀錄'} disabled={alreadySaved} onPress={saveRecord} /> : null}
 
       <Section title="問 AI">
         <Sub>PetPal 會把{pet.name}的資料和症狀整理成提問並複製，開啟你常用的 AI 後就能直接取得建議。</Sub>
+        <Sub style={{ fontSize: 12 }}>提問會包含{pet.name}的年齡、體重、用藥與近 30 天健康紀錄，並送到你選擇的 AI 服務。</Sub>
         <ChipRow>
           {PROVIDERS.map((p) => (
             <Chip key={p.k} label={p.name} on={provider === p.k} onPress={() => { setProvider(p.k); setGeminiCopied(false); }} />

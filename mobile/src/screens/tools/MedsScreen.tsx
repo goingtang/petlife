@@ -9,6 +9,7 @@ import type { Med, MedFreq, Store } from '../../lib/types';
 import { adherence, doseKey, entriesFor, FREQ_LABEL, medDueOn, nextDueDate } from '../../lib/domain';
 import { addDays, daysBetween, shortDate, today } from '../../lib/date';
 import { uid } from '../../lib/seed';
+import { applyMedEdit, stopMed, freqText } from '../../lib/health';
 
 const PRESET = ['07:00', '08:00', '09:00', '12:00', '18:00', '20:00', '21:00'];
 
@@ -28,10 +29,6 @@ function Ring({ pct }: { pct: number | null }) {
       </View>
     </View>
   );
-}
-
-function freqText(m: Med) {
-  return m.freq === 'daily' ? '每天' : m.freq === 'weekly' ? '每週一次' : '每月一次';
 }
 
 function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string; onDone: () => void; dirty: React.MutableRefObject<boolean> }) {
@@ -71,31 +68,12 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
     const scheduleChanged =
       !!med && (med.dose !== base.dose || med.freq !== freq || med.times.join() !== base.times.join());
     let msg = med ? '已更新用藥' : '已新增用藥';
+    if (med && scheduleChanged && med.freq === 'daily' && freq === 'daily' && med.start < td && (!end || end >= td)) {
+      msg = '已更新，新的服藥方式從今天開始；之前的紀錄保留不變';
+    }
     update((d: Store) => {
-      if (med && scheduleChanged && med.start < td) {
-        // Keep past days on the old schedule so earlier adherence stays correct; the new schedule starts today.
-        const yesterday = addDays(td, -1);
-        const old = d.meds.find((x) => x.id === med.id);
-        const nid = uid('m');
-        if (old) old.end = old.end && old.end < yesterday ? old.end : yesterday;
-        if (!end || end >= td) {
-          d.meds.push({ id: nid, ...base, start: td, end });
-          // Doses already logged today move to the new course when the time still exists.
-          for (const k of Object.keys(d.doses)) {
-            const [day, id, t] = k.split('|');
-            if (id === med.id && day >= td) {
-              if (base.times.includes(t)) d.doses[doseKey(day, nid, t)] = d.doses[k];
-              delete d.doses[k];
-            }
-          }
-        }
-        msg = '已更新，新的服藥方式從今天開始；之前的紀錄保留不變';
-        return;
-      }
-      const m: Med = { id: med?.id ?? uid('m'), ...base, start, end };
-      const i = d.meds.findIndex((x) => x.id === m.id);
-      if (i >= 0) d.meds[i] = m;
-      else d.meds.push(m);
+      if (med) applyMedEdit(d, med.id, { ...base, start, end }, td, uid('m'));
+      else d.meds.push({ id: uid('m'), ...base, start, end });
     });
     dirty.current = false;
     toast(msg);
@@ -154,8 +132,8 @@ function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string
             <Chip key={n} label={n ? `${n} 天` : '長期'} on={days === n} onPress={() => touch(setDays)(n)} />
           ))}
         </ChipRow>
-        <Stepper value={days} onChange={touch(setDays)} min={0} max={365} unit={days ? '天' : '長期'} />
-        {days ? <Sub>吃到 {addDays(start, days - 1).replace(/-/g, '/')}</Sub> : null}
+        {days ? <Stepper value={days} onChange={touch(setDays)} min={1} max={365} unit="天" /> : null}
+        {days ? <Sub>吃到 {addDays(start, days - 1).replace(/-/g, '/')}</Sub> : <Sub>長期服用，沒有結束日。</Sub>}
       </View>
       <Row gap={8} style={{ alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
@@ -245,32 +223,25 @@ export default function MedsScreen(_: { params: any }) {
   const endedMeds = mine.filter(ended).sort((a, b) => ((a.end ?? '') < (b.end ?? '') ? 1 : -1));
 
   const stop = (m: Med) => {
-    if (m.start >= td) {
-      confirm('刪除這個療程？', `「${m.name}」還沒開始，停用會直接刪除。`, () => {
+    const notYet = m.start >= td;
+    confirm(
+      notYet ? '取消這個療程？' : '停用這個用藥？',
+      notYet ? `「${m.name}」從今天或之後才開始，取消後會直接移除；今天已打卡的會退回藥量。` : `「${m.name}」會在昨天結束，今天起不再提醒。過去的服藥紀錄會保留，今天已打卡的會退回藥量。`,
+      () => {
+        const res: { r: 'stopped' | 'removed' } = { r: 'stopped' };
         update((d) => {
-          d.meds = d.meds.filter((y) => y.id !== m.id);
-          for (const k of Object.keys(d.doses)) if (k.split('|')[1] === m.id) delete d.doses[k];
+          res.r = stopMed(d, m.id, td);
         });
-        toast('已刪除');
-      });
-      return;
-    }
-    confirm('停用這個用藥？', `「${m.name}」會在昨天結束，今天起不再提醒。過去的服藥紀錄會保留。`, () => {
-      update((d) => {
-        const x = d.meds.find((y) => y.id === m.id);
-        if (x) x.end = addDays(td, -1);
-        for (const k of Object.keys(d.doses)) {
-          const [dd, id] = k.split('|');
-          if (id === m.id && dd >= td) delete d.doses[k];
-        }
-      });
-      toast('已停用，今天起不再提醒');
-    }, '停用');
+        toast(res.r === 'removed' ? '已取消療程' : '已停用，今天起不再提醒');
+      },
+      notYet ? '取消療程' : '停用',
+    );
   };
 
   const card = (m: Med) => {
     const isEnded = ended(m);
     const notStarted = m.start > td;
+    const startsToday = m.start === td;
     const next = !isEnded ? nextDueDate(m, td) : null;
     const low = m.count !== null && m.count !== undefined && m.count <= m.refillAt;
     return (
@@ -292,7 +263,7 @@ export default function MedsScreen(_: { params: any }) {
           </Row>
         ) : null}
         <Row>
-          {!isEnded ? <Btn small kind="outline" title={notStarted ? '取消療程' : '停用'} onPress={() => stop(m)} /> : null}
+          {!isEnded ? <Btn small kind="outline" title={notStarted || startsToday ? '取消療程' : '停用'} onPress={() => stop(m)} /> : null}
           <Btn
             small
             kind="danger"

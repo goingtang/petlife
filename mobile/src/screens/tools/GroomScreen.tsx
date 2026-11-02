@@ -13,9 +13,7 @@ import { defaultGroom, uid } from '../../lib/seed';
 import type { GroomTask } from '../../lib/types';
 
 interface Draft { id: string | null; name: string; every: number; last: string }
-interface Undo { id: string; prevLast: string; at: number }
-
-const SALON_WORDS = /洗澡|美容|剪毛|梳理/;
+interface Undo { id: string; prevLast: string; at: number; expenseId?: string }
 
 export default function GroomScreen(_: { params: any }) {
   const { store, update, toast, petId, setPetId, day } = useStore();
@@ -25,6 +23,7 @@ export default function GroomScreen(_: { params: any }) {
   const [undo, setUndo] = useState<Undo | null>(null);
   const [costFor, setCostFor] = useState<string | null>(null);
   const [cost, setCost] = useState<number | null>(null);
+  const [costOpen, setCostOpen] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const scrollRef = useRef<any>(null);
 
@@ -68,10 +67,10 @@ export default function GroomScreen(_: { params: any }) {
       x.last = td;
     });
     setUndo({ id: g.id, prevLast: g.last, at: Date.now() });
-    if (SALON_WORDS.test(g.name)) {
-      setCostFor(g.id);
-      setCost(null);
-    }
+    // Offer (collapsed) to log a cost — only if the user says it was done at a shop.
+    setCostFor(g.id);
+    setCostOpen(false);
+    setCost(null);
     toast(`已完成「${g.name}」`);
   };
   const doUndo = () => {
@@ -81,10 +80,12 @@ export default function GroomScreen(_: { params: any }) {
       if (!x) return;
       x.last = undo.prevLast;
       if (x.history.length && x.history[x.history.length - 1] === undo.prevLast) x.history = x.history.slice(0, -1);
+      // A grooming cost logged with this completion is undone too.
+      if (undo.expenseId) d.expenses = d.expenses.filter((e) => e.id !== undo.expenseId);
     });
     setUndo(null);
     setCostFor(null);
-    toast('已復原');
+    toast(undo.expenseId ? '已復原，剛記的花費也一併刪除' : '已復原');
   };
 
   const save = () => {
@@ -92,8 +93,12 @@ export default function GroomScreen(_: { params: any }) {
     update((d) => {
       const rec = { id: draft.id ?? uid('g'), petId: pet.id, name: draft.name.trim(), every: Math.max(1, Math.round(draft.every)), last: draft.last || today() };
       const i = d.groom.findIndex((y) => y.id === rec.id);
-      if (i >= 0) d.groom[i] = { ...d.groom[i], ...rec };
-      else d.groom.push({ ...rec, history: [] });
+      if (i >= 0) {
+        const prev = d.groom[i];
+        // Changing "上次完成" by hand keeps the previous date in the history.
+        const history = prev.last && prev.last !== rec.last && !prev.history.includes(prev.last) ? [...prev.history, prev.last].sort().slice(-30) : prev.history;
+        d.groom[i] = { ...prev, ...rec, history };
+      } else d.groom.push({ ...rec, history: [] });
     });
     setDraft(null);
     toast('已儲存');
@@ -113,7 +118,7 @@ export default function GroomScreen(_: { params: any }) {
           <Row>
             <Btn small kind="outline" title="取消" style={{ flex: 1 }} onPress={close} />
             {draft.id ? (
-              <Btn small kind="danger" title="刪除" style={{ flex: 1 }} onPress={() => confirm(`刪除「${draft.name}」？`, '', () => {
+              <Btn small kind="danger" title="刪除" style={{ flex: 1 }} onPress={() => confirm(`刪除「${draft.name}」？`, '這個項目和它的完成紀錄都會刪除，無法復原。', () => {
                 update((d) => { d.groom = d.groom.filter((y) => y.id !== draft.id); });
                 setDraft(null);
               })} />
@@ -137,18 +142,23 @@ export default function GroomScreen(_: { params: any }) {
                     <Text style={{ fontSize: 13, fontWeight: '700', color }}>{groomDueText(g, day)}</Text>
                   </Row>
                   <Progress pct={(el / g.every) * 100} color={color} height={6} />
-                  <Sub>每 {g.every} 天 · 上次 {shortDate(g.last)}</Sub>
+                  <Sub>每 {g.every} 天 · {g.history?.length ? `上次 ${shortDate(g.last)}` : `從 ${shortDate(g.last)} 開始計算`}</Sub>
                 </Pressable>
                 <Btn small title={g.last === day ? '今天已完成' : '完成'} disabled={g.last === day} onPress={() => done(g)} style={{ backgroundColor: g.last === day ? C.sand : C.green }} textStyle={{ color: g.last === day ? C.sub : '#fff' }} />
               </Row>
               {undo?.id === g.id ? <Btn small kind="ghost" title="復原剛才的完成" onPress={doUndo} style={{ alignSelf: 'flex-start' }} /> : null}
-              {costFor === g.id ? (
+              {costFor === g.id && !costOpen ? (
+                <Btn small kind="ghost" title="在店家完成？記一筆美容花費" onPress={() => setCostOpen(true)} style={{ alignSelf: 'flex-start' }} />
+              ) : null}
+              {costFor === g.id && costOpen ? (
                 <View style={{ gap: 8, padding: 12, borderRadius: 16, backgroundColor: C.sand }}>
-                  <Text style={{ fontSize: 14, color: C.ink }}>要記一筆美容花費嗎？</Text>
+                  <Text style={{ fontSize: 14, color: C.ink }}>在店家完成的花費</Text>
                   <NumberField integer unit="元" value={cost} onChange={setCost} placeholder="金額" />
                   <Row gap={8}>
                     <Btn small title="記一筆" disabled={!cost} onPress={() => {
-                      update((d) => { d.expenses.push({ id: uid('x'), date: today(), cat: '美容', amt: Math.round(cost ?? 0), petId: pet.id, note: g.name }); });
+                      const id = uid('x');
+                      update((d) => { d.expenses.push({ id, date: today(), cat: '美容', amt: Math.round(cost ?? 0), petId: pet.id, note: g.name }); });
+                      setUndo((u) => (u && u.id === g.id ? { ...u, expenseId: id } : u));
                       setCostFor(null);
                       toast(`已記一筆 ${money(cost ?? 0)}`);
                     }} />

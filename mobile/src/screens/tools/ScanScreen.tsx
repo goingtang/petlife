@@ -8,6 +8,8 @@ import { useStore, usePet } from '../../lib/store';
 import { today } from '../../lib/date';
 import { uid } from '../../lib/seed';
 import { CONTENT } from '../../data/content';
+import { mentionsGrape } from '../../lib/life';
+import { KIND_LABEL } from '../../lib/domain';
 import type { PetKind } from '../../lib/types';
 
 type Species = PetKind;
@@ -20,13 +22,16 @@ interface Rule {
   kw: string[];
   /** words that cancel a match, e.g. 天然色素 */
   not?: string[];
+  /** custom matcher on the whole text, used instead of kw */
+  test?: (text: string) => boolean;
 }
 
 const ALL = (n: number) => ({ def: n });
 const RULES: Rule[] = [
   { label: '含蔥蒜類，對犬貓有毒', good: false, sev: { def: 3, rabbit: 2, bird: 2 }, kw: ['洋蔥', '洋葱', '大蒜', '蒜粉', '蔥', 'onion', 'garlic'] },
   { label: '含木糖醇（狗吃少量就會低血糖）', good: false, sev: { def: 2, dog: 3 }, kw: ['木糖醇', 'xylitol'] },
-  { label: '含葡萄或葡萄乾，可能造成腎衰竭', good: false, sev: ALL(3), kw: ['葡萄乾', '葡萄', 'grape', 'raisin'], not: ['葡萄糖', '葡萄籽'] },
+  // 葡萄糖 (glucose) and 葡萄柚籽萃取 (grapefruit seed extract, a preservative) are not grapes.
+  { label: '含葡萄或葡萄乾，可能造成腎衰竭', good: false, sev: ALL(3), kw: [], test: mentionsGrape },
   { label: '含可可或巧克力', good: false, sev: ALL(3), kw: ['可可', '巧克力', 'cocoa', 'chocolate'] },
   { label: '含丙二醇（貓不宜）', good: false, sev: { def: 1, cat: 3 }, kw: ['丙二醇', 'propylene glycol'] },
   { label: '人工防腐劑 BHA／BHT／乙氧基喹', good: false, sev: ALL(2), kw: ['bha', 'bht', '乙氧基喹', 'ethoxyquin'] },
@@ -39,7 +44,7 @@ const RULES: Rule[] = [
   { label: '含魚油或 Omega-3', good: true, sev: { def: 1, rabbit: 0 }, kw: ['魚油', '鮭魚油', 'omega', '亞麻仁', '亞麻籽', 'fish oil', 'salmon oil', 'flaxseed'] },
 ];
 const MEAT = ['雞肉', '去骨雞', '雞', '牛肉', '羊肉', '鴨肉', '鴨', '魚', '鮭', '鮪', '火雞', 'chicken', 'beef', 'lamb', 'duck', 'salmon', 'fish', 'turkey', '鹿肉', '豬肉'];
-const NOT_MEAT = ['雞蛋', '雞精', '魚油', '鮭魚油'];
+const NOT_MEAT = ['雞蛋', '雞精', '魚油', '鮭魚油', '雞油', '雞脂', 'fish oil', 'salmon oil', 'chicken fat', 'egg', 'fish meal oil'];
 const FILLER = ['玉米', '小麥', 'corn', 'wheat'];
 const HAY = ['牧草', '提摩西', '苜蓿', 'timothy', 'alfalfa', 'hay'];
 
@@ -59,7 +64,8 @@ function analyze(text: string, sp: Species): Result {
     return words.some((w) => s.includes(w.toLowerCase()));
   };
 
-  if (sp === 'dog' || sp === 'cat' || sp === 'other') {
+  // Meat-first and grain rules are for dogs and cats only; reptiles, fish, rabbits and birds eat very differently.
+  if (sp === 'dog' || sp === 'cat') {
     if (parts[0] && hasWord(parts[0], MEAT, NOT_MEAT)) {
       goods.push('第一項是肉類');
       score += 10;
@@ -87,7 +93,7 @@ function analyze(text: string, sp: Species): Result {
   for (const r of RULES) {
     const sev = r.sev[sp] ?? r.sev.def;
     if (!sev) continue;
-    if (!parts.some((p) => hasWord(p, r.kw, r.not))) continue;
+    if (r.test ? !r.test(t) : !parts.some((p) => hasWord(p, r.kw, r.not))) continue;
     matched++;
     if (r.good) {
       goods.push(r.label);
@@ -102,6 +108,7 @@ function analyze(text: string, sp: Species): Result {
     score -= 10;
   }
   if (sp === 'bird') notes.push('鳥類飼料差異很大，以上只檢查常見有害成分，不做肉類或穀物評分。');
+  if (sp === 'other') notes.push('這種寵物的飲食差異很大，以上只檢查常見有害成分，不做肉類或穀物評分。');
   if (!matched) return { score: null, goods: [], bads: [], notes };
   return { score: Math.max(0, Math.min(100, score)), goods, bads, notes };
 }
@@ -119,19 +126,36 @@ export default function ScanScreen(_: { params: any }) {
   const [protein, setProtein] = useState<number | null>(null);
   const [moisture, setMoisture] = useState<number | null>(null);
   const [pick, setPick] = useState<string[]>([]);
+  // Guaranteed analysis of the product being analysed (saved with it) — separate from the free calculator below.
+  const [pProtein, setPProtein] = useState<number | null>(null);
+  const [pMoisture, setPMoisture] = useState<number | null>(null);
 
-  useEffect(() => setRes(null), [petId]);
+  const newResult = (r: Result | null) => {
+    setRes(r);
+    setPProtein(null);
+    setPMoisture(null);
+  };
+  useEffect(() => newResult(null), [petId]);
 
-  const dm = protein !== null && moisture !== null && moisture < 100 ? Math.round((protein / (100 - moisture)) * 1000) / 10 : null;
+  const dmOf = (p: number | null, m: number | null) =>
+    p !== null && m !== null && m < 100 && p + m <= 100 ? Math.round((p / (100 - m)) * 1000) / 10 : null;
+  const badSum = (p: number | null, m: number | null) => p !== null && m !== null && p + m > 100;
+  const dm = dmOf(protein, moisture);
+  const pdm = dmOf(pProtein, pMoisture);
   const dmGoal = sp === 'cat' ? 26 : sp === 'dog' ? 18 : null;
 
   const save = () => {
     if (!res || res.score === null) return;
     if (!name.trim()) return toast('請輸入產品名稱');
+    if (badSum(pProtein, pMoisture)) return toast('粗蛋白加水分不能超過 100%');
+    const label = KIND_LABEL[sp];
+    const full = name.includes(`（${label}）`) ? name.trim() : `${name.trim()}（${label}）`;
     update((d) => {
-      d.scans.unshift({ id: uid('sc'), name: name.trim(), date: today(), score: res.score as number, protein: dm ?? undefined, text });
+      d.scans.unshift({ id: uid('sc'), name: full, date: today(), score: res.score as number, protein: pdm ?? undefined, text: text.slice(0, 500) });
     });
     setName('');
+    setPProtein(null);
+    setPMoisture(null);
     toast('已儲存，可以和其他產品比較');
   };
 
@@ -142,11 +166,11 @@ export default function ScanScreen(_: { params: any }) {
       <PetChips value={petId} onChange={setPetId} />
       <Sub>可用手機相機的「原況文字」或「Google 智慧鏡頭」複製包裝上的成分文字，再貼到下方。</Sub>
       <Row gap={8} style={{ flexWrap: 'wrap' }}>
-        <Btn small kind="soft" title="範例：優質乾糧" onPress={() => { setText(CONTENT.sampleGood); setRes(analyze(CONTENT.sampleGood, sp)); }} />
-        <Btn small kind="soft" title="範例：有爭議成分" onPress={() => { setText(CONTENT.sampleBad); setRes(analyze(CONTENT.sampleBad, sp)); }} />
+        <Btn small kind="soft" title="範例：優質乾糧" onPress={() => { setText(CONTENT.sampleGood); newResult(analyze(CONTENT.sampleGood, sp)); }} />
+        <Btn small kind="soft" title="範例：有爭議成分" onPress={() => { setText(CONTENT.sampleBad); newResult(analyze(CONTENT.sampleBad, sp)); }} />
       </Row>
-      <Field label="成分表" value={text} onChangeText={(t) => { setText(t); setRes(null); }} multiline placeholder="例如：去骨雞肉、糙米、豌豆、鮭魚油、牛磺酸…" />
-      <Btn title="分析成分" disabled={!text.trim()} onPress={() => setRes(analyze(text, sp))} />
+      <Field label="成分表" value={text} onChangeText={(t) => { setText(t); newResult(null); }} multiline placeholder="例如：去骨雞肉、糙米、豌豆、鮭魚油、牛磺酸…" />
+      <Btn title="分析成分" disabled={!text.trim()} onPress={() => newResult(analyze(text, sp))} />
 
       {res ? (
         <Card style={{ gap: 12 }}>
@@ -172,6 +196,12 @@ export default function ScanScreen(_: { params: any }) {
               })}
               {!res.bads.length ? <Text style={{ fontSize: 14, color: C.greenDark }}>沒有發現需要注意的成分</Text> : null}
               <Field label="產品名稱（儲存用）" value={name} onChangeText={setName} placeholder="例如：某品牌雞肉成犬糧" />
+              <Label>這個產品的保證分析值（選填，用來比較蛋白質）</Label>
+              <Row gap={10}>
+                <View style={{ flex: 1 }}><NumberField label="粗蛋白" unit="%" value={pProtein} onChange={setPProtein} /></View>
+                <View style={{ flex: 1 }}><NumberField label="水分" unit="%" value={pMoisture} onChange={setPMoisture} error={badSum(pProtein, pMoisture) ? '兩者相加不能超過 100%' : null} /></View>
+              </Row>
+              {pdm !== null ? <Sub>乾物質蛋白質 {pdm}%</Sub> : null}
               <Btn small kind="outline" title="儲存結果" onPress={save} />
             </>
           )}
@@ -185,7 +215,7 @@ export default function ScanScreen(_: { params: any }) {
           <Sub>包裝的「保證分析值」是含水分的數字。換算成乾物質，乾糧和罐頭才能互相比較。</Sub>
           <Row gap={10}>
             <View style={{ flex: 1 }}><NumberField label="粗蛋白" unit="%" value={protein} onChange={setProtein} /></View>
-            <View style={{ flex: 1 }}><NumberField label="水分" unit="%" value={moisture} onChange={setMoisture} /></View>
+            <View style={{ flex: 1 }}><NumberField label="水分" unit="%" value={moisture} onChange={setMoisture} error={badSum(protein, moisture) ? '兩者相加不能超過 100%' : null} /></View>
           </Row>
           {dm !== null ? (
             <View style={{ gap: 4 }}>
@@ -203,7 +233,7 @@ export default function ScanScreen(_: { params: any }) {
       <Section title="已儲存的產品">
         {store.scans.length ? (
           <>
-            <Sub>選兩個產品可以並排比較。</Sub>
+            <Sub>選兩個產品可以並排比較。名稱後面括號是評分時用的寵物種類，不同種類的分數不能直接比較。</Sub>
             {store.scans.map((x) => {
               const on = pick.includes(x.id);
               return (
@@ -215,7 +245,7 @@ export default function ScanScreen(_: { params: any }) {
                     <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>{x.name}</Text>
                     <Sub>{x.date.replace(/-/g, '/')}{x.protein ? ` · 乾物質蛋白質 ${x.protein}%` : ''}</Sub>
                   </View>
-                  <Btn small kind="ghost" title="刪除" textStyle={{ color: C.danger }} onPress={() => confirm(`刪除「${x.name}」？`, '', () => {
+                  <Btn small kind="ghost" title="刪除" textStyle={{ color: C.danger }} onPress={() => confirm(`刪除「${x.name}」？`, '刪除後無法復原。', () => {
                     update((d) => { d.scans = d.scans.filter((y) => y.id !== x.id); });
                     setPick(pick.filter((y) => y !== x.id));
                   })} />
