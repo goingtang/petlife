@@ -30,7 +30,7 @@
 
 ## 2. 上架前要填好的東西
 
-- [ ] **聯絡信箱**：把 `docs/privacy.html`、`docs/index.html` 裡的 `[請填入聯絡信箱]` 換成你要公開的信箱（建議另開一個專用信箱）。
+- [x] **聯絡信箱**：已填入 mypetlifedaily@gmail.com（docs/privacy.html、docs/index.html、App 內隱私說明）。
 - [ ] **開啟 GitHub Pages**：GitHub repo → Settings → Pages → Source 選「Deploy from a branch」，Branch 選 `main`、資料夾選 `/docs` → Save。幾分鐘後隱私權政策網址就是：
   `https://goingtang.github.io/petlife/privacy.html`
 - [ ] **App 名稱**：商店顯示名稱建議「PetPal 寵物生活」（App 圖示下方仍顯示 PetPal）。先到兩個商店搜尋確認沒有撞名。

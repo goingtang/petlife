@@ -31,6 +31,7 @@ export default function PrivacyScreen(_: { params: any }) {
       <View style={{ gap: 8 }}>
         <Btn kind="outline" title="開啟完整隱私權政策" onPress={() => openUrl(PRIVACY_URL)} />
         <Sub style={{ fontSize: 12 }}>完整版本：{PRIVACY_URL}</Sub>
+        <Btn kind="ghost" title="問題請來信 mypetlifedaily@gmail.com" onPress={() => openUrl('mailto:mypetlifedaily@gmail.com')} />
       </View>
     </Screen>
   );
