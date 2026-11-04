@@ -3,7 +3,7 @@ import type { Store, Reminder, Med, Supply, Entry, Pet, GroomTask } from './type
 import { addDays, addMonths, daysBetween, parseYmd, today } from './date';
 
 export const KIND_LABEL: Record<Pet['kind'], string> = { dog: '狗', cat: '貓', rabbit: '兔子', bird: '鳥', other: '其他' };
-export const SEX_LABEL = { male: '公', female: '母' } as const;
+export const SEX_LABEL: Record<string, string> = { male: '公', female: '母', u: '' }; // 'u' = 不確定, shown as nothing
 
 // ---------- Reminders ----------
 
@@ -58,9 +58,9 @@ export function entriesFor(store: Store, petId: string, form?: Entry['form']) {
   return store.entries.filter((e) => e.petId === petId && (!form || e.form === form)).sort((a, b) => (a.at < b.at ? 1 : -1));
 }
 
-export function latestGrowth(store: Store, petId: string): { weight: number; length: number } | null {
+export function latestGrowth(store: Store, petId: string): { weight: number; length: number | null } | null {
   const g = entriesFor(store, petId, 'growth')[0];
-  return g ? { weight: Number(g.v.weight), length: Number(g.v.length) } : null;
+  return g ? { weight: Number(g.v.weight), length: Number(g.v.length) > 0 ? Number(g.v.length) : null } : null;
 }
 
 const FOOD: Record<string, string> = { dry: '乾糧', wet: '濕食', hay: '牧草', veg: '蔬菜', water: '飲水', treat: '零食' };
@@ -232,3 +232,65 @@ export function isRoutineReminder(r: Reminder): boolean {
 export function safeFileName(s: string): string {
   return s.replace(/[\\/:*?"<>|\n\r]+/g, '-').trim() || 'petpal';
 }
+
+// ---------- First-run helpers ----------
+
+/** One item per calendar week, the same all week (Monday-based week number since 1970). */
+export function weeklyPick<T>(list: T[], td: string): T | undefined {
+  if (!list.length) return undefined;
+  const days = Math.floor(Date.parse(td + 'T00:00:00Z') / 86400000);
+  const week = Math.floor((days + 3) / 7); // 1970-01-01 was a Thursday; +3 makes weeks start on Monday
+  return list[((week % list.length) + list.length) % list.length];
+}
+
+/**
+ * Whether Today should suggest a backup: 'never' when nothing was ever exported and there are 20+ records,
+ * 'stale' when the last backup is over 30 days old and something was added since. Dismissing sets
+ * backupNudgeAt, which silences it for 14 days.
+ */
+export function backupNudge(store: Store, td: string): 'never' | 'stale' | null {
+  const s = store as Store & { lastBackupAt?: string | null; backupNudgeAt?: string | null };
+  if (s.backupNudgeAt && daysBetween(s.backupNudgeAt.slice(0, 10), td) < 14) return null;
+  const records = store.entries.length + store.journal.length;
+  if (!s.lastBackupAt) return records >= 20 ? 'never' : null;
+  const last = s.lastBackupAt.slice(0, 10);
+  if (daysBetween(last, td) <= 30) return null;
+  const changed = store.entries.some((e) => e.at.slice(0, 10) > last) || store.journal.some((j) => j.at.slice(0, 10) > last);
+  return changed ? 'stale' : null;
+}
+
+/** Microchip numbers in Taiwan are 15 digits. Empty is allowed. */
+export const validChip = (chip: string) => !chip.trim() || /^\d{15}$/.test(chip.trim());
+
+export type SuggestedReminder = { key: string; title: string; repeat: Reminder['repeat']; months: number };
+
+/** Reminders worth setting up for a new pet of this kind (next date defaults to about a month away). */
+export function suggestedReminders(kind: Pet['kind']): SuggestedReminder[] {
+  if (kind === 'dog')
+    return [
+      { key: 'rabies', title: '狂犬病疫苗', repeat: 'yearly', months: 1 },
+      { key: 'heartworm', title: '心絲蟲預防', repeat: 'monthly', months: 1 },
+      { key: 'deworm', title: '體內外驅蟲', repeat: 'monthly', months: 1 },
+    ];
+  if (kind === 'cat')
+    return [
+      { key: 'rabies', title: '狂犬病疫苗', repeat: 'yearly', months: 1 },
+      { key: 'fvrcp', title: '三合一疫苗', repeat: 'yearly', months: 1 },
+      { key: 'deworm', title: '體內外驅蟲', repeat: 'monthly', months: 1 },
+    ];
+  return [{ key: 'checkup', title: '年度健康檢查', repeat: 'yearly', months: 1 }];
+}
+
+/** Reminder presets with their usual repeat, limited to the kinds they apply to (empty = all kinds). */
+export const REMINDER_PRESETS: { title: string; repeat: Reminder['repeat']; kinds: Pet['kind'][] }[] = [
+  { title: '狂犬病疫苗', repeat: 'yearly', kinds: ['dog', 'cat'] },
+  { title: '八合一疫苗', repeat: 'yearly', kinds: ['dog'] },
+  { title: '三合一疫苗', repeat: 'yearly', kinds: ['cat'] },
+  { title: '心絲蟲預防藥', repeat: 'monthly', kinds: ['dog', 'cat'] },
+  { title: '體內外驅蟲', repeat: 'monthly', kinds: ['dog', 'cat', 'rabbit'] },
+  { title: '年度健康檢查', repeat: 'yearly', kinds: [] },
+  { title: '回診', repeat: 'once', kinds: [] },
+  { title: '剪指甲', repeat: 'monthly', kinds: [] },
+];
+
+export const presetsFor = (kind?: Pet['kind']) => REMINDER_PRESETS.filter((p) => !kind || !p.kinds.length || p.kinds.includes(kind));

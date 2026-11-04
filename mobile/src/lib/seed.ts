@@ -50,6 +50,8 @@ export function emptyStore(): Store {
     sample: false,
     disclaimerOk: false,
     locConsent: false,
+    lastBackupAt: null,
+    backupNudgeAt: null,
   };
 }
 

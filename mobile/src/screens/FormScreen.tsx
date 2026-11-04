@@ -9,7 +9,7 @@ import {
 } from '../ui/kit';
 import { C } from '../ui/theme';
 import { today, hm, addDays } from '../lib/date';
-import { latestGrowth, tasksFor, doneBy, primaryVetPhone, FOOD_LABEL } from '../lib/domain';
+import { latestGrowth, tasksFor, doneBy, primaryVetPhone, FOOD_LABEL, presetsFor } from '../lib/domain';
 import { choosePhotos, callPhone, deleteFile, usePendingFiles } from '../lib/files';
 import { uid } from '../lib/seed';
 import type { Entry, JournalEntry, Reminder, Contact } from '../lib/types';
@@ -20,7 +20,6 @@ const opts = (m: Record<string, string>) => Object.entries(m).map(([value, label
 const SIGNS = ['嘔吐', '腹瀉', '搔癢', '沒精神', '咳嗽', '打噴嚏', '食慾差', '跛腳', '眼睛分泌物'];
 const MOODS = ['開心', '平靜', '黏人', '鬧脾氣', '不舒服'];
 const ACTS = ['散步', '玩耍', '抱抱', '洗澡', '訓練', '點心', '梳毛', '一起午睡'];
-const REM_PRESETS = ['狂犬病疫苗', '八合一疫苗', '三合一疫苗', '心絲蟲預防藥', '體內外驅蟲', '年度健康檢查', '回診', '剪指甲'];
 const RELS = ['主治醫院', '家人', '保母', '鄰居', '其他'];
 
 const slot = (t: string) => {
@@ -51,7 +50,8 @@ export default function FormScreen({ params }: { params: any }) {
       case 'health':
         return { hType: ev.hType ?? 'symptom', signs: ev.signs ?? [], severity: ev.severity ?? 'mild', medName: ev.medName ?? '', clinic: ev.clinic ?? (store.vets[petId]?.name || ''), stool: ev.stool ?? 'normal', docs: ev.docs ?? [], note: ev.note ?? '' };
       case 'growth':
-        return { weight: ev.weight ?? g?.weight ?? 1, length: ev.length ?? g?.length ?? 20, body: ev.body ?? 'ideal' };
+        // No made-up starting weight: the first weight is typed in. Length is optional.
+        return { weight: ev.weight ?? g?.weight ?? null, length: ev.length ?? (existingEntry ? null : g?.length ?? null), body: ev.body ?? 'ideal' };
       case 'reminder':
         return existingRem ? { ...existingRem } : { title: '', date: addDays(today(), 7), repeat: 'once', notify: true };
       case 'diary':
@@ -111,6 +111,7 @@ export default function FormScreen({ params }: { params: any }) {
     if (v.hType === 'med' && !v.medName.trim()) errors.medName = '請填寫藥品名稱';
     if (v.hType === 'visit' && !v.clinic.trim()) errors.clinic = '請填寫醫院';
   }
+  if (form === 'growth' && !(Number(v.weight) > 0)) errors.weight = '請輸入體重';
   if (form === 'reminder' && !v.title.trim()) errors.title = '請填寫提醒事項';
   if (form === 'reminder' && !v.date) errors.date = '請選擇日期';
   if (form === 'contact') {
@@ -131,7 +132,8 @@ export default function FormScreen({ params }: { params: any }) {
 
   const entryAt = () => `${date}T${/^\d{2}:\d{2}$/.test(time) ? time : '12:00'}`;
   // A log for today can't be in the future (a minute of slack for the clock ticking over while saving).
-  const futureTime = date === today() && time > hm();
+  const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const futureTime = date === today() && /^\d{2}:\d{2}$/.test(time) && mins(time) - mins(hm()) > 1;
   // The care task a feed log will tick off (same food, same part of the day, not done yet).
   const feedTask =
     form === 'feed' && !editId && date === today()
@@ -166,6 +168,7 @@ export default function FormScreen({ params }: { params: any }) {
         clean.note = v.note.trim();
         if (v.food === 'water') delete clean.appetite;
       }
+      if (form === 'growth' && !(Number(clean.length) > 0)) delete clean.length;
       if (form === 'health') {
         const keep: Record<string, string[]> = { symptom: ['signs', 'severity'], med: ['medName'], visit: ['clinic', 'docs'], poop: ['stool'] };
         for (const k of ['signs', 'severity', 'medName', 'clinic', 'docs', 'stool']) if (!keep[v.hType].includes(k)) delete clean[k];
@@ -363,8 +366,9 @@ export default function FormScreen({ params }: { params: any }) {
 
       {form === 'growth' && (
         <>
-          <Stepper label="體重" value={v.weight} onChange={(x) => set('weight', x)} step={pet?.kind === 'dog' ? 0.1 : 0.05} min={0.05} decimals={2} unit="kg" />
-          <Stepper label="身長" value={v.length} onChange={(x) => set('length', x)} step={0.5} min={1} decimals={1} unit="cm" />
+          <Stepper label="體重" value={v.weight} onChange={(x) => set('weight', x)} step={pet?.kind === 'dog' ? 0.1 : 0.05} min={0.05} max={150} decimals={2} unit="kg" start={pet?.kind === 'dog' ? 5 : pet?.kind === 'cat' ? 4 : 1} error={err('weight')} placeholder="點一下輸入體重" />
+          <Stepper label="身長（選填）" value={v.length} onChange={(x) => set('length', x)} step={0.5} min={1} max={300} decimals={1} unit="cm" start={pet?.kind === 'dog' ? 40 : 30} placeholder="不量也可以" />
+          {v.length ? <Btn small kind="ghost" title="不記錄身長" onPress={() => set('length', null)} style={{ alignSelf: 'flex-start' }} /> : null}
           <View style={{ gap: 8 }}>
             <Label>體態</Label>
             <Segment options={[{ value: 'thin', label: '偏瘦' }, { value: 'ideal', label: '理想' }, { value: 'chubby', label: '偏胖' }]} value={v.body} onChange={(x) => set('body', x)} />
@@ -376,7 +380,16 @@ export default function FormScreen({ params }: { params: any }) {
       {form === 'reminder' && (
         <>
           <Field label="提醒事項" required value={v.title} onChangeText={(t) => set('title', t)} placeholder="例如：狂犬病疫苗" error={err('title')} />
-          <Choice options={REM_PRESETS.map((x) => ({ value: x, label: x }))} value={v.title} onChange={(x) => set('title', x)} />
+          <Choice
+            options={presetsFor(pet?.kind).map((x) => ({ value: x.title, label: x.title }))}
+            value={v.title}
+            onChange={(x) => {
+              set('title', x);
+              // A preset brings its usual repeat (狂犬病 每年, 驅蟲 每月) unless this reminder already has one.
+              const pr = presetsFor(pet?.kind).find((p) => p.title === x);
+              if (pr && !existingRem) set('repeat', pr.repeat);
+            }}
+          />
           <DateField label="日期" value={v.date} onChange={(x) => set('date', x)} error={err('date')} />
           <View style={{ gap: 8 }}>
             <Label>重複</Label>

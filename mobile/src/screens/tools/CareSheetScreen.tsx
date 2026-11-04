@@ -32,7 +32,7 @@ function petSections(store: Store, pet: Pet, from: string, to: string): Sec[] {
     {
       title: '基本資料',
       rows: [
-        { k: '品種', v: [pet.breed || KIND_LABEL[pet.kind], ageText(pet.birthday), SEX_LABEL[pet.sex] + (pet.neutered ? '（已結紮）' : '')].filter(Boolean).join(' · ') },
+        { k: '品種', v: [pet.breed || KIND_LABEL[pet.kind], ageText(pet.birthday), (SEX_LABEL[pet.sex] ? SEX_LABEL[pet.sex] + (pet.neutered ? '（已結紮）' : '') : '')].filter(Boolean).join(' · ') },
         { k: '體重', v: g ? `${g.weight} kg` : '未記錄' },
         { k: '晶片', v: pet.chip || '無' },
       ],

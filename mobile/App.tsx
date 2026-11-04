@@ -14,6 +14,7 @@ import HealthScreen from './src/screens/HealthScreen';
 import ActivityScreen from './src/screens/ActivityScreen';
 import MoreScreen from './src/screens/MoreScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
+import * as Notifications from 'expo-notifications';
 import { initNotifications, syncNotifications } from './src/lib/notify';
 import { C } from './src/ui/theme';
 
@@ -24,8 +25,8 @@ const hideSplash = () => SplashScreen.hideAsync().catch(() => {});
 setTimeout(hideSplash, 8000);
 
 /** Last line of defence: a screen that throws shows a way out instead of a blank (or frozen splash) app. */
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
-  state = { error: null as Error | null };
+class ErrorBoundary extends React.Component<{ children: React.ReactNode; onReset?: () => void }, { error: Error | null; n: number }> {
+  state = { error: null as Error | null, n: 0 };
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
@@ -33,7 +34,8 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
     hideSplash();
   }
   render() {
-    if (!this.state.error) return this.props.children;
+    // `n` remounts the children after a retry, so a screen that failed starts from a clean state.
+    if (!this.state.error) return <React.Fragment key={this.state.n}>{this.props.children}</React.Fragment>;
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 28, gap: 14 }}>
         <Text style={{ fontSize: 22, fontWeight: '700', color: C.ink }}>發生了一點問題</Text>
@@ -41,7 +43,14 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
           你的資料仍保存在手機裡。請按下面的按鈕再試一次；如果一直出現，請完全關閉 App 後重新開啟，並來信 mypetlifedaily@gmail.com。
         </Text>
         <Pressable
-          onPress={() => this.setState({ error: null })}
+          onPress={() => {
+            try {
+              this.props.onReset?.();
+            } catch {
+              // ignore
+            }
+            this.setState((s) => ({ error: null, n: s.n + 1 }));
+          }}
           accessibilityRole="button"
           style={{ minHeight: 48, paddingHorizontal: 28, borderRadius: 24, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' }}
         >
@@ -50,6 +59,55 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { err
       </View>
     );
   }
+}
+
+/** Inner boundary: retrying closes every pushed screen and goes back to 今天, so the failing screen isn't shown again. */
+function ShellBoundary({ children }: { children: React.ReactNode }) {
+  const { popToRoot, setTab } = useNav();
+  return (
+    <ErrorBoundary
+      onReset={() => {
+        popToRoot();
+        setTab('today');
+      }}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+
+/** Tapping a notification opens the matching screen (用藥打卡, 健康, 用品庫存…). */
+function NotificationRouter() {
+  const { ready, store } = useStore();
+  const { setTab, push } = useNav();
+  const go = useRef<(route: unknown) => void>(() => {});
+  go.current = (route) => {
+    if (typeof route !== 'string' || !store.onboarded) return;
+    if (route === 'health' || route === 'today') setTab(route);
+    else if (SCREENS[route]) {
+      setTab('today');
+      push(route);
+    }
+  };
+  useEffect(() => {
+    if (!ready || Platform.OS === 'web') return;
+    let handledLast = false;
+    // Opened from a notification while the app was closed.
+    Notifications.getLastNotificationResponseAsync()
+      .then((r) => {
+        if (r && !handledLast) {
+          handledLast = true;
+          go.current(r.notification.request.content.data?.route);
+        }
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
+      handledLast = true;
+      go.current(r.notification.request.content.data?.route);
+    });
+    return () => sub.remove();
+  }, [ready]);
+  return null;
 }
 
 const TABS: { k: TabName; name: string; d: string; d2?: string }[] = [
@@ -249,16 +307,20 @@ function Shell() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <StoreProvider>
-        <NavProvider>
-          <StatusBar style="dark" />
-          <ErrorBoundary>
-            <Shell />
-          </ErrorBoundary>
-          <NotificationSync />
-          <Toast />
-        </NavProvider>
-      </StoreProvider>
+      {/* Outer boundary: an error in the providers, notifications or toast still shows a way out. */}
+      <ErrorBoundary>
+        <StoreProvider>
+          <NavProvider>
+            <StatusBar style="dark" />
+            <ShellBoundary>
+              <Shell />
+            </ShellBoundary>
+            <NotificationSync />
+            <NotificationRouter />
+            <Toast />
+          </NavProvider>
+        </StoreProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

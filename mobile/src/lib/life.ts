@@ -95,3 +95,34 @@ export function mentionsGrape(text: string): boolean {
 export function roundCoord(x: number): number {
   return Math.round(x * 1000) / 1000;
 }
+
+/**
+ * Rewrite every file reference in the data (pet photos, diary photos, health attachments, documents,
+ * milestones, lost-pet poster, receipts). Mutates `s` — call inside an immer producer or on a copy.
+ * Used to move references after the app folder changed and when restoring a backup with photos.
+ */
+export function mapFileUris(s: any, fn: (u: string) => string): void {
+  const m = (u: any) => (typeof u === 'string' && u ? fn(u) : u);
+  for (const p of s.pets || []) p.photo = m(p.photo);
+  for (const j of s.journal || []) j.photos = (j.photos || []).map(m);
+  for (const e of s.entries || []) if (e.v && Array.isArray(e.v.docs)) e.v.docs = e.v.docs.map(m);
+  for (const d of s.docs || []) {
+    d.fileUri = m(d.fileUri);
+    d.pages = (d.pages || []).map(m);
+  }
+  for (const x of s.milestones || []) x.photo = m(x.photo);
+  for (const k of Object.keys(s.lost || {})) if (s.lost[k]) s.lost[k].photo = m(s.lost[k].photo);
+  for (const x of s.expenses || []) x.receipt = m(x.receipt);
+}
+
+/**
+ * A file the app saved lives at `<documents>/petpal/<name>`. On iOS the documents path can change after
+ * an update or an iCloud restore; point old absolute paths at the current folder (same file name).
+ * Anything that isn't one of our files (web blob URLs, content:// picks) is left alone.
+ */
+export function rebaseUri(uri: string, docRoot: string): string {
+  const root = docRoot.endsWith('/') ? docRoot : docRoot + '/';
+  const i = uri.lastIndexOf('/petpal/');
+  if (!uri.startsWith('file:') || i < 0 || uri.startsWith(root + 'petpal/')) return uri;
+  return root + 'petpal/' + uri.slice(i + '/petpal/'.length);
+}

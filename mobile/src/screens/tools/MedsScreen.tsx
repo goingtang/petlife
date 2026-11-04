@@ -6,16 +6,11 @@ import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { useBackHandler, useNav } from '../../nav';
 import type { Med, MedFreq, Store } from '../../lib/types';
-import { adherence, doseKey, entriesFor, FREQ_LABEL, medDueOn, nextDueDate } from '../../lib/domain';
+import { adherence, doseKey, entriesFor, FREQ_LABEL, nextDueDate } from '../../lib/domain';
 import { addDays, daysBetween, shortDate, today } from '../../lib/date';
 import { uid } from '../../lib/seed';
 import { applyMedEdit, stopMed, freqText } from '../../lib/health';
-
-// Doses whose check-in actually took a pill off the count, and doses checked in since the app started.
-// Un-checking gives a pill back only when the check-in took one (a check-in at count 0 took nothing),
-// so the count can't creep above what it was. Kept at module level so it survives leaving the screen.
-const decremented = { current: new Set<string>() };
-const sessionTaken = { current: new Set<string>() };
+import { applyDose, doseMemory, dosesDue, resetDoseMemory } from '../../lib/doses';
 
 const PRESET = ['07:00', '08:00', '09:00', '12:00', '18:00', '20:00', '21:00'];
 
@@ -163,9 +158,8 @@ export default function MedsScreen(_: { params: any }) {
   const pet = usePet();
   const [editing, setEditing] = useState<Med | 'new' | null>(null);
   // After 清除所有資料 / restoring a backup without meds, forget check-ins from the old data.
-  if (!store.meds.length && (decremented.current.size || sessionTaken.current.size)) {
-    decremented.current.clear();
-    sessionTaken.current.clear();
+  if (!store.meds.length && (doseMemory.decremented.size || doseMemory.sessionTaken.size)) {
+    resetDoseMemory();
   }
   const [which, setWhich] = useState<'today' | 'yesterday'>('today');
   const [showEnded, setShowEnded] = useState(false);
@@ -212,33 +206,10 @@ export default function MedsScreen(_: { params: any }) {
   const day = which === 'today' ? td : addDays(td, -1);
   const mine = store.meds.filter((m) => m.petId === pet.id);
   const adh = adherence(store, pet.id);
-  const doses: { m: Med; t: string }[] = [];
-  mine.filter((m) => medDueOn(m, day)).forEach((m) => m.times.forEach((t) => doses.push({ m, t })));
-  doses.sort((a, b) => (a.t < b.t ? -1 : 1));
+  const doses = dosesDue(store, pet.id, day);
 
   const setDose = (m: Med, t: string, v: 'taken' | 'skip' | null) =>
-    update((d) => {
-      const k = doseKey(day, m.id, t);
-      const prev = d.doses[k];
-      const med = d.meds.find((x) => x.id === m.id);
-      if (med && med.count !== null && med.count !== undefined) {
-        if (prev !== 'taken' && v === 'taken') {
-          if (med.count > 0) {
-            med.count -= 1;
-            decremented.current.add(k);
-          } else decremented.current.delete(k);
-        }
-        if (prev === 'taken' && v !== 'taken') {
-          // Taken earlier in this run: give back only if it was decremented. Taken before the app started: assume it was.
-          const known = sessionTaken.current.has(k) ? decremented.current.has(k) : true;
-          if (known) med.count += 1;
-          decremented.current.delete(k);
-        }
-      }
-      if (v === 'taken') sessionTaken.current.add(k);
-      if (v) d.doses[k] = v;
-      else delete d.doses[k];
-    });
+    update((d) => applyDose(d, day, m.id, t, v), { soon: true });
 
   const ended = (m: Med) => !!m.end && m.end < td;
   const activeMeds = mine.filter((m) => !ended(m)).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));

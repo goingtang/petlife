@@ -2,7 +2,7 @@
 import { Image as ExpoImage } from 'expo-image';
 import React, { useState } from 'react';
 import {
-  Alert, FlatList, Image, ImageStyle, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
+  Alert, FlatList, Image, ImageStyle, Keyboard, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -44,18 +44,33 @@ export type ScreenList<T> = {
   footer?: React.ReactNode;
 };
 
+/** True while the on-screen keyboard is showing. */
+export function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  React.useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setOpen(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return open;
+}
+
 export function Screen<T = unknown>({
   title, subtitle, children, right, root, scroll = true, footer, bg, scrollRef, list,
 }: {
   title?: string; subtitle?: string; children: React.ReactNode; right?: React.ReactNode; root?: boolean;
   scroll?: boolean; footer?: React.ReactNode; bg?: string;
-  /** When set, the screen scrolls as a virtualized list: `children` become the list header. */
+  /** When set, the screen scrolls as a virtualized list: `children` become the list header. `scrollRef` then points at the FlatList (use scrollToOffset, not scrollTo). */
   list?: ScreenList<T>;
   /** Pass a ref to scroll programmatically, e.g. to an edit form that just opened. */
   scrollRef?: React.RefObject<any>;
 }) {
   const insets = useSafeAreaInsets();
   const nav = useNav();
+  const kbOpen = useKeyboardOpen();
   const header = (
     <View style={{ gap: 4, marginBottom: 6 }}>
       {!root && (
@@ -84,20 +99,20 @@ export function Screen<T = unknown>({
           ref={scrollRef}
           data={list.data}
           keyExtractor={list.keyExtractor}
-          renderItem={({ item, index }) => list.renderItem(item, index) ?? <View />}
+          // Spacing on each cell (not `gap` on the container) so the list's own spacer views don't shift scroll estimates.
+          renderItem={({ item, index }) => <View style={{ marginTop: 16 }}>{list.renderItem(item, index)}</View>}
           ListHeaderComponent={
             <View style={{ gap: 16 }}>
               {header}
               {children}
             </View>
           }
-          ListFooterComponent={list.footer ? <View style={{ gap: 16 }}>{list.footer}</View> : undefined}
-          contentContainerStyle={[pad, { gap: 16 }]}
+          ListFooterComponent={list.footer ? <View style={{ gap: 16, marginTop: 16 }}>{list.footer}</View> : undefined}
+          contentContainerStyle={pad}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
-          removeClippedSubviews={Platform.OS === 'android'}
         />
       ) : scroll ? (
         <ScrollView ref={scrollRef} contentContainerStyle={[pad, { gap: 16 }]} keyboardShouldPersistTaps="handled">
@@ -110,7 +125,8 @@ export function Screen<T = unknown>({
           {children}
         </View>
       )}
-      {footer ? <View style={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 12, paddingTop: 8, backgroundColor: bg ?? C.bg }}>{footer}</View> : null}
+      {/* While the keyboard is open it already covers the system bar, so drop the safe-area inset there. */}
+      {footer ? <View style={{ paddingHorizontal: 20, paddingBottom: (kbOpen ? 0 : insets.bottom) + 12, paddingTop: 8, backgroundColor: bg ?? C.bg }}>{footer}</View> : null}
     </KeyboardAvoidingView>
   );
 }
@@ -477,27 +493,65 @@ export function TimeField({ label, value, onChange }: { label?: string; value: s
 }
 
 export function Stepper({
-  label, value, onChange, step = 1, min = 0, max = 1e9, unit, decimals = 0,
+  label, value, onChange, step = 1, min = 0, max = 1e9, unit, decimals = 0, start, error, placeholder = '點一下輸入',
 }: {
-  label?: string; value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; unit?: string; decimals?: number;
+  label?: string; value: number | null; onChange: (v: number) => void; step?: number; min?: number; max?: number; unit?: string; decimals?: number;
+  /** Where ＋／− begin when there is no value yet. */ start?: number; error?: string | null; placeholder?: string;
 }) {
   const round = (n: number) => Math.round(n * 1000) / 1000;
-  const fmt = decimals ? Number(value).toFixed(decimals).replace(/\.?0+$/, '') : String(Math.round(value));
+  const has = value !== null && value !== undefined && !Number.isNaN(value);
+  const fmt = !has ? '' : decimals ? Number(value).toFixed(decimals).replace(/\.?0+$/, '') : String(Math.round(value as number));
+  // Tap the number to type it (a 25 kg dog shouldn't need 240 taps of ＋).
+  const [typing, setTyping] = useState(false);
+  const [text, setText] = useState('');
+  const clamp = (n: number) => Math.min(max, Math.max(min, round(n)));
+  const commit = () => {
+    setTyping(false);
+    const n = Number(text.replace(/,/g, '.'));
+    if (text.trim() !== '' && Number.isFinite(n)) onChange(clamp(decimals ? n : Math.round(n)));
+  };
+  const base = has ? (value as number) : start ?? min;
   return (
     <View style={{ gap: 6 }}>
       {label ? <Label>{label}</Label> : null}
-      <View style={s.stepper}>
-        <Pressable onPress={() => onChange(Math.max(min, round(value - step)))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel="減少">
+      <View style={[s.stepper, error ? { borderWidth: 1.5, borderColor: C.danger } : null]}>
+        <Pressable onPress={() => onChange(has ? clamp(base - step) : clamp(base))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`減少${label ?? ''}`}>
           <Text style={{ fontSize: 22, color: C.ink }}>−</Text>
         </Pressable>
-        <Text style={{ fontSize: 30, fontWeight: '600', color: C.ink }}>
-          {fmt}
-          {unit ? <Text style={{ fontSize: 15, color: C.sub, fontWeight: '400' }}> {unit}</Text> : null}
-        </Text>
-        <Pressable onPress={() => onChange(Math.min(max, round(value + step)))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel="增加">
+        {typing ? (
+          <TextInput
+            autoFocus
+            value={text}
+            onChangeText={(t) => setText(decimals ? t.replace(/[^0-9.,]/g, '') : t.replace(/[^0-9]/g, ''))}
+            onBlur={commit}
+            onSubmitEditing={commit}
+            keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
+            returnKeyType="done"
+            selectTextOnFocus
+            style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: 28, fontWeight: '600', color: C.ink, paddingVertical: 4 }}
+            accessibilityLabel={label ? `輸入${label}` : '輸入數字'}
+          />
+        ) : (
+          <Pressable
+            onPress={() => {
+              setText(fmt);
+              setTyping(true);
+            }}
+            style={{ flex: 1, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+            accessibilityRole="button"
+            accessibilityLabel={`${label ?? ''}${has ? ` ${fmt} ${unit ?? ''}` : ' 尚未填寫'}，點一下直接輸入`}
+          >
+            <Text style={{ fontSize: has ? 30 : 16, fontWeight: has ? '600' : '500', color: has ? C.ink : C.faint }} maxFontSizeMultiplier={1.3}>
+              {has ? fmt : placeholder}
+              {has && unit ? <Text style={{ fontSize: 15, color: C.sub, fontWeight: '400' }}> {unit}</Text> : null}
+            </Text>
+          </Pressable>
+        )}
+        <Pressable onPress={() => onChange(has ? clamp(base + step) : clamp(base))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`增加${label ?? ''}`}>
           <Text style={{ fontSize: 22, color: C.ink }}>＋</Text>
         </Pressable>
       </View>
+      {error ? <Text style={{ fontSize: 12, color: C.danger }}>{error}</Text> : null}
     </View>
   );
 }
@@ -604,13 +658,18 @@ export function PhotoGrid({ photos, onRemove, onAdd, max = 4, size = 76 }: { pho
   );
 }
 
-export function Banner({ text, kind = 'info', action }: { text: string; kind?: 'info' | 'warn' | 'danger' | 'ok'; action?: { label: string; onPress: () => void } }) {
+export function Banner({ text, kind = 'info', action, onClose }: { text: string; kind?: 'info' | 'warn' | 'danger' | 'ok'; action?: { label: string; onPress: () => void }; onClose?: () => void }) {
   const map = { info: [C.blueBg, C.blueInk], warn: [C.yellowBg, '#5E4512'], danger: [C.dangerBg, '#8A3A1F'], ok: [C.greenBg, '#3F5A3B'] } as const;
   const [bg, fg] = map[kind];
   return (
     <View style={{ backgroundColor: bg, borderRadius: 16, padding: 14, gap: 10 }}>
-      <Text style={{ color: fg, fontSize: 14, lineHeight: 21, fontWeight: '500' }}>{text}</Text>
-      {action ? <Btn small kind="outline" title={action.label} onPress={action.onPress} style={{ alignSelf: 'flex-start', borderColor: fg }} textStyle={{ color: fg }} /> : null}
+      <Text style={{ color: fg, fontSize: 14, lineHeight: 21, fontWeight: '500', paddingRight: onClose ? 36 : 0 }}>{text}</Text>
+      {action || onClose ? (
+        <Row gap={8}>
+          {action ? <Btn small kind="outline" title={action.label} onPress={action.onPress} style={{ borderColor: fg }} textStyle={{ color: fg }} /> : null}
+          {onClose ? <Btn small kind="ghost" title="稍後提醒" onPress={onClose} textStyle={{ color: fg }} /> : null}
+        </Row>
+      ) : null}
     </View>
   );
 }

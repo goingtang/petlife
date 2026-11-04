@@ -5,11 +5,11 @@ import { useNav } from '../nav';
 import { Avatar, Badge, Banner, Btn, Card, Chip, ChipRow, Empty, ListCard, P, Progress, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
 import { dateLabel, greeting, today, relTime, ageText, shortDate, hm } from '../lib/date';
-import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, medDueOn, doseKey, KIND_LABEL, SEX_LABEL } from '../lib/domain';
+import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, medDueOn, doseKey, KIND_LABEL, SEX_LABEL, backupNudge, weeklyPick } from '../lib/domain';
 import type { Reminder } from '../lib/types';
-import { CONTENT } from '../data/content';
-
-const TIP_BY_KIND: Record<string, string> = { dog: 'a1', cat: 'a2', rabbit: 'a3', bird: 'a4' };
+import { allArticles } from '../data/content-articles';
+import { applyDose, nextDose } from '../lib/doses';
+import { askPermission } from '../lib/notify';
 
 export default function TodayScreen() {
   const { store, update, toast, setPetId } = useStore();
@@ -19,9 +19,18 @@ export default function TodayScreen() {
   // Re-render once a minute so 下一件事 and 已過時間 follow the clock while the screen stays open.
   const [now, setNow] = useState(hm());
   useEffect(() => {
-    const iv = setInterval(() => setNow(hm()), 60_000);
-    return () => clearInterval(iv);
+    // First tick on the next whole minute, then every minute, so 已過時間 flips right on time.
+    let iv: ReturnType<typeof setInterval> | undefined;
+    const to = setTimeout(() => {
+      setNow(hm());
+      iv = setInterval(() => setNow(hm()), 60_000);
+    }, 60_000 - (Date.now() % 60_000) + 50);
+    return () => {
+      clearTimeout(to);
+      if (iv) clearInterval(iv);
+    };
   }, []);
+  const [notifyHidden, setNotifyHidden] = useState(false);
 
   const header = (
     <Row style={{ justifyContent: 'space-between' }}>
@@ -60,7 +69,7 @@ export default function TodayScreen() {
       if (who) day[id] = who;
       else delete day[id];
       d.taskDone[td] = day;
-    });
+    }, { soon: true });
   const markDone = (id: string, title: string) => {
     setDone(id, store.me);
     toast(`已完成「${title}」`, { action: { label: '復原', onPress: () => setDone(id, null) } });
@@ -85,7 +94,7 @@ export default function TodayScreen() {
     update((d) => {
       const x = d.reminders.find((y) => y.id === r.id);
       if (x) completeReminder(x);
-    });
+    }, { soon: true });
     toast(r.repeat === 'once' ? `已完成「${r.title}」` : `已完成，下次「${r.title}」已排好`, {
       action: {
         label: '復原',
@@ -102,15 +111,55 @@ export default function TodayScreen() {
   const doseTotal = medsToday.reduce((a, m) => a + m.times.length, 0);
   const doseDone = medsToday.reduce((a, m) => a + m.times.filter((t) => store.doses[doseKey(td, m.id, t)]).length, 0);
 
-  const tip = CONTENT.articles.find((a) => a.id === (TIP_BY_KIND[pet.kind] ?? 'a1'))!;
+  const dose = nextDose(store, pet.id, td);
+  const doseLate = !!dose && dose.t <= now;
+  const takeDose = (m: { id: string; name: string }, t: string) => {
+    update((d) => applyDose(d, td, m.id, t, 'taken'), { soon: true });
+    toast(`${m.name} ${t} 已服用`, { action: { label: '復原', onPress: () => update((d) => applyDose(d, td, m.id, t, null), { soon: true }) } });
+  };
+
+  // One tip a week for this kind of pet ('other' gets the reptile / fish / small-mammal and general articles).
+  const tips = allArticles().filter((a) => !a.kinds?.length || a.kinds.includes(pet.kind));
+  const tip = weeklyPick(tips, td) ?? allArticles()[0];
+  const nudge = backupNudge(store, td);
+  const notifyIntroAt: string | null = (store as any).notifyIntroAt ?? null;
+  const showNotifyIntro = !store.notifyEnabled && !store.sample && !notifyIntroAt && !notifyHidden;
+  const closeNotifyIntro = () => {
+    setNotifyHidden(true);
+    update((d) => {
+      (d as any).notifyIntroAt = td;
+    });
+  };
+  const enableNotify = async () => {
+    const ok = await askPermission();
+    if (ok) {
+      update((d) => {
+        d.notifyEnabled = true;
+        (d as any).notifyIntroAt = td;
+      });
+      setNotifyHidden(true);
+      toast('已開啟通知，到時間會提醒你');
+    } else {
+      toast('沒有取得通知權限，可以稍後到「設定」開啟');
+      closeNotifyIntro();
+    }
+  };
   const recent = entriesFor(store, pet.id).slice(0, 4);
-  const sub = [pet.breed || KIND_LABEL[pet.kind], ageText(pet.birthday), SEX_LABEL[pet.sex]].filter(Boolean).join(' · ');
+  const sub = [pet.breed || KIND_LABEL[pet.kind], ageText(pet.birthday), SEX_LABEL[pet.sex] || ''].filter(Boolean).join(' · ');
 
   return (
     <Screen root>
       {header}
       {store.sample ? (
         <Banner kind="warn" text="目前顯示的是範例資料，電話與醫院都是虛構的。開始使用前請到設定清除範例資料。" action={{ label: '前往設定', onPress: () => nav.push('settings') }} />
+      ) : null}
+      {!store.sample && nudge ? (
+        <Banner
+          kind="warn"
+          text={nudge === 'never' ? '資料只存在這支手機。建議定期匯出備份（含照片），換手機或手機遺失時才能還原。' : '已經超過 30 天沒有備份了。匯出一份備份（含照片），換手機時才能還原。'}
+          action={{ label: '前往備份', onPress: () => nav.push('settings') }}
+          onClose={() => update((d) => { d.backupNudgeAt = td; })}
+        />
       ) : null}
       <Row style={{ alignItems: 'flex-end' }}>
         <Text style={{ flex: 1, fontSize: 24, fontWeight: '700', color: C.ink, lineHeight: 32 }}>
@@ -172,6 +221,17 @@ export default function TodayScreen() {
         </Row>
       ) : null}
 
+      {showNotifyIntro ? (
+        <Card style={{ gap: 10, backgroundColor: C.blueBg, borderWidth: 0 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: C.ink }}>要開啟提醒通知嗎？</Text>
+          <P style={{ fontSize: 14 }}>到時間會在手機上提醒你餵藥、照護項目，疫苗與驅蟲到期前一晚也會通知。通知只在這支手機上排定，不會傳到網路。</P>
+          <Row gap={8}>
+            <Btn small title="開啟通知" onPress={enableNotify} style={{ flex: 1 }} />
+            <Btn small kind="soft" title="之後再說" onPress={closeNotifyIntro} style={{ flex: 1 }} />
+          </Row>
+        </Card>
+      ) : null}
+
       <Section title="今日照護" action={{ label: '＋ 記錄', kind: 'primary', onPress: () => nav.push('logPicker') }}>
         {tasks.length ? (
           <ListCard>
@@ -219,12 +279,23 @@ export default function TodayScreen() {
       ) : null}
 
       {doseTotal ? (
-        <Card onPress={() => nav.push('meds')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>今天的用藥</Text>
-            <Sub>{medsToday.map((m) => m.name).join('、')}</Sub>
-          </View>
-          <Badge text={`${doseDone}/${doseTotal}`} bg={doseDone === doseTotal ? C.greenBg : C.yellowBg} fg={doseDone === doseTotal ? C.greenDark : C.yellowInk} />
+        <Card style={{ gap: 10 }}>
+          <Pressable onPress={() => nav.push('meds')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="button" accessibilityLabel={`今天的用藥，已完成 ${doseDone} / ${doseTotal}，點一下看全部`}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>今天的用藥</Text>
+              <Sub numberOfLines={1}>{medsToday.map((m) => m.name).join('、')}</Sub>
+            </View>
+            <Badge text={`${doseDone}/${doseTotal}`} bg={doseDone === doseTotal ? C.greenBg : C.yellowBg} fg={doseDone === doseTotal ? C.greenDark : C.yellowInk} />
+          </Pressable>
+          {dose ? (
+            <Row style={{ borderTopWidth: 1.5, borderTopColor: C.lineSoft, paddingTop: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>{dose.t} {dose.m.name}</Text>
+                <Sub style={{ fontSize: 12, color: doseLate ? C.danger : C.sub }}>{[dose.m.dose, doseLate ? '已過時間' : '下一次'].filter(Boolean).join(' · ')}</Sub>
+              </View>
+              <Btn small title="打卡" style={{ backgroundColor: C.green }} onPress={() => takeDose(dose.m, dose.t)} accessibilityLabel={`${dose.t} ${dose.m.name} 打卡`} />
+            </Row>
+          ) : null}
         </Card>
       ) : null}
 

@@ -198,7 +198,8 @@ function firstDueOnOrAfter(m: Pick<Med, 'freq' | 'start'>, from: string): string
  *   The new one starts today, or the later start the user picked (the old one runs until the day before),
  *   or — weekly/monthly with a past anchor — the first due day from today; then the old one ends now
  *   (today if a dose was already given today, else yesterday) so the two schedules never overlap.
- * - A daily course whose start is only corrected to another past day is edited in place.
+ * - A daily course whose start is only corrected to another past day is edited in place (moving it to
+ *   today splits instead, so the past stays visible).
  * - Weekly/monthly courses whose times/dose change but keep their anchor are edited in place.
  * - Records for times that no longer exist are removed and their pills given back.
  * - A course shortened to before today loses today's records (pills given back).
@@ -218,7 +219,8 @@ export function applyMedEdit(d: MedDraft, medId: string, next: Omit<Med, 'id'>, 
   }
 
   // A daily course whose start date is corrected to another past day: nothing else changed, edit in place.
-  if (old.freq === 'daily' && !freqChanged && !scheduleChanged && startChanged && next.start <= td) {
+  // (Moving it to today goes through the split below, so the days already taken keep their history.)
+  if (old.freq === 'daily' && !freqChanged && !scheduleChanged && startChanged && next.start < td) {
     Object.assign(old, next);
     dropDoses(d, medId, td, next.times);
     return medId;

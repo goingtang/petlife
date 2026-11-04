@@ -180,3 +180,13 @@ export async function wipeAll(): Promise<void> {
   }
   cache.forEach(del);
 }
+
+/** The app's documents folder as a file:// URI (null on web), used to re-point saved photo paths. */
+export function documentRoot(): string | null {
+  if (!native) return null;
+  try {
+    return Paths.document.uri;
+  } catch {
+    return null;
+  }
+}

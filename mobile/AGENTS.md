@@ -41,6 +41,8 @@ Run lint and typecheck before declaring any task done.
 ## Data & conventions
 
 - All data is one `Store` object (`src/lib/types.ts`), saved by `src/lib/persist.ts` to a JSON file in the app's documents folder (temp file + backup). Mutate only via `useStore().update(d => …)` (immer). New fields must get a default in `seed.ts emptyStore()` and, for per-item fields, in `store.tsx migrate()`.
+- Backups (`src/lib/backup.ts`, unit-tested): a .zip with `data.json` + `files/`; data refers to files as `petpal-file:<name>`. Every place that stores a file must be listed in `mapFileUris()` (`src/lib/life.ts`) — it drives backups, restores and the launch-time path fix (`rebaseUri`) when the iOS documents folder moves.
+- Tapping a notification opens `content.data.route` (`noteRoute()` in notify.ts; a tab name or a registry screen), handled by `NotificationRouter` in `App.tsx`.
 - Photos/files: pick with `choosePhotos`/`pickDocument` (`src/lib/files.ts`, photos are shrunk); track them in forms with `usePendingFiles()` so removed or unsaved files are deleted.
 - Sub-views inside a screen (edit forms, detail views) must call `useBackHandler()` from `src/nav.tsx` so the header back button / Android back key close the sub-view first.
 - Feedback: confirm a reversible action with `toast(msg, { action: { label: '復原', onPress } })` and restore the captured item in `onPress`. Keep `confirm()` (kit) for things that can't be undone, e.g. deletes that also remove photos; pass `{ destructive: false }` for plain questions.
@@ -48,7 +50,7 @@ Run lint and typecheck before declaring any task done.
 - Privacy: anything that changes what leaves the phone must be reflected in `docs/privacy.html` (GitHub Pages), `src/screens/PrivacyScreen.tsx` and the store forms described in `RELEASE.md`.
 - Notifications are planned by the pure `planNotifications()` in `src/lib/notify.ts` (unit-tested) and re-synced automatically from `App.tsx`; a sync with the same plan is skipped, so pass `force` after the user changes notification settings.
 - The symptom checker's text for external AI apps is built by `buildAiPrompt()` in `src/lib/aiPrompt.ts` (unit-tested: no phone numbers, addresses, URLs or photos). Toxic content in `src/data/` is checked by `__tests__/content.test.ts`: an item listed because it is toxic must never use level 1 (「少量可」).
-- Saves are debounced 1 s; `dailyMaintenance` prunes `taskDone` (60 days) and `doses` (90 days). Keep new per-day maps pruned the same way so the JSON file stays small.
+- Saves are debounced 1 s (`update(fn, { soon: true })` → 300 ms for single taps such as check-ins); `dailyMaintenance` prunes `taskDone` (60 days) and `doses` (90 days). Keep new per-day maps pruned the same way so the JSON file stays small.
 
 ## Building with EAS
 

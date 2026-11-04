@@ -2,7 +2,7 @@
 // Dates are "YYYY-MM-DD" strings in the phone's local time; timestamps are "YYYY-MM-DDTHH:mm".
 
 export type PetKind = 'dog' | 'cat' | 'rabbit' | 'bird' | 'other';
-export type Sex = 'male' | 'female';
+export type Sex = 'male' | 'female' | 'u'; // 'u' = 不確定（顯示時省略）
 
 export interface Pet {
   id: string;
@@ -267,4 +267,6 @@ export interface Store {
   locConsent?: boolean; // agreed to use location in 附近地點 (asked once, before the system prompt)
   sample?: boolean; // the data is the built-in sample set (phones are fake; a banner says so)
   disclaimerOk?: boolean; // accepted the one-time 症狀檢查 disclaimer
+  lastBackupAt: string | null; // ISO time of the last successful backup export
+  backupNudgeAt: string | null; // YYYY-MM-DD the backup reminder on 今天 was last dismissed
 }

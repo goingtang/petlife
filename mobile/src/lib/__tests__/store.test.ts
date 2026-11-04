@@ -152,3 +152,15 @@ describe('notification plan signature', () => {
     expect(planSignature(planNotifications(s, now))).not.toBe(a);
   });
 });
+
+describe('migrate: backup dates and sex', () => {
+  test('fills in backup dates and keeps valid values', () => {
+    expect(migrate({ v: 1 }).lastBackupAt).toBeNull();
+    expect(migrate({ v: 1 }).backupNudgeAt).toBeNull();
+    const s = migrate({ v: 1, lastBackupAt: '2026-11-01T10:00:00.000Z', backupNudgeAt: '2026-11-02', pets: [{ id: 'p', sex: 'u' }, { id: 'q', sex: 'x' }] });
+    expect(s.lastBackupAt).toBe('2026-11-01T10:00:00.000Z');
+    expect(s.backupNudgeAt).toBe('2026-11-02');
+    expect(s.pets.map((p) => p.sex)).toEqual(['u', 'male']);
+    expect(migrate({ backupNudgeAt: 'soon' }).backupNudgeAt).toBeNull();
+  });
+});

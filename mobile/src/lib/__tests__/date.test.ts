@@ -42,3 +42,15 @@ describe('date helpers', () => {
     expect(ageText(twoYearsAgo)).toMatch(/^2 歲/);
   });
 });
+
+describe('greeting', () => {
+  test('uses Taiwan-natural wording by time of day', () => {
+    const { greeting } = require('../date');
+    expect(greeting(8)).toBe('早安');
+    expect(greeting(12)).toBe('午安');
+    expect(greeting(15)).toBe('下午好');
+    expect(greeting(19)).toBe('晚上好');
+    expect(greeting(23)).toBe('晚安');
+    expect(greeting(2)).toBe('夜深了');
+  });
+});

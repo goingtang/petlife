@@ -4,12 +4,20 @@ import type { Pet, Store } from './types';
 import { KIND_LABEL, SEX_LABEL, entriesFor, entrySummary, medActiveOn } from './domain';
 import { addDays, ageText } from './date';
 
-/** Remove things that look like phone numbers or URLs from free text before it leaves the phone. */
+const PHONE =
+  /(?<![\d.\-\/:])(?:\+?886[-\s]?\(?0?\d{1,3}\)?|\(0\d{1,2}\)|0\d{1,3})[-\s]?\d{3,4}[-\s]?\d{3,4}(?![\d.])/g;
+const LONG_NUMBER = /(?<![\d.])\d{8,}(?![\d.])/g;
+
+/**
+ * Remove things that look like phone numbers, long ID numbers (e.g. a 15-digit chip number) or URLs
+ * from free text before it leaves the phone. Dates (2026-10-05), weights (10.8) and doses (2.5 mg) stay.
+ */
 export function scrubPrivate(text: string): string {
   return text
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/https?:\/\/\S+/g, '[網址已移除]')
-    .replace(/(?:\+?886[-\s]?|0)\d(?:[-\s]?\d){6,9}/g, '[電話已移除]')
-    .replace(/\d{8,}/g, '[號碼已移除]');
+    .replace(PHONE, '[電話已移除]')
+    .replace(LONG_NUMBER, '[號碼已移除]');
 }
 
 export function buildAiPrompt(store: Store, pet: Pet, symptoms: string, details: string[], td: string): string {
@@ -28,7 +36,7 @@ export function buildAiPrompt(store: Store, pet: Pet, symptoms: string, details:
       `名字：${pet.name}`,
       `種類：${KIND_LABEL[pet.kind]}${pet.breed ? '（' + pet.breed + '）' : ''}`,
       `年齡：${ageText(pet.birthday) || '不詳'}`,
-      `性別：${SEX_LABEL[pet.sex]}${pet.neutered ? '，已結紮' : ''}`,
+      `性別：${pet.sex === 'u' ? '不確定' : SEX_LABEL[pet.sex]}${pet.neutered ? '，已結紮' : ''}`,
       `體重：${growth ? `${growth.v.weight} kg（${growth.at.slice(0, 10)} 記錄）` : '不詳'}`,
       `過敏：${pet.allergy || '無'}`,
       `目前用藥：${meds.join('、') || '無'}`,

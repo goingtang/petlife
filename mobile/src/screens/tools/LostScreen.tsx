@@ -7,11 +7,11 @@ import { useBackHandler, useNav } from '../../nav';
 import type { LostInfo, Pet, Store, Sighting } from '../../lib/types';
 import { KIND_LABEL, SEX_LABEL, mapsSearch, money } from '../../lib/domain';
 import { ageText, hm, today } from '../../lib/date';
-import { choosePhotos, esc, imageDataUri, openUrl, sharePdf, shareText, usePendingFiles } from '../../lib/files';
+import { callPhone, choosePhotos, esc, imageDataUri, openUrl, sharePdf, shareText, usePendingFiles } from '../../lib/files';
 import { uid } from '../../lib/seed';
 
 function petLine(pet: Pet) {
-  return [KIND_LABEL[pet.kind], pet.breed, SEX_LABEL[pet.sex], ageText(pet.birthday)].filter(Boolean).join(' · ');
+  return [KIND_LABEL[pet.kind], pet.breed, SEX_LABEL[pet.sex] || '', ageText(pet.birthday)].filter(Boolean).join(' · ');
 }
 
 /** "NT$3,000", or '' when no reward (empty or 0). */
@@ -263,6 +263,8 @@ export default function LostScreen(_: { params: any }) {
         ))}
         <Btn small kind="outline" title="寵物登記管理資訊網（更新晶片聯絡資料）" onPress={() => openUrl('https://www.pet.gov.tw')} />
         <Btn small kind="outline" title="找附近的動物保護處、收容所" onPress={() => openUrl(mapsSearch('動物保護處 收容所'))} />
+        <Btn small kind="outline" title="撥打 1959 動物保護專線" onPress={() => callPhone('1959')} accessibilityLabel="撥打 1959 動物保護專線" />
+        <Sub style={{ fontSize: 12 }}>1959 是農業部的全國動物保護專線，可詢問各縣市收容所與動保處的聯絡方式。</Sub>
       </Card>
     </Section>
   );

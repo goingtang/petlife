@@ -160,7 +160,7 @@ No data is sent to the developer; there is no backend.
 ## 9. 送審前檢查清單
 
 - [ ] `npx tsc --noEmit`、`npm test`、`npx expo-doctor` 全部通過
-- [ ] 用 preview 版 APK 在實機走過：新增寵物、打卡、用藥通知、附近地點、拍照、分享 PDF、備份與還原、清除所有資料
+- [ ] 用 preview 版 APK 在實機走過：新增寵物、打卡、用藥通知、附近地點、拍照、分享 PDF、備份（.zip 含照片）存到 Google 雲端硬碟後在另一台手機還原、點通知是否開到對的頁面、清除所有資料
 - [ ] iOS 用 TestFlight 走過同樣流程
 - [ ] 隱私權政策網址打得開，聯絡信箱已填
 - [ ] App 內「設定」顯示的版本號正確，沒有「測試版」字樣

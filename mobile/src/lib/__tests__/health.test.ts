@@ -169,6 +169,15 @@ describe('medication edits', () => {
     expect(d.meds[0].start).toBe('2026-09-20');
   });
 
+  test('moving a started daily course to start today keeps the past days', () => {
+    const d: MedDraft = { meds: [med({})], doses: {} };
+    const id = applyMedEdit(d, 'm', { ...med({}), start: td }, td, 'n');
+    expect(id).toBe('n');
+    const old = d.meds.find((m) => m.id === 'm')!;
+    expect(old.start < td).toBe(true);
+    expect(old.end).toBe(addDays(td, -1));
+  });
+
   test('a course starting today is removed when stopped', () => {
     const d: MedDraft = { meds: [med({ start: td })], doses: {} };
     expect(stopMed(d, 'm', td)).toBe('removed');

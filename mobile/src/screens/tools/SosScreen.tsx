@@ -187,7 +187,7 @@ export default function SosScreen({ params }: { params: any }) {
     ['寵物', pet.name],
     ['種類／品種', `${KIND_LABEL[pet.kind]}${pet.breed ? ' · ' + pet.breed : ''}`],
     ['年齡', ageText(pet.birthday) || '不詳'],
-    ['性別／結紮', `${SEX_LABEL[pet.sex]} · ${pet.neutered ? '已結紮' : '未結紮'}`],
+    ['性別／結紮', `${SEX_LABEL[pet.sex] || '不確定'} · ${pet.neutered ? '已結紮' : '未結紮'}`],
     ['體重', growth ? `${growth.v.weight} kg（${growth.at.slice(0, 10).replace(/-/g, '/')}）` : '尚未記錄'],
     ['過敏', pet.allergy || '無'],
     ['目前用藥', meds.join('、') || '無'],
@@ -237,6 +237,14 @@ export default function SosScreen({ params }: { params: any }) {
       {cprCard}
 
       {firstAid}
+
+      <Section title="其他求助">
+        <Card style={{ gap: 8 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>1959 動物保護專線</Text>
+          <Sub>發現受傷、受虐或走失的動物，或想詢問各縣市動保處與收容所，可撥打農業部的全國動物保護專線。寵物急症請直接聯絡動物醫院。</Sub>
+          <Btn small kind="outline" title="撥打 1959" onPress={() => callPhone('1959')} accessibilityLabel="撥打 1959 動物保護專線" />
+        </Card>
+      </Section>
 
       <Section title="相關工具">
         <Row>

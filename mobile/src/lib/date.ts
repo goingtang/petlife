@@ -70,12 +70,13 @@ export function relTime(at: string): string {
   return (y ? shortDate(d) : d.replace(/-/g, '/')) + (t ? ' ' + t : '');
 }
 
-export function greeting(): string {
-  const h = new Date().getHours();
+/** Time-of-day greeting. In Taiwan 晚安 means "good night", so it is kept for late evening. */
+export function greeting(h = new Date().getHours()): string {
   if (h < 5) return '夜深了';
   if (h < 11) return '早安';
   if (h < 14) return '午安';
-  if (h < 18) return '午後好';
+  if (h < 18) return '下午好';
+  if (h < 22) return '晚上好';
   return '晚安';
 }
 

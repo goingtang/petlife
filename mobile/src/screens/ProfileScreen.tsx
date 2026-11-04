@@ -79,6 +79,9 @@ export default function ProfileScreen({ params }: { params: any }) {
           <KV k="生日" v={pet.birthday ? pet.birthday.replace(/-/g, '/') : '未填'} />
           <KV k="來家裡的日子" v={pet.adopted ? pet.adopted.replace(/-/g, '/') : '未填'} />
           <KV k="晶片號碼" v={pet.chip || '未填'} />
+          <Pressable onPress={() => openUrl('https://www.pet.gov.tw')} style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }} accessibilityRole="link" accessibilityLabel="查詢寵物登記，開啟寵物登記管理資訊網">
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.accent }}>查詢寵物登記 ›</Text>
+          </Pressable>
           <KV k="過敏" v={pet.allergy || '無'} />
         </ListCard>
       </Section>

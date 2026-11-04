@@ -26,4 +26,18 @@ describe('AI prompt', () => {
   test('scrubPrivate keeps normal numbers like weights and counts', () => {
     expect(scrubPrivate('吐了 2 次，體重 10.8 kg')).toBe('吐了 2 次，體重 10.8 kg');
   });
+  test('scrubPrivate keeps dates, decimals and doses', () => {
+    expect(scrubPrivate('2026-10-05 12 次嘔吐')).toBe('2026-10-05 12 次嘔吐');
+    expect(scrubPrivate('2026-10-01 0.5 mg')).toBe('2026-10-01 0.5 mg');
+    expect(scrubPrivate('2026-10-05 2.5mg，一天 2 次')).toBe('2026-10-05 2.5mg，一天 2 次');
+  });
+  test('scrubPrivate removes Taiwan phone formats', () => {
+    for (const ph of ['0912-345-678', '0912345678', '0912 345 678', '02-2345-6789', '(02) 2345-6789', '+886 912 345 678', '+886912345678', '０９１２３４５６７８']) {
+      expect(scrubPrivate(`打給 ${ph} 問`)).toBe('打給 [電話已移除] 問');
+    }
+  });
+  test('scrubPrivate removes a whole chip number and URLs', () => {
+    expect(scrubPrivate('晶片 900123456789012')).toBe('晶片 [號碼已移除]');
+    expect(scrubPrivate('看 https://example.com/x?y=1 這個')).toBe('看 [網址已移除] 這個');
+  });
 });

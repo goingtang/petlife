@@ -87,7 +87,7 @@ export default function ReportScreen(_: { params: any }) {
       rows: [
         ['名字', pet.name],
         ['種類／品種', `${KIND_LABEL[pet.kind]}${pet.breed ? ' · ' + pet.breed : ''}`],
-        ['性別', `${SEX_LABEL[pet.sex]}${pet.neutered ? '（已結紮）' : ''}`],
+        ['性別', `${SEX_LABEL[pet.sex] || '不確定'}${pet.neutered ? '（已結紮）' : ''}`],
         ['生日／年齡', pet.birthday ? `${fmt(pet.birthday)}（${ageText(pet.birthday)}）` : '不詳'],
         ['晶片號碼', pet.chip || '未登記'],
         ['過敏', pet.allergy || '無'],

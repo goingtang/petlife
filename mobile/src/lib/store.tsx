@@ -3,7 +3,8 @@ import { AccessibilityInfo, AppState } from 'react-native';
 import { produce, setAutoFreeze } from 'immer';
 import type { Store, Pet, Member } from './types';
 import { emptyStore, sampleStore, STORE_VERSION, uid } from './seed';
-import { loadRaw, saveRaw, clearLegacy } from './persist';
+import { loadRaw, saveRaw, clearLegacy, documentRoot } from './persist';
+import { mapFileUris, rebaseUri } from './life';
 import { addDays, today } from './date';
 
 // Screens sometimes keep references to store objects between renders; never freeze them.
@@ -66,11 +67,14 @@ export function migrate(raw: any): Store {
   out.entries = arr(out.entries).filter((e: any) => e && typeof e === 'object').map((e: any) => ({ ...e, v: e.v && typeof e.v === 'object' ? e.v : {} }));
   out.pets = arr(out.pets)
     .filter((p: any) => p && typeof p === 'object' && p.id)
-    .map((p: any) => ({ kind: 'other', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#E8D9B5', ...p, name: str(p.name) || '寵物' }));
+    .map((p: any) => ({ kind: 'other', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#E8D9B5', ...p, name: str(p.name) || '寵物' }))
+    .map((p: any) => ({ ...p, sex: p.sex === 'female' || p.sex === 'u' ? p.sex : 'male' }));
   out.ownerPhone = str(out.ownerPhone);
   out.sample = raw.sample === true;
   out.disclaimerOk = raw.disclaimerOk === true;
   out.locConsent = raw.locConsent === true;
+  out.lastBackupAt = typeof raw.lastBackupAt === 'string' ? raw.lastBackupAt : null;
+  out.backupNudgeAt = typeof raw.backupNudgeAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.backupNudgeAt) ? raw.backupNudgeAt : null;
   const lost: any = {};
   for (const [k, v] of Object.entries(out.lost || {})) lost[k] = { ...(v as any), sightings: arr((v as any)?.sightings) };
   out.lost = lost;
@@ -108,7 +112,8 @@ type Updater = (draft: Store) => void;
 interface Ctx {
   store: Store;
   ready: boolean;
-  update: (fn: Updater) => void;
+  /** Change the data. `soon` saves after 300 ms instead of 1 s — use it for single taps (check-ins, 完成). */
+  update: (fn: Updater, opts?: { soon?: boolean }) => void;
   replace: (s: Store) => void;
   petId: string | null;
   setPetId: (id: string) => void;
@@ -235,11 +240,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const apply = useCallback(
-    (s: Store) => {
+    (s: Store, delay?: number) => {
       latest.current = s;
       dirty.current = true;
       setStore(s);
-      persist();
+      persist(delay);
     },
     [persist],
   );
@@ -250,6 +255,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const r = await loadRaw();
         if (r.data) {
           let s = migrate(r.data);
+          let rebased = false;
+          // iOS may move the app's documents folder (update, iCloud restore): keep photos pointing at it.
+          const root = documentRoot();
+          if (root) {
+            const moved = produce(s, (d) =>
+              mapFileUris(d, (u) => {
+                const n = rebaseUri(u, root);
+                if (n !== u) rebased = true;
+                return n;
+              }),
+            );
+            if (rebased) s = moved;
+          }
           const migrated = s;
           try {
             s = produce(s, (d) => dailyMaintenance(d));
@@ -262,11 +280,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (r.source === 'tmp' || r.source === 'bak') toast('上次儲存沒有完成，已從最近的完整資料還原');
           else if (r.source === 'legacy' && r.mainUnreadable) toast('資料檔無法讀取，已改用較早的資料並另外保留原檔；請確認內容，必要時用備份檔還原');
           // A normal launch (main file, current format, nothing changed by housekeeping) needs no write.
-          const unchanged = r.source === 'main' && r.data.v === STORE_VERSION;
+          const unchanged = r.source === 'main' && r.data.v === STORE_VERSION && !rebased;
           if (!unchanged || s !== migrated) persist(50); // writes the migrated file (and moves data out of the old copy)
           else {
             dirty.current = false;
-            savedOnce.current = true; // data came from the file; there's no old copy left to clear
+            savedOnce.current = true;
+            clearLegacy(); // in case removing the old copy failed on an earlier launch
           }
         } else if (r.mainUnreadable) {
           toast('資料檔無法讀取，已另外保留原檔；目前從空白開始');
@@ -316,7 +335,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [apply]);
 
-  const update = useCallback((fn: Updater) => apply(produce(latest.current, fn)), [apply]);
+  const update = useCallback((fn: Updater, opts?: { soon?: boolean }) => apply(produce(latest.current, fn), opts?.soon ? 300 : undefined), [apply]);
   // Replacing everything (restore a backup, load samples): run the daily housekeeping on the new data too,
   // so fixed monthly expenses that are due get posted now rather than tomorrow.
   const replace = useCallback(

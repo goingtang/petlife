@@ -112,3 +112,25 @@ describe('isSamplePhone', () => {
     expect(emptyStore().sample).toBe(false);
   });
 });
+
+describe('file paths after the app folder moved', () => {
+  const { rebaseUri, mapFileUris } = require('../life');
+  const root = 'file:///var/mobile/Containers/Data/Application/NEW/Documents/';
+  test('re-points our own files and leaves others alone', () => {
+    expect(rebaseUri('file:///var/mobile/Containers/Data/Application/OLD/Documents/petpal/f_1.jpg', root)).toBe(root + 'petpal/f_1.jpg');
+    expect(rebaseUri(root + 'petpal/f_1.jpg', root)).toBe(root + 'petpal/f_1.jpg');
+    expect(rebaseUri('blob:http://localhost/abc', root)).toBe('blob:http://localhost/abc');
+    expect(rebaseUri('content://media/external/1', root)).toBe('content://media/external/1');
+  });
+  test('mapFileUris reaches every place a file is stored', () => {
+    const s: any = {
+      pets: [{ photo: 'a' }], journal: [{ photos: ['b', 'c'] }], entries: [{ v: { docs: ['d'] } }, { v: {} }],
+      docs: [{ fileUri: 'e', pages: ['f'] }], milestones: [{ photo: 'g' }], lost: { p: { photo: 'h' } }, expenses: [{ receipt: 'i' }, {}],
+    };
+    const seen: string[] = [];
+    mapFileUris(s, (u: string) => (seen.push(u), u.toUpperCase()));
+    expect(seen.sort().join('')).toBe('abcdefghi');
+    expect(s.journal[0].photos).toEqual(['B', 'C']);
+    expect(s.expenses[1].receipt).toBeUndefined();
+  });
+});

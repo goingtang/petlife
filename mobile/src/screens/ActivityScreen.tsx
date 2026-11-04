@@ -20,6 +20,20 @@ const ACT: Record<string, { label: string; start: string; goal: number }> = {
 
 type Timer = NonNullable<Store['timer']>;
 
+/** 完成並記錄 appears once at least 30 seconds were timed (a tap right after starting would log a 1-minute walk). */
+function FinishBtn({ timer, onPress }: { timer: Timer | null; onPress: () => void }) {
+  const [, tick] = useState(0);
+  const ready = elapsedOf(timer) >= 30;
+  const ticking = !ready && !!timer?.startedAt;
+  useEffect(() => {
+    if (!ticking) return;
+    const iv = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(iv);
+  }, [ticking]);
+  if (!ready) return null;
+  return <Btn kind="outline" title="完成並記錄" onPress={onPress} style={{ flex: 1 }} />;
+}
+
 const elapsedOf = (t: Timer | null) => (t ? Math.floor(t.accumulated + (t.startedAt ? (Date.now() - t.startedAt) / 1000 : 0)) : 0);
 
 /** The clock and ring own the 1-second tick, so the rest of the screen (stats, list) doesn't re-render every second. */
@@ -141,7 +155,7 @@ export default function ActivityScreen() {
         <TimerFace timer={mine} goalMin={a.goal} />
         <Row style={{ alignSelf: 'stretch' }} gap={10}>
           <Btn title={running && mine ? '暫停' : started ? '繼續' : a.start} onPress={running && mine ? pause : start} style={{ flex: 1 }} />
-          {started ? <Btn kind="outline" title="完成並記錄" onPress={finish} style={{ flex: 1 }} /> : null}
+          {started ? <FinishBtn timer={mine} onPress={finish} /> : null}
         </Row>
         {started ? <Btn small kind="ghost" title="放棄這次計時" onPress={cancel} /> : <Sub style={{ fontSize: 12 }}>離開 App 也會繼續計時</Sub>}
       </Card>

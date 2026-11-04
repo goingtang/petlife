@@ -165,7 +165,7 @@ export default function HealthScreen() {
                         update((d) => {
                           const x = d.reminders.find((y) => y.id === r.id);
                           if (x) completeReminder(x);
-                        });
+                        }, { soon: true });
                         toast(r.repeat === 'once' ? `已完成「${r.title}」` : `已完成，下次提醒已排好`, {
                           action: {
                             label: '復原',

@@ -167,6 +167,23 @@ let chain: Promise<number> = Promise.resolve(0);
 let scheduledSig: string | null = null;
 let scheduledCount = 0;
 
+/** Which screen tapping a notification opens: a tab name ('health') or a pushed tool screen ('meds', …). */
+export function noteRoute(kind: PlannedNote['kind']): string {
+  switch (kind) {
+    case 'med':
+    case 'refill':
+      return 'meds';
+    case 'supply':
+      return 'supplies';
+    case 'groom':
+      return 'groom';
+    case 'anniversary':
+      return 'miles';
+    default:
+      return 'health';
+  }
+}
+
 /**
  * Cancel everything this app scheduled and schedule it again from the current data. Calls run one at a time.
  * When the plan is the same as what is already scheduled (e.g. after checking off a dose that had no
@@ -196,7 +213,7 @@ async function doSync(store: Store, force: boolean): Promise<number> {
     const res = await Promise.allSettled(
       plan.map((n) =>
         Notifications.scheduleNotificationAsync({
-          content: { title: n.title, body: n.body },
+          content: { title: n.title, body: n.body, data: { route: noteRoute(n.kind) } },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, channelId },
         }),
       ),
