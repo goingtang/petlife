@@ -11,6 +11,7 @@ import { wipeAll } from '../lib/persist';
 import { cleanupOrphans, shareFile, shareTextFile } from '../lib/files';
 import { LARGE_BACKUP_BYTES, backupFilesBytes, openBackup, writeBackupZip } from '../lib/backup';
 import { clearPlacesCache } from './tools/PlacesScreen';
+import { resetDoseMemory } from '../lib/doses';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
@@ -90,6 +91,7 @@ export default function SettingsScreen() {
     // so a failed save can never wipe files the user adds later.
     await wipeAll();
     clearPlacesCache();
+    resetDoseMemory();
     replace(emptyStore());
     nav.popToRoot();
     nav.setTab('today');

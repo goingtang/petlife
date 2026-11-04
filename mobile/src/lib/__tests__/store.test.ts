@@ -162,5 +162,7 @@ describe('migrate: backup dates and sex', () => {
     expect(s.backupNudgeAt).toBe('2026-11-02');
     expect(s.pets.map((p) => p.sex)).toEqual(['u', 'male']);
     expect(migrate({ backupNudgeAt: 'soon' }).backupNudgeAt).toBeNull();
+    expect(migrate({ v: 1 }).notifyIntroAt).toBeNull();
+    expect(migrate({ notifyIntroAt: '2026-11-04' }).notifyIntroAt).toBe('2026-11-04');
   });
 });

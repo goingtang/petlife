@@ -269,4 +269,5 @@ export interface Store {
   disclaimerOk?: boolean; // accepted the one-time 症狀檢查 disclaimer
   lastBackupAt: string | null; // ISO time of the last successful backup export
   backupNudgeAt: string | null; // YYYY-MM-DD the backup reminder on 今天 was last dismissed
+  notifyIntroAt: string | null; // YYYY-MM-DD the 今天 card that offers notifications was answered
 }

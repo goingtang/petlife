@@ -75,6 +75,7 @@ export function migrate(raw: any): Store {
   out.locConsent = raw.locConsent === true;
   out.lastBackupAt = typeof raw.lastBackupAt === 'string' ? raw.lastBackupAt : null;
   out.backupNudgeAt = typeof raw.backupNudgeAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.backupNudgeAt) ? raw.backupNudgeAt : null;
+  out.notifyIntroAt = typeof raw.notifyIntroAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.notifyIntroAt) ? raw.notifyIntroAt : null;
   const lost: any = {};
   for (const [k, v] of Object.entries(out.lost || {})) lost[k] = { ...(v as any), sightings: arr((v as any)?.sightings) };
   out.lost = lost;

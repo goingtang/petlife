@@ -52,6 +52,7 @@ export function emptyStore(): Store {
     locConsent: false,
     lastBackupAt: null,
     backupNudgeAt: null,
+    notifyIntroAt: null,
   };
 }
 

@@ -122,12 +122,12 @@ export default function TodayScreen() {
   const tips = allArticles().filter((a) => !a.kinds?.length || a.kinds.includes(pet.kind));
   const tip = weeklyPick(tips, td) ?? allArticles()[0];
   const nudge = backupNudge(store, td);
-  const notifyIntroAt: string | null = (store as any).notifyIntroAt ?? null;
+  const notifyIntroAt: string | null = store.notifyIntroAt ?? null;
   const showNotifyIntro = !store.notifyEnabled && !store.sample && !notifyIntroAt && !notifyHidden;
   const closeNotifyIntro = () => {
     setNotifyHidden(true);
     update((d) => {
-      (d as any).notifyIntroAt = td;
+      d.notifyIntroAt = td;
     });
   };
   const enableNotify = async () => {
@@ -135,7 +135,7 @@ export default function TodayScreen() {
     if (ok) {
       update((d) => {
         d.notifyEnabled = true;
-        (d as any).notifyIntroAt = td;
+        d.notifyIntroAt = td;
       });
       setNotifyHidden(true);
       toast('已開啟通知，到時間會提醒你');
