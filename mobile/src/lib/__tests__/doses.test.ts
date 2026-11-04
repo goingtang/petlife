@@ -1,4 +1,4 @@
-import { applyDose, dosesDue, nextDose } from '../doses';
+import { applyDose, doseProgress, dosesDue, nextDose, parseDoseKey } from '../doses';
 import { emptyStore } from '../seed';
 import { doseKey } from '../domain';
 import type { Med, Store } from '../types';
@@ -56,5 +56,26 @@ describe('nextDose', () => {
   test('ignores other pets and meds not due', () => {
     const s = mkStore([med({ petId: 'p2' }), med({ id: 'm3', start: '2026-12-01' })]);
     expect(nextDose(s, 'p1', D)).toBeNull();
+  });
+});
+
+describe('late-night and helpers', () => {
+  test("before 03:00 yesterday's missed evening dose comes first", () => {
+    const s = mkStore([med({ times: ['08:00', '22:00'] })]);
+    expect(nextDose(s, 'p1', D, '01:30')).toMatchObject({ t: '22:00', day: '2026-11-03' });
+    s.doses[doseKey('2026-11-03', 'm1', '22:00')] = 'taken';
+    expect(nextDose(s, 'p1', D, '01:30')).toMatchObject({ t: '08:00', day: D });
+  });
+  test('after 03:00 only today counts', () => {
+    const s = mkStore([med({ times: ['08:00', '22:00'] })]);
+    expect(nextDose(s, 'p1', D, '07:00')).toMatchObject({ t: '08:00', day: D });
+  });
+  test('parseDoseKey round-trips doseKey', () => {
+    expect(parseDoseKey(doseKey(D, 'm1', '08:00'))).toEqual({ date: D, medId: 'm1', time: '08:00' });
+  });
+  test('doseProgress counts checked and skipped doses', () => {
+    const s = mkStore([med()]);
+    s.doses[doseKey(D, 'm1', '08:00')] = 'skip';
+    expect(doseProgress(s, 'p1', D)).toEqual({ total: 2, done: 1 });
   });
 });

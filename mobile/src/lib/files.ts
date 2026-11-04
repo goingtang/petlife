@@ -165,19 +165,38 @@ export async function shareFile(uri: string, mimeType?: string, dialogTitle?: st
 }
 
 /** Write text to a temporary file (CSV, backup JSON) and open the share sheet. */
-export async function shareTextFile(name: string, content: string, mimeType: string) {
+/**
+ * Save text as a file: a download on web, the share sheet on phones.
+ * Returns true when the file was handed over (downloaded or the share sheet opened and closed).
+ */
+export async function shareTextFile(name: string, content: string, mimeType: string): Promise<boolean> {
   if (Platform.OS === 'web') {
-    await shareText(content);
-    return;
+    try {
+      const doc = (globalThis as any).document;
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = doc.createElement('a');
+      a.href = url;
+      a.download = name;
+      doc.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return true;
+    } catch {
+      Alert.alert('匯出失敗', '請再試一次。');
+      return false;
+    }
   }
   try {
     const f = new File(Paths.cache, name);
     if (f.exists) f.delete();
     f.create();
     await f.write(content);
-    await shareFile(f.uri, mimeType, name);
+    return await shareFile(f.uri, mimeType, name);
   } catch {
     Alert.alert('匯出失敗', '請再試一次。');
+    return false;
   }
 }
 
@@ -216,7 +235,7 @@ export function cleanupCacheExports() {
     // Exports we wrote, plus PDFs that expo-print leaves in its own cache sub-folder.
     const sweep = (dir: Directory, depth: number) => {
       for (const item of dir.list()) {
-        if (item instanceof File && /\.(pdf|csv|json)$/i.test(item.uri)) item.delete();
+        if (item instanceof File && /\.(pdf|csv|json|zip)$/i.test(item.uri)) item.delete();
         else if (item instanceof Directory && depth < 2) sweep(item, depth + 1);
       }
     };
@@ -380,8 +399,8 @@ export function pdfShell(title: string, body: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
   body{font-family:-apple-system,'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif;color:#3B2F28;margin:32px;font-size:13px}
   h1{font-size:22px;border-bottom:2px solid #3B2F28;padding-bottom:8px;margin:0 0 12px}
-  h2{font-size:14px;color:#C4602F;margin:20px 0 6px}
+  h2{font-size:14px;color:#B0532A;margin:20px 0 6px}
   table{width:100%;border-collapse:collapse}td{padding:5px 6px;border-bottom:1px solid #EADDCB;vertical-align:top}
-  td.k{color:#7A685B;width:34%}.foot{margin-top:24px;color:#9C8B7E;font-size:11px}
+  td.k{color:#6B5A4E;width:34%}.foot{margin-top:24px;color:#9C8B7E;font-size:11px}
   </style></head><body>${body}<p class="foot">由 PetPal 產生</p></body></html>`;
 }

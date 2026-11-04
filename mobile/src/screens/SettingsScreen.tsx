@@ -8,30 +8,32 @@ import { useNav } from '../nav';
 import { Banner, Btn, Card, Field, KV, ListCard, Screen, Section, Sub, Toggle, confirm } from '../ui/kit';
 import { askPermission, syncNotifications, testNotification } from '../lib/notify';
 import { wipeAll } from '../lib/persist';
-import { cleanupOrphans, shareFile, shareTextFile } from '../lib/files';
-import { LARGE_BACKUP_BYTES, backupFilesBytes, openBackup, writeBackupZip } from '../lib/backup';
+import { cleanupOrphans, openUrl, shareFile, shareTextFile } from '../lib/files';
+import { FULL_BACKUP_MAX_BYTES, RestoreSpaceError, backupFilesBytes, fullBackupAllowed, openBackup, writeBackupZip } from '../lib/backup';
 import { clearPlacesCache } from './tools/PlacesScreen';
 import { resetDoseMemory } from '../lib/doses';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
   const { store, update, replace, toast, afterSave, getStore } = useStore();
-  /**
-   * Swap in a whole new data set, then delete photos/files the old data used and the new one doesn't.
-   * The clean-up looks at the data as it is when the save lands (photos added since then are kept).
-   */
-  const replaceAll = (next: typeof store) => {
-    replace(next);
-    afterSave(() => cleanupOrphans(getStore()));
-  };
-  const nav = useNav();
-  const [count, setCount] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
   const [phone, setPhone, flushPhone] = useDraft(store.ownerPhone, (v) =>
     update((d) => {
       d.ownerPhone = v.trim();
     }),
   );
+  /**
+   * Swap in a whole new data set, then delete photos/files the old data used and the new one doesn't.
+   * The clean-up looks at the data as it is when the save lands (photos added since then are kept).
+   */
+  const nav = useNav();
+  const replaceAll = (next: typeof store) => {
+    flushPhone(); // typing in this screen must not land in the replaced data
+    resetDoseMemory(); // remembered check-ins belong to the old data
+    replace(next);
+    afterSave(() => cleanupOrphans(getStore()));
+  };
+  const [count, setCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
   const web = Platform.OS === 'web';
   const version = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '1.0.0';
   const build = Application.nativeBuildVersion;
@@ -41,45 +43,63 @@ export default function SettingsScreen() {
     update((d) => {
       d.lastBackupAt = new Date().toISOString();
     });
+  /**
+   * The share sheet closes the same way whether the file was saved or the user backed out (iOS reports
+   * both as done), so ask before counting it as a backup.
+   */
+  const askSaved = (withFiles: boolean) =>
+    confirm(
+      '備份檔存好了嗎？',
+      '如果已經存到雲端硬碟、「檔案」App 或傳給自己，按「存好了」。',
+      () => {
+        markBackedUp();
+        toast(withFiles ? '已記錄備份（含照片與文件）' : '已記錄備份（只有資料，不含照片）');
+      },
+      '存好了',
+      { destructive: false, cancelLabel: '還沒有' },
+    );
 
   /** Make the zip (data + photos/documents) and open the share sheet (Google 雲端硬碟、存到檔案…). */
   const shareZip = async (withFiles: boolean) => {
     setBusy(true);
     try {
       const uri = await writeBackupZip(store, backupName('zip'), withFiles);
-      if (uri && (await shareFile(uri, 'application/zip', '儲存 PetPal 備份'))) {
-        markBackedUp();
-        toast(withFiles ? '備份已建立（含照片與文件）' : '備份已建立（只有資料，不含照片）');
-      }
+      if (uri && (await shareFile(uri, 'application/zip', '匯出 PetPal 備份'))) askSaved(withFiles);
     } catch {
-      Alert.alert('備份沒有完成', '可能是手機空間不足。可以先清理未使用的照片，或改用「只備份資料」。', [
+      Alert.alert('備份沒有完成', '可能是手機空間不足。可以先清理未使用的照片，或改用「只匯出資料」。', [
         { text: '取消', style: 'cancel' },
-        { text: '只備份資料', onPress: () => shareZip(false) },
+        { text: '只匯出資料', onPress: () => shareZip(false) },
       ]);
     } finally {
       setBusy(false);
     }
   };
 
-  const exportBackup = () => {
+  const exportBackup = async () => {
     if (web) {
-      shareTextFile(backupName('json'), JSON.stringify(store), 'application/json');
-      markBackedUp();
+      if (await shareTextFile(backupName('json'), JSON.stringify(store), 'application/json')) {
+        markBackedUp();
+        toast('已下載備份檔（網頁預覽不含照片）');
+      }
       return;
     }
     const bytes = backupFilesBytes(store);
     const mb = bytes / 1048576;
     const privacy = '備份檔包含寵物、健康紀錄、日記、照片、文件和家人與醫院的電話。請只存到自己的雲端硬碟或傳給自己，不要分享到群組。';
-    if (bytes > LARGE_BACKUP_BYTES)
-      Alert.alert('照片與文件很多', `照片與文件共約 ${Math.round(mb)} MB，建立備份需要一些時間和手機空間。${privacy}`, [
-        { text: '取消', style: 'cancel' },
-        { text: '只備份資料', onPress: () => shareZip(false) },
-        { text: '全部備份', onPress: () => shareZip(true) },
-      ]);
+    if (!fullBackupAllowed(bytes))
+      Alert.alert(
+        '照片與文件太多，無法一次備份',
+        `照片與文件共約 ${Math.round(mb)} MB，超過一次備份的上限 ${Math.round(FULL_BACKUP_MAX_BYTES / 1048576)} MB（避免手機記憶體不足而關閉 App）。可以先「只匯出資料」，照片請另外用相簿或雲端保存；也可以先清理未使用的照片後再試。\n\n${privacy}`,
+        [
+          { text: '取消', style: 'cancel' },
+          { text: '只匯出資料', onPress: () => shareZip(false) },
+        ],
+      );
     else
-      Alert.alert('匯出完整備份', `${privacy}${mb >= 1 ? `\n\n照片與文件約 ${mb.toFixed(0)} MB。` : ''}`, [
+      Alert.alert('匯出備份', `${privacy}${mb >= 1 ? `\n\n照片與文件約 ${mb.toFixed(0)} MB。` : ''}`, [
         { text: '取消', style: 'cancel' },
-        { text: '匯出', onPress: () => shareZip(true) },
+        { text: '只匯出資料', onPress: () => shareZip(false) },
+        { text: '匯出備份', onPress: () => shareZip(true) },
       ]);
   };
 
@@ -131,11 +151,14 @@ export default function SettingsScreen() {
         try {
           setBusy(true);
           const r = await opened.restore();
-          replaceAll({ ...migrate(r.data), onboarded: true });
+          // The restored data carries the old backup date; don't nag about backing up right after a restore.
+          replaceAll({ ...migrate(r.data), onboarded: true, backupNudgeAt: today() });
           nav.popToRoot();
           toast(r.restoredFiles ? `已還原備份與 ${r.restoredFiles} 個照片／文件` : '已還原備份');
-        } catch {
-          toast('還原沒有完成，請確認手機空間後再試一次');
+        } catch (e) {
+          if (e instanceof RestoreSpaceError)
+            Alert.alert('手機空間不足，沒有還原', `目前的資料沒有被更動。請先清出約 ${e.neededMB} MB 的空間（例如刪除不需要的影片或 App）後再試一次。`);
+          else toast('還原沒有完成，請確認手機空間後再試一次');
         } finally {
           setBusy(false);
         }
@@ -162,9 +185,18 @@ export default function SettingsScreen() {
 
   return (
     <Screen title="設定">
+      <Section title="資料與備份">
+        <Sub>
+          所有資料只存在這支手機。換手機或重新安裝前，請先匯出備份{web ? '（網頁預覽的備份只有資料，不含照片）' : '（含資料、照片與文件）'}，存到 Google 雲端硬碟或「檔案」App。
+        </Sub>
+        <Sub style={{ fontWeight: '700' }}>{lastBackup}</Sub>
+        <Btn kind="outline" title={busy ? '處理中…' : '匯出備份'} disabled={busy} onPress={exportBackup} />
+        <Btn kind="outline" title="從備份還原" disabled={busy} onPress={importBackup} />
+      </Section>
+
       <Section title="通知">
         {web ? <Banner kind="warn" text="網頁預覽無法發送手機通知，請在 Expo Go 或安裝後的 App 中使用。" /> : null}
-        <Toggle label="手機通知" hint="疫苗與提醒（前一晚、當天早上）和用藥時間" value={store.notifyEnabled} onChange={toggleNotify} />
+        <Toggle label="手機通知" hint="用藥、疫苗與回診、補藥、用品、美容、證件到期、生日與週年" value={store.notifyEnabled} onChange={toggleNotify} />
         {store.notifyEnabled ? (
           <View style={{ gap: 8 }}>
             {count !== null ? <Sub>目前排定 {count} 則提醒。</Sub> : null}
@@ -188,18 +220,13 @@ export default function SettingsScreen() {
         </Card>
       </Section>
 
-      <Section title="資料">
+      <Section title="儲存空間">
         <ListCard>
           {stats.map(([k, v]) => (
             <KV key={k} k={k} v={`${v}`} />
           ))}
         </ListCard>
-        <Sub>
-          所有資料只存在這支手機。換手機或重新安裝前，請先匯出備份{web ? '（網頁預覽的備份只有資料，不含照片）' : '（含照片與文件）'}，存到 Google 雲端硬碟或「檔案」App。服藥打卡紀錄保留 90 天。
-        </Sub>
-        <Sub style={{ fontWeight: '700' }}>{lastBackup}</Sub>
-        <Btn kind="outline" title={busy ? '處理中…' : '匯出備份檔'} disabled={busy} onPress={exportBackup} />
-        <Btn kind="outline" title="從備份檔還原" disabled={busy} onPress={importBackup} />
+        <Sub>服藥打卡紀錄只保留最近 90 天，其他紀錄都會保留。</Sub>
         {!web ? (
           <Btn
             kind="soft"
@@ -212,7 +239,19 @@ export default function SettingsScreen() {
         ) : null}
       </Section>
 
-      <Section title="重新開始">
+      <Section title="關於">
+        <Card onPress={() => nav.push('privacy')} style={{ gap: 4 }}>
+          <Sub style={{ fontWeight: '700' }}>隱私說明</Sub>
+          <Sub>資料怎麼存、哪些功能會連網、如何刪除</Sub>
+        </Card>
+        <Card onPress={() => openUrl('mailto:mypetlifedaily@gmail.com')} style={{ gap: 4 }}>
+          <Sub style={{ fontWeight: '700' }}>聯絡我們</Sub>
+          <Sub>mypetlifedaily@gmail.com</Sub>
+        </Card>
+        <Sub style={{ textAlign: 'center' }}>PetPal {version}{build ? `（${build}）` : ''}</Sub>
+      </Section>
+
+      <Section title="進階">
         <Card style={{ gap: 10 }}>
           <Btn
             kind="soft"
@@ -225,6 +264,8 @@ export default function SettingsScreen() {
               }, '載入')
             }
           />
+        </Card>
+        <Card style={{ gap: 10 }}>
           <Btn
             kind="danger"
             title="清除所有資料"
@@ -234,15 +275,6 @@ export default function SettingsScreen() {
           />
         </Card>
       </Section>
-
-      <Section title="關於">
-        <Card onPress={() => nav.push('privacy')} style={{ gap: 4 }}>
-          <Sub style={{ fontWeight: '700' }}>隱私權政策</Sub>
-          <Sub>資料怎麼存、哪些功能會連網、如何刪除</Sub>
-        </Card>
-      </Section>
-
-      <Sub style={{ textAlign: 'center' }}>PetPal {version}{build ? `（${build}）` : ''}</Sub>
     </Screen>
   );
 }

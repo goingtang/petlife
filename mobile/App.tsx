@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -15,7 +15,7 @@ import ActivityScreen from './src/screens/ActivityScreen';
 import MoreScreen from './src/screens/MoreScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import * as Notifications from 'expo-notifications';
-import { initNotifications, syncNotifications } from './src/lib/notify';
+import { firstTap, initNotifications, syncNotifications } from './src/lib/notify';
 import { C } from './src/ui/theme';
 
 // Keep the launch screen up until the saved data has loaded, so the app never flashes an empty screen.
@@ -78,33 +78,35 @@ function ShellBoundary({ children }: { children: React.ReactNode }) {
 
 /** Tapping a notification opens the matching screen (用藥打卡, 健康, 用品庫存…). */
 function NotificationRouter() {
-  const { ready, store } = useStore();
-  const { setTab, push } = useNav();
-  const go = useRef<(route: unknown) => void>(() => {});
-  go.current = (route) => {
+  const { ready, store, setPetId, toast } = useStore();
+  const { setTab, push, hasOpenForm } = useNav();
+  const go = useRef<(data: any) => void>(() => {});
+  go.current = (data) => {
+    const route = data?.route;
     if (typeof route !== 'string' || !store.onboarded) return;
+    if (route !== 'health' && route !== 'today' && !SCREENS[route]) return;
+    // Don't throw away a half-filled form: say where the notification wanted to go instead.
+    if (hasOpenForm()) {
+      toast('有尚未儲存的內容，請先儲存或返回，再開啟這則通知');
+      return;
+    }
+    const petId = data?.petId;
+    if (typeof petId === 'string' && store.pets.some((p) => p.id === petId)) setPetId(petId);
     if (route === 'health' || route === 'today') setTab(route);
-    else if (SCREENS[route]) {
+    else {
       setTab('today');
       push(route);
     }
   };
   useEffect(() => {
     if (!ready || Platform.OS === 'web') return;
-    let handledLast = false;
-    // Opened from a notification while the app was closed.
-    Notifications.getLastNotificationResponseAsync()
-      .then((r) => {
-        if (r && !handledLast) {
-          handledLast = true;
-          go.current(r.notification.request.content.data?.route);
-        }
-      })
-      .catch(() => {});
-    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
-      handledLast = true;
-      go.current(r.notification.request.content.data?.route);
-    });
+    const handle = (r: Notifications.NotificationResponse | null) => {
+      if (!r || !firstTap(r.notification.request.identifier)) return;
+      go.current(r.notification.request.content.data);
+    };
+    // Opened from a notification while the app was closed (the listener may report the same tap).
+    Notifications.getLastNotificationResponseAsync().then(handle).catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
     return () => sub.remove();
   }, [ready]);
   return null;

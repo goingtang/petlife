@@ -5,15 +5,16 @@ export const C = {
   line: '#EADDCB',
   lineSoft: '#F0E5D6',
   ink: '#3B2F28',
-  sub: '#7A685B',
-  faint: '#776557', // hint text: ≥4.5:1 on the cream background
+  // Secondary and hint text share one shade: ≥5:1 on the cream, card and every tinted background.
+  sub: '#6B5A4E',
+  faint: '#6B5A4E',
   body: '#4F4239',
-  accent: '#C4602F',
-  accentDark: '#9E4A22',
+  accent: '#B0532A', // white text on it 5.1:1; as text on the cream background 4.5:1
+  accentDark: '#9E4A22', // accent-coloured text (links, ghost buttons): ≥5.3:1
   danger: '#A0442A',
   dangerBg: '#F6DCCF',
   green: '#7E9C78',
-  greenDark: '#4E6B49',
+  greenDark: '#4E6B49', // check-in buttons with white text: 6:1
   greenBg: '#E3EBDD',
   yellow: '#F2C66D',
   yellowBg: '#F8E7BF',

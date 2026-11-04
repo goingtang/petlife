@@ -45,7 +45,7 @@ function weightSvg(all: { at: string; w: number }[]): string {
   const pts = points.map((p) => `${x(p.at).toFixed(1)},${y(p.w).toFixed(1)}`).join(' ');
   const dots = points.map((p) => `<circle cx="${x(p.at).toFixed(1)}" cy="${y(p.w).toFixed(1)}" r="4" fill="#fff" stroke="#C4602F" stroke-width="2"/>`).join('');
   const labels = [points[0], points[points.length - 1]]
-    .map((p, i) => `<text x="${x(p.at).toFixed(1)}" y="${H - 8}" font-size="11" fill="#7A685B" text-anchor="${i ? 'end' : 'start'}">${esc(fmt(p.at))} ${p.w}kg</text>`)
+    .map((p, i) => `<text x="${x(p.at).toFixed(1)}" y="${H - 8}" font-size="11" fill="#7A685B" text-anchor="${i ? 'end' : 'start'}">${esc(fmt(p.at))} ${p.w} kg</text>`)
     .join('');
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"><line x1="30" y1="${H - 26}" x2="${W - 20}" y2="${H - 26}" stroke="#EADDCB"/><polyline points="${pts}" fill="none" stroke="#C4602F" stroke-width="3"/>${dots}${labels}</svg>`;
 }
@@ -256,12 +256,12 @@ export default function ReportScreen(_: { params: any }) {
         <Card style={{ gap: 14, backgroundColor: C.white }}>
           <Row style={{ justifyContent: 'space-between', borderBottomWidth: 2, borderBottomColor: C.ink, paddingBottom: 8 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: C.ink, flex: 1 }}>{title}</Text>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: C.accent }}>PetPal</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.accentDark }}>PetPal</Text>
           </Row>
           {blocks.length ? (
             blocks.map((b) => (
               <View key={b.title} style={{ gap: 4 }}>
-                <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent }}>{b.title}</Text>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: C.accentDark }}>{b.title}</Text>
                 {b.svg ? <Text style={{ fontSize: 12, color: C.sub }}>（PDF 中會顯示體重折線圖）</Text> : null}
                 {b.rows.length ? (
                   b.rows.map(([k, v], i) => (

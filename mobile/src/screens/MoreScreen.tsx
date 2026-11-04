@@ -43,10 +43,9 @@ export default function MoreScreen() {
       name: '管理',
       items: [
         { name: '新增寵物', desc: '建立新的寵物檔案', route: 'petEdit', params: {} },
-        { name: '家人成員', desc: '誰在用這支手機', route: 'members' },
         ...(pet ? [{ name: '照護項目', desc: '每日待辦與輪值', route: 'tasks', params: { petId: pet.id } }] : []),
-        { name: '設定', desc: '通知、備份、資料', route: 'settings' },
-        { name: '隱私說明', desc: '資料存在哪裡', route: 'privacy' },
+        { name: '家人成員', desc: '誰在用這支手機', route: 'members' },
+        { name: '設定', desc: '備份、通知、隱私說明', route: 'settings' },
       ],
     },
   ];

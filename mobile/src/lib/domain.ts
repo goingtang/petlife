@@ -1,6 +1,6 @@
 // Business rules shared by several screens.
 import type { Store, Reminder, Med, Supply, Entry, Pet, GroomTask } from './types';
-import { addDays, addMonths, daysBetween, parseYmd, today } from './date';
+import { addDays, addMonths, daysBetween, parseYmd, today, ymd } from './date';
 
 export const KIND_LABEL: Record<Pet['kind'], string> = { dog: '狗', cat: '貓', rabbit: '兔子', bird: '鳥', other: '其他' };
 export const SEX_LABEL: Record<string, string> = { male: '公', female: '母', u: '' }; // 'u' = 不確定, shown as nothing
@@ -66,15 +66,10 @@ export function latestGrowth(store: Store, petId: string): { weight: number; len
 const FOOD: Record<string, string> = { dry: '乾糧', wet: '濕食', hay: '牧草', veg: '蔬菜', water: '飲水', treat: '零食' };
 export const FOOD_LABEL = FOOD;
 const APP: Record<string, string> = { good: '食慾很好', normal: '食慾普通', poor: '不太吃' };
-export const APPETITE_LABEL = APP;
 const HT: Record<string, string> = { symptom: '症狀', med: '用藥', visit: '看診', poop: '排便' };
-export const HTYPE_LABEL = HT;
 const STOOL: Record<string, string> = { normal: '正常', soft: '偏軟', hard: '偏硬' };
-export const STOOL_LABEL = STOOL;
 const SEV: Record<string, string> = { mild: '輕微', moderate: '中等', severe: '嚴重' };
-export const SEVERITY_LABEL = SEV;
 const BODY: Record<string, string> = { thin: '偏瘦', ideal: '理想', chubby: '偏胖' };
-export const BODY_LABEL = BODY;
 
 export function entrySummary(e: Entry): string {
   const v = e.v || {};
@@ -204,10 +199,6 @@ export function daysTogether(pet: Pet, td = today()): number | null {
 
 export const money = (n: number) => 'NT$' + Math.round(n).toLocaleString('en-US');
 
-export function phoneHref(phone: string) {
-  return 'tel:' + phone.replace(/[^0-9+]/g, '');
-}
-
 export function mapsSearch(q: string) {
   return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
 }
@@ -253,7 +244,8 @@ export function backupNudge(store: Store, td: string): 'never' | 'stale' | null 
   if (s.backupNudgeAt && daysBetween(s.backupNudgeAt.slice(0, 10), td) < 14) return null;
   const records = store.entries.length + store.journal.length;
   if (!s.lastBackupAt) return records >= 20 ? 'never' : null;
-  const last = s.lastBackupAt.slice(0, 10);
+  // lastBackupAt is an ISO time (UTC); compare by the phone's local date like everything else.
+  const last = ymd(new Date(s.lastBackupAt));
   if (daysBetween(last, td) <= 30) return null;
   const changed = store.entries.some((e) => e.at.slice(0, 10) > last) || store.journal.some((j) => j.at.slice(0, 10) > last);
   return changed ? 'stale' : null;

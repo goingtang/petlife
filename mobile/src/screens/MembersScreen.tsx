@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
 import { useBackHandler } from '../nav';
-import { Avatar, Badge, Banner, Btn, Card, Field, Label, Row, Screen, Section, Sub, confirm } from '../ui/kit';
+import { Avatar, Badge, Btn, Card, Field, Label, Row, Screen, Section, Sub, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
 import { MEMBER_COLORS, uid } from '../lib/seed';
 
@@ -99,8 +99,8 @@ export default function MembersScreen() {
             <View style={{ gap: 8 }}>
               <Label>代表色</Label>
               <Row gap={10}>
-                {MEMBER_COLORS.map((c) => (
-                  <Pressable key={c} onPress={() => setColor(c)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c, borderWidth: color === c ? 3 : 0, borderColor: C.ink }} accessibilityRole="button" accessibilityState={{ selected: color === c }} />
+                {MEMBER_COLORS.map((c, i) => (
+                  <Pressable key={c} onPress={() => setColor(c)} hitSlop={4} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: c, borderWidth: color === c ? 3 : 0, borderColor: C.ink }} accessibilityRole="button" accessibilityLabel={`代表色 ${i + 1}`} accessibilityState={{ selected: color === c }} />
                 ))}
               </Row>
             </View>

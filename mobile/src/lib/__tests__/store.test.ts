@@ -128,7 +128,7 @@ describe('planNotifications', () => {
     s.pets = [{ id: 'p', name: '豆豆', kind: 'dog', breed: '', sex: 'male', birthday: '', adopted: '', neutered: false, chip: '', allergy: '', color: '#fff' }];
     s.reminders = [{ id: 'd', petId: 'p', title: '保單到期', date: addDays(td, 40), repeat: 'once', notify: true, history: [], lead: [30, 7, 0], docId: 'doc1' }];
     const n = planNotifications(s, now);
-    expect(n.map((x) => x.title)).toEqual(['30 天後：豆豆 保單到期', '7 天後：豆豆 保單到期', '明天：豆豆 保單到期', '今天：豆豆 保單到期', '已過期：豆豆 保單到期']);
+    expect(n.map((x) => x.title)).toEqual(['30 天後：豆豆的保單到期', '7 天後：豆豆的保單到期', '明天：豆豆的保單到期', '今天：豆豆的保單到期', '已過期：豆豆的保單到期']);
   });
 
   test('overdue reminders get up to 3 follow-ups', () => {

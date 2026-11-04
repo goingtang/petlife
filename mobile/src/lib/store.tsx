@@ -147,6 +147,11 @@ export const useToastMsg = () => useContext(ToastCtx);
 const DraftCtx = createContext<Set<() => void> | null>(null);
 
 const RETRY_MS = [2000, 5000, 15000, 30000, 60000];
+/**
+ * The last write started by a provider that has since unmounted (e.g. the error screen's 再試一次
+ * remounts the app). The next provider waits for it before loading, so it never reads older data.
+ */
+let pendingFromUnmounted: Promise<void> = Promise.resolve();
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [store, setStore] = useState<Store>(emptyStore);
@@ -250,9 +255,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [persist],
   );
 
+  // Unmounting (error-screen retry) must not drop a save that was still waiting for its timer.
+  useEffect(
+    () => () => {
+      if (dirty.current || saveTimer.current) writeNow();
+      pendingFromUnmounted = saving.current;
+    },
+    [writeNow],
+  );
+
   useEffect(() => {
     (async () => {
       try {
+        await pendingFromUnmounted.catch(() => {});
         const r = await loadRaw();
         if (r.data) {
           let s = migrate(r.data);

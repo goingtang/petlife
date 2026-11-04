@@ -105,7 +105,7 @@ export default function DiaryScreen() {
                 style={{ flex: 1, alignItems: 'center', gap: 3, paddingVertical: 8, borderRadius: 16, borderWidth: 1.5, borderColor: on ? C.ink : C.line, backgroundColor: on ? C.ink : C.card }}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={d}
+                accessibilityLabel={`${Number(d.slice(5, 7))}月${Number(d.slice(8))}日（週${weekday(d)}）${d === td ? '，今天' : ''}${has ? '，有日記' : ''}`}
               >
                 <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: on ? C.bg : C.ink }}>{d === td ? '今' : weekday(d)}</Text>
                 <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 17, fontWeight: '700', color: on ? C.bg : C.ink }}>{Number(d.slice(8))}</Text>

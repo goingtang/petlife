@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, Text, View } from 'react-native';
 import { useStore, usePet, memberName, memberColor } from '../lib/store';
 import { useNav } from '../nav';
 import { Avatar, Badge, Banner, Btn, Card, Chip, ChipRow, Empty, ListCard, P, Progress, Row, Screen, Section, Sub } from '../ui/kit';
 import { C } from '../ui/theme';
 import { dateLabel, greeting, today, relTime, ageText, shortDate, hm } from '../lib/date';
-import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, medDueOn, doseKey, KIND_LABEL, SEX_LABEL, backupNudge, weeklyPick } from '../lib/domain';
+import { tasksFor, doneBy, entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, KIND_LABEL, SEX_LABEL, backupNudge, weeklyPick } from '../lib/domain';
 import type { Reminder } from '../lib/types';
 import { allArticles } from '../data/content-articles';
-import { applyDose, nextDose } from '../lib/doses';
+import { applyDose, doseProgress, doseToast, dosesDue, nextDose } from '../lib/doses';
 import { askPermission } from '../lib/notify';
 
 export default function TodayScreen() {
@@ -107,15 +107,14 @@ export default function TodayScreen() {
     });
   };
 
-  const medsToday = store.meds.filter((m) => m.petId === pet.id && medDueOn(m, td));
-  const doseTotal = medsToday.reduce((a, m) => a + m.times.length, 0);
-  const doseDone = medsToday.reduce((a, m) => a + m.times.filter((t) => store.doses[doseKey(td, m.id, t)]).length, 0);
+  const { total: doseTotal, done: doseDone } = doseProgress(store, pet.id, td);
 
-  const dose = nextDose(store, pet.id, td);
-  const doseLate = !!dose && dose.t <= now;
-  const takeDose = (m: { id: string; name: string }, t: string) => {
-    update((d) => applyDose(d, td, m.id, t, 'taken'), { soon: true });
-    toast(`${m.name} ${t} 已服用`, { action: { label: '復原', onPress: () => update((d) => applyDose(d, td, m.id, t, null), { soon: true }) } });
+  const dose = nextDose(store, pet.id, td, now);
+  const doseYesterday = !!dose && dose.day !== td;
+  const doseLate = !!dose && (doseYesterday || dose.t <= now);
+  const takeDose = (m: { id: string; name: string }, t: string, day: string) => {
+    update((d) => applyDose(d, day, m.id, t, 'taken'), { soon: true });
+    toast(doseToast(m.name, t), { action: { label: '復原', onPress: () => update((d) => applyDose(d, day, m.id, t, null), { soon: true }) } });
   };
 
   // One tip a week for this kind of pet ('other' gets the reptile / fish / small-mammal and general articles).
@@ -123,7 +122,7 @@ export default function TodayScreen() {
   const tip = weeklyPick(tips, td) ?? allArticles()[0];
   const nudge = backupNudge(store, td);
   const notifyIntroAt: string | null = store.notifyIntroAt ?? null;
-  const showNotifyIntro = !store.notifyEnabled && !store.sample && !notifyIntroAt && !notifyHidden;
+  const showNotifyIntro = Platform.OS !== 'web' && !store.notifyEnabled && !store.sample && !notifyIntroAt && !notifyHidden;
   const closeNotifyIntro = () => {
     setNotifyHidden(true);
     update((d) => {
@@ -195,7 +194,7 @@ export default function TodayScreen() {
           <Text style={{ fontSize: 19, fontWeight: '700', color: C.ink }}>{pet.name}</Text>
           <Sub numberOfLines={1}>{sub}</Sub>
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '700', color: C.accent }}>檔案 ›</Text>
+        <Text style={{ fontSize: 13, fontWeight: '700', color: C.accentDark }}>檔案 ›</Text>
       </Pressable>
 
       <View style={{ backgroundColor: C.ink, borderRadius: 24, padding: 16, paddingLeft: 18, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -283,7 +282,7 @@ export default function TodayScreen() {
           <Pressable onPress={() => nav.push('meds')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }} accessibilityRole="button" accessibilityLabel={`今天的用藥，已完成 ${doseDone} / ${doseTotal}，點一下看全部`}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>今天的用藥</Text>
-              <Sub numberOfLines={1}>{medsToday.map((m) => m.name).join('、')}</Sub>
+              <Sub numberOfLines={1}>{[...new Set(dosesDue(store, pet.id, td).map(({ m }) => m.name))].join('、')}</Sub>
             </View>
             <Badge text={`${doseDone}/${doseTotal}`} bg={doseDone === doseTotal ? C.greenBg : C.yellowBg} fg={doseDone === doseTotal ? C.greenDark : C.yellowInk} />
           </Pressable>
@@ -291,9 +290,9 @@ export default function TodayScreen() {
             <Row style={{ borderTopWidth: 1.5, borderTopColor: C.lineSoft, paddingTop: 10 }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>{dose.t} {dose.m.name}</Text>
-                <Sub style={{ fontSize: 12, color: doseLate ? C.danger : C.sub }}>{[dose.m.dose, doseLate ? '已過時間' : '下一次'].filter(Boolean).join(' · ')}</Sub>
+                <Sub style={{ fontSize: 12, color: doseLate ? C.danger : C.sub }}>{[dose.m.dose, doseYesterday ? '昨晚的劑量' : doseLate ? '已過時間' : '下一次'].filter(Boolean).join(' · ')}</Sub>
               </View>
-              <Btn small title="打卡" style={{ backgroundColor: C.green }} onPress={() => takeDose(dose.m, dose.t)} accessibilityLabel={`${dose.t} ${dose.m.name} 打卡`} />
+              <Btn small title="打卡" style={{ backgroundColor: C.greenDark }} onPress={() => takeDose(dose.m, dose.t, dose.day)} accessibilityLabel={`${dose.t} ${dose.m.name} 打卡`} />
             </Row>
           ) : null}
         </Card>

@@ -117,7 +117,13 @@ export default function HealthScreen() {
         </Row>
         {showGrowth
           ? growth.map((g) => (
-              <Pressable key={g.id} onPress={() => nav.push('form', { form: 'growth', petId: pet.id, editId: g.id })} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderTopWidth: 1, borderTopColor: C.lineSoft }}>
+              <Pressable
+                key={g.id}
+                onPress={() => nav.push('form', { form: 'growth', petId: pet.id, editId: g.id })}
+                style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 44, borderTopWidth: 1, borderTopColor: C.lineSoft }}
+                accessibilityRole="button"
+                accessibilityLabel={`編輯 ${g.at.slice(5, 10).replace('-', '月').replace(/^0/, '')}日 的成長紀錄：${entrySummary(g)}`}
+              >
                 <Sub>{g.at.slice(0, 10).replace(/-/g, '/')}</Sub>
                 <Text style={{ color: C.ink, fontSize: 14 }}>{entrySummary(g)} ›</Text>
               </Pressable>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { useStore, memberName } from '../lib/store';
 import { useBackHandler } from '../nav';
 import { Avatar, Btn, Card, Choice, Empty, Field, Label, PetChips, Row, Screen, Sub, TimeField, confirm } from '../ui/kit';
@@ -91,9 +91,7 @@ export default function TasksScreen({ params }: { params: any }) {
           ) : null}
         </View>
       ) : null}
-      <Pressable accessible={false}>
-        <Sub>小提醒：在首頁點一下項目就能打卡；如果已由其他家人完成，會提醒你不用再做。</Sub>
-      </Pressable>
+      <Sub>小提醒：在首頁點一下項目就能打卡；如果已由其他家人完成，會提醒你不用再做。</Sub>
     </Screen>
   );
 }

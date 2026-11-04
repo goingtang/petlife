@@ -1,4 +1,6 @@
-import { findRedFlags, assessSymptoms, chocolateRisk, applyMedEdit, stopMed, freqText } from '../health';
+import { assessSymptoms, chocolateRisk, applyMedEdit, stopMed, freqText } from '../health';
+
+const findRedFlags = (text: string, species?: Parameters<typeof assessSymptoms>[1]) => assessSymptoms(text, species).flags;
 import type { MedDraft } from '../health';
 import type { Med } from '../types';
 import { addDays } from '../date';

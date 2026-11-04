@@ -1,5 +1,6 @@
 // Shared UI building blocks. Every screen is composed from these so the app looks consistent.
 import { Image as ExpoImage } from 'expo-image';
+import { cleanNumberText, parseTypedNumber } from '../lib/numparse';
 import React, { useState } from 'react';
 import {
   Alert, FlatList, Image, ImageStyle, Keyboard, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
@@ -226,7 +227,7 @@ const BTN: Record<BtnKind, { bg: string; fg: string; border: string }> = {
   primary: { bg: C.accent, fg: '#fff', border: 'transparent' },
   outline: { bg: 'transparent', fg: C.ink, border: C.ink },
   dark: { bg: C.ink, fg: C.bg, border: 'transparent' },
-  ghost: { bg: 'transparent', fg: C.accent, border: 'transparent' },
+  ghost: { bg: 'transparent', fg: C.accentDark, border: 'transparent' },
   danger: { bg: 'transparent', fg: C.danger, border: C.danger },
   soft: { bg: C.card, fg: C.ink, border: C.line },
 };
@@ -493,9 +494,11 @@ export function TimeField({ label, value, onChange }: { label?: string; value: s
 }
 
 export function Stepper({
-  label, value, onChange, step = 1, min = 0, max = 1e9, unit, decimals = 0, start, error, placeholder = '點一下輸入',
+  label, value, onChange, onClear, step = 1, min = 0, max = 1e9, unit, decimals = 0, start, error, placeholder = '點一下輸入',
 }: {
-  label?: string; value: number | null; onChange: (v: number) => void; step?: number; min?: number; max?: number; unit?: string; decimals?: number;
+  label?: string; value: number | null; onChange: (v: number) => void;
+  /** Called when the typed field is emptied (only for optional values). */ onClear?: () => void;
+  step?: number; min?: number; max?: number; unit?: string; decimals?: number;
   /** Where ＋／− begin when there is no value yet. */ start?: number; error?: string | null; placeholder?: string;
 }) {
   const round = (n: number) => Math.round(n * 1000) / 1000;
@@ -504,27 +507,44 @@ export function Stepper({
   // Tap the number to type it (a 25 kg dog shouldn't need 240 taps of ＋).
   const [typing, setTyping] = useState(false);
   const [text, setText] = useState('');
+  const [range, setRange] = useState<null | 'low' | 'high'>(null);
   const clamp = (n: number) => Math.min(max, Math.max(min, round(n)));
-  const commit = () => {
+  // Every valid keystroke goes straight to the parent, so pressing 儲存 while the keyboard is
+  // still open (no blur on iOS decimal-pad) saves what was typed.
+  const typed = (raw: string) => {
+    const t = cleanNumberText(raw, decimals);
+    setText(t);
+    const r = parseTypedNumber(t, { decimals, min, max });
+    if (r.kind === 'empty') {
+      setRange(null);
+      onClear?.();
+    } else if (r.kind === 'ok') {
+      setRange(r.outOfRange);
+      if (!r.outOfRange) onChange(r.value);
+    }
+  };
+  const done = () => {
     setTyping(false);
-    const n = Number(text.replace(/,/g, '.'));
-    if (text.trim() !== '' && Number.isFinite(n)) onChange(clamp(decimals ? n : Math.round(n)));
+    setRange(null);
   };
   const base = has ? (value as number) : start ?? min;
+  const fmtN = (n: number) => (decimals ? String(n) : String(Math.round(n)));
+  const hint = range === 'high' ? `最多 ${fmtN(max)}${unit ? ' ' + unit : ''}` : range === 'low' ? `最少 ${fmtN(min)}${unit ? ' ' + unit : ''}` : null;
+  const shown = error ?? hint;
   return (
     <View style={{ gap: 6 }}>
       {label ? <Label>{label}</Label> : null}
-      <View style={[s.stepper, error ? { borderWidth: 1.5, borderColor: C.danger } : null]}>
-        <Pressable onPress={() => onChange(has ? clamp(base - step) : clamp(base))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`減少${label ?? ''}`}>
+      <View style={[s.stepper, shown ? { borderWidth: 1.5, borderColor: C.danger } : null]}>
+        <Pressable onPress={() => { done(); onChange(has ? clamp(base - step) : clamp(base)); }} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`減少${label ?? ''}`}>
           <Text style={{ fontSize: 22, color: C.ink }}>−</Text>
         </Pressable>
         {typing ? (
           <TextInput
             autoFocus
             value={text}
-            onChangeText={(t) => setText(decimals ? t.replace(/[^0-9.,]/g, '') : t.replace(/[^0-9]/g, ''))}
-            onBlur={commit}
-            onSubmitEditing={commit}
+            onChangeText={typed}
+            onBlur={done}
+            onSubmitEditing={done}
             keyboardType={decimals ? 'decimal-pad' : 'number-pad'}
             returnKeyType="done"
             selectTextOnFocus
@@ -547,11 +567,11 @@ export function Stepper({
             </Text>
           </Pressable>
         )}
-        <Pressable onPress={() => onChange(has ? clamp(base + step) : clamp(base))} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`增加${label ?? ''}`}>
+        <Pressable onPress={() => { done(); onChange(has ? clamp(base + step) : clamp(base)); }} style={s.stepBtn} accessibilityRole="button" accessibilityLabel={`增加${label ?? ''}`}>
           <Text style={{ fontSize: 22, color: C.ink }}>＋</Text>
         </Pressable>
       </View>
-      {error ? <Text style={{ fontSize: 12, color: C.danger }}>{error}</Text> : null}
+      {shown ? <Text style={{ fontSize: 12, color: C.danger }} accessibilityLiveRegion="polite">{shown}</Text> : null}
     </View>
   );
 }

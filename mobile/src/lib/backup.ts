@@ -4,14 +4,28 @@
 // The pure parts (prepare/restore/pack/unpack) are unit-tested in __tests__/backup.test.ts.
 import JSZip from 'jszip';
 import { Platform } from 'react-native';
-import { Directory, File, Paths } from 'expo-file-system';
+import { Directory, File, FileMode, Paths } from 'expo-file-system';
 import type { Store } from './types';
-import { mapFileUris } from './life';
+import { mapFileUris, rebaseUri } from './life';
+import { documentRoot } from './persist';
 
 /** Data references to files inside a backup look like this; they are rewritten to real paths on restore. */
 export const FILE_REF = 'petpal-file:';
-/** Above this total, ask before building a zip in memory (phones with little RAM). */
-export const LARGE_BACKUP_BYTES = 150 * 1024 * 1024;
+/**
+ * Largest total of photos + documents a full backup may hold. The photos are read into memory while the
+ * zip is written, so above this a phone with little RAM could be killed; then only a data backup is offered.
+ */
+export const FULL_BACKUP_MAX_BYTES = 120 * 1024 * 1024;
+export const fullBackupAllowed = (fileBytes: number) => fileBytes <= FULL_BACKUP_MAX_BYTES;
+
+/** Thrown when a restore could not write every file; nothing was changed. */
+export class RestoreSpaceError extends Error {
+  neededMB: number;
+  constructor(neededMB: number) {
+    super('restore-space');
+    this.neededMB = neededMB;
+  }
+}
 
 const baseName = (uri: string) => decodeURIComponent(uri.split('?')[0].split('/').pop() || '');
 const safeName = (n: string) => n.replace(/[^\w.\-]/g, '_').slice(0, 80) || 'file';
@@ -37,10 +51,8 @@ export function prepareBackupData(store: Store, exists: (uri: string) => boolean
   return { data, files: [...byUri].map(([uri, name]) => ({ uri, name })) };
 }
 
-/** Point `petpal-file:<name>` references at restored files; names that weren't restored become empty. */
-export function restoreFileRefs(data: any, uriOf: (name: string) => string | null): any {
-  mapFileUris(data, (u) => (u.startsWith(FILE_REF) ? uriOf(u.slice(FILE_REF.length)) ?? '' : u));
-  // Lists of photos shouldn't keep empty holes.
+/** Remove empty holes left after files went missing (photo lists, optional photo fields). */
+export function dropEmptyFileRefs(data: any): any {
   for (const j of data.journal || []) j.photos = (j.photos || []).filter(Boolean);
   for (const d of data.docs || []) d.pages = (d.pages || []).filter(Boolean);
   for (const e of data.entries || []) if (e.v && Array.isArray(e.v.docs)) e.v.docs = e.v.docs.filter(Boolean);
@@ -49,8 +61,67 @@ export function restoreFileRefs(data: any, uriOf: (name: string) => string | nul
   for (const x of data.milestones || []) if (!x.photo) delete x.photo;
   for (const k of Object.keys(data.lost || {})) if (data.lost[k] && !data.lost[k].photo) delete data.lost[k].photo;
   for (const d of data.docs || []) if (d.fileUri === '') d.fileUri = null;
+  return data;
+}
+
+/** Point `petpal-file:<name>` references at restored files; names that weren't restored become empty. */
+export function restoreFileRefs(data: any, uriOf: (name: string) => string | null): any {
+  mapFileUris(data, (u) => (u.startsWith(FILE_REF) ? uriOf(u.slice(FILE_REF.length)) ?? '' : u));
+  dropEmptyFileRefs(data);
   delete data._backup;
   return data;
+}
+
+/**
+ * Older .json backups hold absolute paths from the phone they were made on. Re-point paths from an
+ * app documents folder at this phone's folder and clear the ones whose file isn't here.
+ */
+export function fixJsonBackupPaths(data: any, docRoot: string | null, exists: (uri: string) => boolean): any {
+  mapFileUris(data, (u) => {
+    if (!u.startsWith('file:')) return u;
+    const n = docRoot ? rebaseUri(u, docRoot) : u;
+    return exists(n) ? n : '';
+  });
+  return dropEmptyFileRefs(data);
+}
+
+/** Unique destination names for restored files: two zip names that clean up to the same name stay apart. */
+export function restoreNames(names: string[], stamp: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const used = new Set<string>();
+  for (const n of names) {
+    let dest = `r${stamp}_${safeName(n)}`;
+    for (let i = 2; used.has(dest); i++) dest = `r${stamp}_${i}_${safeName(n)}`;
+    used.add(dest);
+    out.set(n, dest);
+  }
+  return out;
+}
+
+/**
+ * Write every file or none: if any write fails, the ones already written are removed and
+ * RestoreSpaceError is thrown, so the data on the phone is never swapped for data with missing photos.
+ */
+export async function writeAllOrNothing(
+  files: { name: string; size?: number }[],
+  write: (name: string) => Promise<string>,
+  remove: (uri: string) => void,
+): Promise<Map<string, string>> {
+  const written = new Map<string, string>();
+  try {
+    for (const f of files) written.set(f.name, await write(f.name));
+  } catch {
+    written.forEach((uri) => {
+      try {
+        remove(uri);
+      } catch {
+        // best effort
+      }
+    });
+    const bytes = files.reduce((n, f) => n + (f.size ?? 0), 0);
+    throw new RestoreSpaceError(Math.max(1, Math.ceil(bytes / 1048576)));
+  }
+  return written;
 }
 
 export async function packZip(data: any, files: { name: string; bytes: Uint8Array }[]): Promise<Uint8Array> {
@@ -62,14 +133,39 @@ export async function packZip(data: any, files: { name: string; bytes: Uint8Arra
   return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 }
 
-export async function unpackZip(bytes: Uint8Array): Promise<{ data: any; files: { name: string; read: () => Promise<Uint8Array> }[] }> {
+/** Same zip as packZip, handed out in chunks so the finished zip never sits in memory as one more copy. */
+export function packZipChunks(data: any, files: { name: string; bytes: Uint8Array }[], onChunk: (c: Uint8Array) => void): Promise<void> {
+  const zip = new JSZip();
+  zip.file('data.json', JSON.stringify(data));
+  const dir = zip.folder('files')!;
+  for (const f of files) dir.file(f.name, f.bytes, { binary: true, compression: 'STORE' });
+  return new Promise((resolve, reject) => {
+    zip
+      .generateInternalStream({ type: 'uint8array', compression: 'DEFLATE', compressionOptions: { level: 6 }, streamFiles: true })
+      .on('data', (chunk: Uint8Array) => {
+        try {
+          onChunk(chunk);
+        } catch (e) {
+          reject(e);
+        }
+      })
+      .on('error', reject)
+      .on('end', () => resolve())
+      .resume();
+  });
+}
+
+export async function unpackZip(bytes: Uint8Array): Promise<{ data: any; files: { name: string; size?: number; read: () => Promise<Uint8Array> }[] }> {
   const zip = await JSZip.loadAsync(bytes);
   const json = zip.file('data.json');
   if (!json) throw new Error('no data.json');
   const data = JSON.parse(await json.async('string'));
-  const files: { name: string; read: () => Promise<Uint8Array> }[] = [];
+  const files: { name: string; size?: number; read: () => Promise<Uint8Array> }[] = [];
   zip.folder('files')?.forEach((path, entry) => {
-    if (!entry.dir && !path.includes('/')) files.push({ name: path, read: () => entry.async('uint8array') });
+    // Only plain names directly in files/ (no sub-folders, no "../"), so nothing lands outside the app folder.
+    if (entry.dir || path.includes('/') || path.includes('\\') || path.includes('..')) return;
+    const size = (entry as any)._data?.uncompressedSize;
+    files.push({ name: path, size: typeof size === 'number' ? size : undefined, read: () => entry.async('uint8array') });
   });
   return { data, files };
 }
@@ -116,11 +212,29 @@ export async function writeBackupZip(store: Store, name: string, withFiles = tru
       // A file that can't be read is left out; its reference stays empty on restore.
     }
   }
-  const zipBytes = await packZip(data, parts);
+  // Earlier backup zips in the cache are no longer needed (the launch clean-up also sweeps them).
+  // The one just shared is kept until then: a cloud app may still be uploading it after the share sheet closes.
+  try {
+    for (const item of Paths.cache.list()) if (item instanceof File && /\.zip$/i.test(item.uri)) item.delete();
+  } catch {
+    // ignore
+  }
   const out = new File(Paths.cache, name);
   if (out.exists) out.delete();
   out.create();
-  await out.write(zipBytes);
+  const handle = out.open(FileMode.ReadWrite);
+  try {
+    await packZipChunks(data, parts, (c) => handle.writeBytesSync(c));
+  } catch (e) {
+    handle.close();
+    try {
+      out.delete();
+    } catch {
+      // ignore
+    }
+    throw e;
+  }
+  handle.close();
   return out.uri;
 }
 
@@ -131,31 +245,33 @@ export async function writeBackupZip(store: Store, name: string, withFiles = tru
  */
 export async function openBackup(uri: string): Promise<{ data: any; fileCount: number; restore: () => Promise<{ data: any; restoredFiles: number }> }> {
   const web = Platform.OS === 'web';
-  const bytes = web ? new Uint8Array(await (await fetch(uri)).arrayBuffer()) : await new File(uri).bytes();
+  let bytes: Uint8Array | null = web ? new Uint8Array(await (await fetch(uri)).arrayBuffer()) : await new File(uri).bytes();
   if (!isZip(bytes)) {
+    bytes = null;
     // Older backups are plain JSON. (Read as text by the platform: Hermes has no TextDecoder.)
     const text = web ? await (await fetch(uri)).text() : await new File(uri).text();
     const data = JSON.parse(text);
-    return { data, fileCount: 0, restore: async () => ({ data, restoredFiles: 0 }) };
+    return { data, fileCount: 0, restore: async () => ({ data: web ? data : fixJsonBackupPaths(data, documentRoot(), fileExists), restoredFiles: 0 }) };
   }
   const { data, files } = await unpackZip(bytes);
+  bytes = null; // the zip index keeps what it needs
   const restore = async () => {
     if (web) return { data: restoreFileRefs(data, () => null), restoredFiles: 0 };
     const dir = new Directory(Paths.document, 'petpal');
     if (!dir.exists) dir.create({ intermediates: true });
-    const written = new Map<string, string>();
-    const stamp = Date.now().toString(36);
-    for (const f of files) {
-      try {
-        const dest = new File(dir, `r${stamp}_${safeName(f.name)}`);
+    const names = restoreNames(files.map((f) => f.name), Date.now().toString(36));
+    const byName = new Map(files.map((f) => [f.name, f]));
+    const written = await writeAllOrNothing(
+      files,
+      async (n) => {
+        const dest = new File(dir, names.get(n)!);
         if (dest.exists) dest.delete();
         dest.create();
-        await dest.write(await f.read());
-        written.set(f.name, dest.uri);
-      } catch {
-        // skip a file that can't be written; its reference becomes empty
-      }
-    }
+        await dest.write(await byName.get(n)!.read());
+        return dest.uri;
+      },
+      (u) => new File(u).delete(),
+    );
     return { data: restoreFileRefs(data, (n) => written.get(n) ?? null), restoredFiles: written.size };
   };
   return { data, fileCount: files.length, restore };

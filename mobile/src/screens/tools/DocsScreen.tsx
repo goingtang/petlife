@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Alert, Image, Platform, Pressable, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, Text, View } from 'react-native';
 import { Screen, Btn, Card, Chip, ChipRow, Choice, Field, DateField, Toggle, Badge, PetChips, Sub, Row, Label, Empty, Banner, Thumb as Photo, confirm } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
@@ -288,7 +288,7 @@ function DocDetail({ doc, onClose, onEdit }: { doc: Doc; onClose: () => void; on
           title="刪除"
           style={{ flex: 1 }}
           onPress={() =>
-            confirm('刪除文件', `確定刪除「${doc.title}」嗎？檔案和到期提醒也會一起刪除。`, () => {
+            confirm('刪除這份文件？', `「${doc.title}」的檔案和到期提醒也會一起刪除，無法復原。`, () => {
               deleteFile(doc.fileUri);
               (doc.pages || []).forEach((u) => deleteFile(u));
               update((s) => {

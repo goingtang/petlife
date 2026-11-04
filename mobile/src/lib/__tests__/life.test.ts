@@ -122,6 +122,12 @@ describe('file paths after the app folder moved', () => {
     expect(rebaseUri('blob:http://localhost/abc', root)).toBe('blob:http://localhost/abc');
     expect(rebaseUri('content://media/external/1', root)).toBe('content://media/external/1');
   });
+  test('only folders that were an app documents folder are rebased', () => {
+    const aroot = 'file:///data/user/0/tw.petpal.app/files/';
+    expect(rebaseUri('file:///data/user/0/old.pkg/files/petpal/x.jpg', aroot)).toBe(aroot + 'petpal/x.jpg');
+    expect(rebaseUri('file:///storage/emulated/0/Download/petpal/x.jpg', aroot)).toBe('file:///storage/emulated/0/Download/petpal/x.jpg');
+    expect(rebaseUri('file:///var/x/Documents/petpal/sub/x.jpg', root)).toBe('file:///var/x/Documents/petpal/sub/x.jpg');
+  });
   test('mapFileUris reaches every place a file is stored', () => {
     const s: any = {
       pets: [{ photo: 'a' }], journal: [{ photos: ['b', 'c'] }], entries: [{ v: { docs: ['d'] } }, { v: {} }],

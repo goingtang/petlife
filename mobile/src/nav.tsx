@@ -28,6 +28,11 @@ interface NavCtx {
   back: () => void;
   popToRoot: () => void;
   registerBack: (routeKey: string, id: number, fn: BackFn | null) => void;
+  /**
+   * True while an open screen has an edit form or sub-view that wants to be closed first (it registered
+   * a back handler). Used before jumping elsewhere (e.g. after tapping a notification) so typed input isn't lost.
+   */
+  hasOpenForm: () => boolean;
 }
 
 const Ctx = createContext<NavCtx | null>(null);
@@ -91,6 +96,11 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
     else handlers.current.delete(routeKey);
   }, []);
 
+  const hasOpenForm = useCallback(() => {
+    const keys = [`tab:${tabRef.current}`, ...stackRef.current.map((r) => r.key)];
+    return keys.some((key) => (handlers.current.get(key)?.length ?? 0) > 0);
+  }, []);
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stackRef.current.length) {
@@ -108,8 +118,8 @@ export function NavProvider({ children }: { children: React.ReactNode }) {
   }, [tab, back, runHandlers]);
 
   const value = useMemo(
-    () => ({ tab, setTab, stack, push, pushUnique, replace, pop, back, popToRoot, registerBack }),
-    [tab, setTab, stack, push, pushUnique, replace, pop, back, popToRoot, registerBack],
+    () => ({ tab, setTab, stack, push, pushUnique, replace, pop, back, popToRoot, registerBack, hasOpenForm }),
+    [tab, setTab, stack, push, pushUnique, replace, pop, back, popToRoot, registerBack, hasOpenForm],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

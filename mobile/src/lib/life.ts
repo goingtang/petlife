@@ -122,7 +122,11 @@ export function mapFileUris(s: any, fn: (u: string) => string): void {
  */
 export function rebaseUri(uri: string, docRoot: string): string {
   const root = docRoot.endsWith('/') ? docRoot : docRoot + '/';
-  const i = uri.lastIndexOf('/petpal/');
-  if (!uri.startsWith('file:') || i < 0 || uri.startsWith(root + 'petpal/')) return uri;
-  return root + 'petpal/' + uri.slice(i + '/petpal/'.length);
+  if (!uri.startsWith('file:') || uri.startsWith(root + 'petpal/')) return uri;
+  // Only paths that were inside an app's own documents folder: …/Documents/petpal/<name> on iOS,
+  // …/files/petpal/<name> on Android. A user folder that happens to be called "petpal"
+  // (e.g. /Download/petpal/…) is left alone.
+  const m = /\/(?:Documents|files)\/petpal\/([^/]+)$/.exec(uri);
+  if (!m) return uri;
+  return root + 'petpal/' + m[1];
 }

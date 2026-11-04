@@ -144,7 +144,7 @@ export default function GroomScreen(_: { params: any }) {
                   <Progress pct={(el / g.every) * 100} color={color} height={6} />
                   <Sub>每 {g.every} 天 · {g.history?.length ? `上次 ${shortDate(g.last)}` : `從 ${shortDate(g.last)} 開始計算`}</Sub>
                 </Pressable>
-                <Btn small title={g.last === day ? '今天已完成' : '完成'} disabled={g.last === day} onPress={() => done(g)} style={{ backgroundColor: g.last === day ? C.sand : C.green }} textStyle={{ color: g.last === day ? C.sub : '#fff' }} />
+                <Btn small title={g.last === day ? '今天已完成' : '完成'} disabled={g.last === day} onPress={() => done(g)} style={{ backgroundColor: g.last === day ? C.sand : C.greenDark }} textStyle={{ color: g.last === day ? C.sub : '#fff' }} />
               </Row>
               {undo?.id === g.id ? <Btn small kind="ghost" title="復原剛才的完成" onPress={doUndo} style={{ alignSelf: 'flex-start' }} /> : null}
               {costFor === g.id && !costOpen ? (

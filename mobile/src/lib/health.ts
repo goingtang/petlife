@@ -96,10 +96,6 @@ export function assessSymptoms(text: string, species?: PetKind): Assessment {
   return { flags: [...flags], warnings };
 }
 
-export function findRedFlags(text: string, species?: PetKind): string[] {
-  return assessSymptoms(text, species).flags;
-}
-
 /** Calm message when no red flag was found, adjusted for animals that can't wait. */
 export function reassurance(species: PetKind | undefined, birthday: string, warnings: string[]): string {
   const young = birthday ? (Date.now() - parseYmd(birthday).getTime()) / 864e5 < 180 : false;

@@ -65,10 +65,17 @@ export default function PetEditScreen({ params }: { params: any }) {
       : null,
   );
 
+  // Only check a chip number changed in this edit, so older pets with other formats can still be saved.
+  const chipDigits = p.chip.replace(/\D/g, '');
+  const chipChanged = p.chip.trim() !== (existing?.chip ?? '').trim();
+  const chipBad = chipChanged && !validChip(chipDigits);
+
   const save = () => {
     setTried(true);
-    if (!p.name.trim() || !kindPicked || !validChip(p.chip)) return;
-    const clean = { ...p, name: p.name.trim(), breed: p.breed.trim(), chip: p.chip.trim(), allergy: p.allergy.trim() };
+    if (!p.name.trim() || !kindPicked || chipBad) return;
+    // Normalize only a chip number the user changed; older data in other formats is kept as is.
+    const chip = chipChanged ? chipDigits : p.chip.trim();
+    const clean = { ...p, name: p.name.trim(), breed: p.breed.trim(), chip, allergy: p.allergy.trim() };
     update((d) => {
       if (existing) {
         const i = d.pets.findIndex((x) => x.id === existing.id);
@@ -227,7 +234,7 @@ export default function PetEditScreen({ params }: { params: any }) {
       <Toggle label="已結紮" value={p.neutered} onChange={(v) => set('neutered', v)} />
       <DateField label="生日（不確定可填大約日期）" value={p.birthday} onChange={(v) => set('birthday', v)} optional max={today()} />
       <DateField label="來到家裡的日子" value={p.adopted} onChange={(v) => set('adopted', v)} optional max={today()} />
-      <Field label="晶片號碼" value={p.chip} onChangeText={(t) => set('chip', t.replace(/[^0-9]/g, ''))} keyboardType="numeric" placeholder="15 碼數字" error={!validChip(p.chip) && (tried || p.chip.length >= 15) ? `晶片號碼是 15 碼數字（目前 ${p.chip.trim().length} 碼）` : null} />
+      <Field label="晶片號碼" value={p.chip} onChangeText={(t) => set('chip', t)} keyboardType="numeric" placeholder="15 碼數字" error={chipBad && (tried || chipDigits.length >= 15) ? `晶片號碼是 15 碼數字（目前 ${chipDigits.length} 碼）` : null} />
       <Field label="過敏" value={p.allergy} onChangeText={(t) => set('allergy', t)} placeholder="例如：雞肉；沒有可留白" />
       <View style={{ gap: 8 }}>
         <Label>代表色</Label>

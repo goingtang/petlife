@@ -177,7 +177,7 @@ export default function CareSheetScreen(_: { params: any }) {
         ) : (
           <Row style={{ justifyContent: 'space-between' }}>
             <Sub>你的電話：{store.ownerPhone}</Sub>
-            <Btn small kind="ghost" title="修改" onPress={() => setEditingPhone(true)} />
+            <Btn small kind="ghost" title="編輯" onPress={() => setEditingPhone(true)} />
           </Row>
         )}
       </Card>
@@ -213,7 +213,7 @@ export default function CareSheetScreen(_: { params: any }) {
 function SecView({ s }: { s: Sec }) {
   return (
     <View style={{ gap: 4 }}>
-      <Text style={{ fontSize: 12, fontWeight: '700', color: C.accent }}>{s.title}</Text>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: C.accentDark }}>{s.title}</Text>
       {s.rows.map((r, i) => (
         <Row key={i} gap={10} style={{ alignItems: 'flex-start', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: C.lineSoft }}>
           {r.k ? <Text style={{ minWidth: 56, fontSize: 13, color: C.sub, fontWeight: '600' }}>{r.k}</Text> : null}

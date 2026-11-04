@@ -94,6 +94,8 @@ export default function FormScreen({ params }: { params: any }) {
   };
   const [tried, setTried] = useState(false);
   const set = (k: string, x: any) => setV((o: any) => ({ ...o, [k]: x }));
+  // Once the user picks a repeat themselves, choosing a preset title no longer changes it.
+  const repeatTouched = useRef(false);
 
   if (!pet && form !== 'diary') {
     return (
@@ -253,7 +255,7 @@ export default function FormScreen({ params }: { params: any }) {
   };
 
   const remove = () =>
-    confirm('確定刪除？', '刪除後無法復原。', () => {
+    confirm(existingJ ? '刪除這篇日記？' : existingRem ? '刪除這筆提醒？' : '刪除這筆紀錄？', '刪除後無法復原。', () => {
       const files: string[] = [...(existingEntry?.v?.docs || []), ...(existingJ?.photos || [])];
       update((d) => {
         if (existingEntry) d.entries = d.entries.filter((x) => x.id !== existingEntry.id);
@@ -366,8 +368,8 @@ export default function FormScreen({ params }: { params: any }) {
 
       {form === 'growth' && (
         <>
-          <Stepper label="體重" value={v.weight} onChange={(x) => set('weight', x)} step={pet?.kind === 'dog' ? 0.1 : 0.05} min={0.05} max={150} decimals={2} unit="kg" start={pet?.kind === 'dog' ? 5 : pet?.kind === 'cat' ? 4 : 1} error={err('weight')} placeholder="點一下輸入體重" />
-          <Stepper label="身長（選填）" value={v.length} onChange={(x) => set('length', x)} step={0.5} min={1} max={300} decimals={1} unit="cm" start={pet?.kind === 'dog' ? 40 : 30} placeholder="不量也可以" />
+          <Stepper label="體重" value={v.weight} onChange={(x) => set('weight', x)} step={pet?.kind === 'dog' ? 0.1 : 0.05} min={0.05} max={150} decimals={2} unit="kg" start={pet?.kind === 'dog' ? 5 : pet?.kind === 'cat' ? 4 : 1} onClear={() => set('weight', null)} error={err('weight')} placeholder="點一下輸入體重" />
+          <Stepper label="身長（選填）" value={v.length} onChange={(x) => set('length', x)} step={0.5} min={1} max={300} decimals={1} unit="cm" start={pet?.kind === 'dog' ? 40 : 30} onClear={() => set('length', null)} placeholder="不量也可以" />
           {v.length ? <Btn small kind="ghost" title="不記錄身長" onPress={() => set('length', null)} style={{ alignSelf: 'flex-start' }} /> : null}
           <View style={{ gap: 8 }}>
             <Label>體態</Label>
@@ -387,13 +389,13 @@ export default function FormScreen({ params }: { params: any }) {
               set('title', x);
               // A preset brings its usual repeat (狂犬病 每年, 驅蟲 每月) unless this reminder already has one.
               const pr = presetsFor(pet?.kind).find((p) => p.title === x);
-              if (pr && !existingRem) set('repeat', pr.repeat);
+              if (pr && !existingRem && !repeatTouched.current) set('repeat', pr.repeat);
             }}
           />
           <DateField label="日期" value={v.date} onChange={(x) => set('date', x)} error={err('date')} />
           <View style={{ gap: 8 }}>
             <Label>重複</Label>
-            <Segment options={[{ value: 'once', label: '不重複' }, { value: 'monthly', label: '每月' }, { value: 'yearly', label: '每年' }]} value={v.repeat} onChange={(x) => set('repeat', x)} />
+            <Segment options={[{ value: 'once', label: '不重複' }, { value: 'monthly', label: '每月' }, { value: 'yearly', label: '每年' }]} value={v.repeat} onChange={(x) => { repeatTouched.current = true; set('repeat', x); }} />
           </View>
           <Toggle label="手機通知提醒" hint={store.notifyEnabled ? '前一天晚上 8 點和當天早上 9 點各提醒一次' : '通知目前關閉，要到「設定」開啟才會跳出提醒'} value={v.notify} onChange={(x) => set('notify', x)} />
         </>

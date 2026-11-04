@@ -216,7 +216,7 @@ export default function LostScreen(_: { params: any }) {
       return true;
     }
     if (isDirty()) {
-      confirm('放棄尚未儲存的內容？', '剛才填寫的協尋資料不會保存。', () => {
+      confirm('放棄未儲存的內容？', '剛才填寫的協尋資料不會保存。', () => {
         formDirty.current = null;
         if (editing) setEditing(false);
         else nav.pop();
@@ -312,7 +312,7 @@ export default function LostScreen(_: { params: any }) {
             <Btn kind="outline" title="分享協尋文字" onPress={() => shareText(lostText(pet, L), `${pet.name} 協尋`)} />
             <Row gap={8}>
               <Btn kind="outline" title="在地圖查看" style={{ flex: 1 }} onPress={() => openUrl(mapsSearch(L.place))} />
-              <Btn kind="outline" title="編輯資訊" style={{ flex: 1 }} onPress={() => { setEditing(true); scrollRef.current?.scrollTo?.({ y: 0, animated: true }); }} />
+              <Btn kind="outline" title="編輯" style={{ flex: 1 }} onPress={() => { setEditing(true); scrollRef.current?.scrollTo?.({ y: 0, animated: true }); }} />
             </Row>
 
             <Section title="目擊紀錄" action={addSighting ? undefined : { label: '＋ 新增', onPress: () => setAddSighting(true) }}>

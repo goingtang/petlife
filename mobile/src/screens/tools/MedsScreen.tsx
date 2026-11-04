@@ -6,11 +6,11 @@ import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { useBackHandler, useNav } from '../../nav';
 import type { Med, MedFreq, Store } from '../../lib/types';
-import { adherence, doseKey, entriesFor, FREQ_LABEL, nextDueDate } from '../../lib/domain';
+import { adherence, doseKey, entriesFor, nextDueDate } from '../../lib/domain';
 import { addDays, daysBetween, shortDate, today } from '../../lib/date';
 import { uid } from '../../lib/seed';
 import { applyMedEdit, stopMed, freqText } from '../../lib/health';
-import { applyDose, doseMemory, dosesDue, resetDoseMemory } from '../../lib/doses';
+import { applyDose, doseMemory, doseToast, dosesDue, parseDoseKey, resetDoseMemory } from '../../lib/doses';
 
 const PRESET = ['07:00', '08:00', '09:00', '12:00', '18:00', '20:00', '21:00'];
 
@@ -34,7 +34,6 @@ function Ring({ pct }: { pct: number | null }) {
 
 function MedForm({ med, petId, onDone, dirty }: { med: Med | null; petId: string; onDone: () => void; dirty: React.MutableRefObject<boolean> }) {
   const { update, toast, store } = useStore();
-  const nav = useNav();
   const td = today();
   const [name, setName] = useState(med?.name ?? '');
   const [dose, setDose] = useState(med?.dose ?? '');
@@ -232,10 +231,10 @@ export default function MedsScreen(_: { params: any }) {
   };
 
   const removeMed = (m: Med) => {
-    const kept = Object.fromEntries(Object.entries(store.doses).filter(([k]) => k.split('|')[1] === m.id));
+    const kept = Object.fromEntries(Object.entries(store.doses).filter(([k]) => parseDoseKey(k).medId === m.id));
     update((d) => {
       d.meds = d.meds.filter((y) => y.id !== m.id);
-      for (const k of Object.keys(d.doses)) if (k.split('|')[1] === m.id) delete d.doses[k];
+      for (const k of Object.keys(d.doses)) if (parseDoseKey(k).medId === m.id) delete d.doses[k];
     });
     toast(`已刪除「${m.name}」`, {
       action: {
@@ -318,7 +317,7 @@ export default function MedsScreen(_: { params: any }) {
                   ) : (
                     <Row gap={6}>
                       <Btn small kind="soft" title="略過" onPress={() => setDose(m, t, 'skip')} />
-                      <Btn small title="打卡" style={{ backgroundColor: C.green }} onPress={() => { setDose(m, t, 'taken'); toast(`${m.name} 已服用`, { action: { label: '復原', onPress: () => setDose(m, t, null) } }); }} />
+                      <Btn small title="打卡" style={{ backgroundColor: C.greenDark }} onPress={() => { setDose(m, t, 'taken'); toast(doseToast(m.name, t), { action: { label: '復原', onPress: () => setDose(m, t, null) } }); }} />
                     </Row>
                   )}
                 </Row>

@@ -1,6 +1,7 @@
 // Dose check-in logic shared by the Meds screen and the Today card.
 import type { Med, Store } from './types';
 import { doseKey, medDueOn } from './domain';
+import { addDays } from './date';
 
 export type DoseState = 'taken' | 'skip' | null;
 
@@ -47,7 +48,36 @@ export function dosesDue(store: Store, petId: string, day: string): { m: Med; t:
   return out.sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.m.name.localeCompare(b.m.name)));
 }
 
-/** The dose to show on Today: the earliest one not yet checked in or skipped (overdue first), or null. */
-export function nextDose(store: Store, petId: string, day: string): { m: Med; t: string } | null {
-  return dosesDue(store, petId, day).find(({ m, t }) => !store.doses[doseKey(day, m.id, t)]) ?? null;
+/** Split a `doses` key back into its parts (see `doseKey` in domain.ts). */
+export function parseDoseKey(k: string): { date: string; medId: string; time: string } {
+  const [date = '', medId = '', time = ''] = k.split('|');
+  return { date, medId, time };
 }
+
+/** How many of today's doses for one pet exist and how many are checked in or skipped. */
+export function doseProgress(store: Store, petId: string, day: string) {
+  const due = dosesDue(store, petId, day);
+  return { total: due.length, done: due.filter(({ m, t }) => store.doses[doseKey(day, m.id, t)]).length };
+}
+
+/** Until this time, an untaken evening dose from yesterday is still shown first on Today. */
+export const LATE_NIGHT_CUTOFF = '03:00';
+const EVENING = '18:00';
+
+/**
+ * The dose to show on Today: the earliest one not yet checked in or skipped (overdue first), or null.
+ * Shortly after midnight (before 03:00) a missed evening dose from yesterday comes first, so a
+ * 22:00 dose that was forgotten doesn't disappear at 00:00.
+ */
+export function nextDose(store: Store, petId: string, day: string, now?: string): { m: Med; t: string; day: string } | null {
+  if (now && now < LATE_NIGHT_CUTOFF) {
+    const y = addDays(day, -1);
+    const late = dosesDue(store, petId, y).find(({ m, t }) => t >= EVENING && !store.doses[doseKey(y, m.id, t)]);
+    if (late) return { ...late, day: y };
+  }
+  const hit = dosesDue(store, petId, day).find(({ m, t }) => !store.doses[doseKey(day, m.id, t)]);
+  return hit ? { ...hit, day } : null;
+}
+
+/** Toast shown after a dose check-in, the same on Today and in Meds. */
+export const doseToast = (name: string, time: string) => `已記錄：${name} ${time} 已服用`;

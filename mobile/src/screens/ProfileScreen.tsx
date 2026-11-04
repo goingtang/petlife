@@ -38,7 +38,7 @@ export default function ProfileScreen({ params }: { params: any }) {
     });
 
   return (
-    <Screen title={pet.name} right={<Btn small kind="outline" title="編輯資料" onPress={() => nav.push('petEdit', { petId: pet.id })} />}>
+    <Screen title={pet.name} right={<Btn small kind="outline" title="編輯" onPress={() => nav.push('petEdit', { petId: pet.id })} />}>
       <Pressable onPress={setPhoto} style={{ height: 230, borderRadius: 28, backgroundColor: pet.color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="更換照片">
         {pet.photo ? (
           <Thumb uri={pet.photo} label={`${pet.name}的照片`} style={{ width: '100%', height: '100%' }} />
@@ -80,7 +80,7 @@ export default function ProfileScreen({ params }: { params: any }) {
           <KV k="來家裡的日子" v={pet.adopted ? pet.adopted.replace(/-/g, '/') : '未填'} />
           <KV k="晶片號碼" v={pet.chip || '未填'} />
           <Pressable onPress={() => openUrl('https://www.pet.gov.tw')} style={{ minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' }} accessibilityRole="link" accessibilityLabel="查詢寵物登記，開啟寵物登記管理資訊網">
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.accent }}>查詢寵物登記 ›</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.accentDark }}>查詢寵物登記 ›</Text>
           </Pressable>
           <KV k="過敏" v={pet.allergy || '無'} />
         </ListCard>

@@ -11,6 +11,8 @@ export interface PlannedNote {
   title: string;
   body: string;
   kind: 'med' | 'reminder' | 'overdue' | 'refill' | 'supply' | 'groom' | 'anniversary';
+  /** The pet it is about, so tapping it opens that pet's screen. */
+  petId?: string;
 }
 
 /** iOS keeps at most 64 pending notifications per app; leave a little room. */
@@ -45,33 +47,34 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
       if (!medDueOn(m, day)) continue;
       for (const t of m.times) {
         if (store.doses[doseKey(day, m.id, t)]) continue;
-        push({ at: at(day, t), kind: 'med', title: `${pet(m.petId)} 該吃藥了`, body: `${m.name}${m.dose ? ' · ' + m.dose : ''}（${t}）` });
+        push({ at: at(day, t), kind: 'med', petId: m.petId, title: `${pet(m.petId)}該吃藥了`, body: `${m.name}${m.dose ? ' · ' + m.dose : ''}（${t}）` });
       }
     }
     if (m.count !== null && m.count !== undefined && m.count <= m.refillAt && (!m.end || m.end >= td)) {
-      push({ at: at(addDays(td, now.getHours() < 10 ? 0 : 1), '10:00'), kind: 'refill', title: `${pet(m.petId)} 的${m.name}快吃完了`, body: `剩 ${m.count} 次，記得回診或補藥。` });
+      push({ at: at(addDays(td, now.getHours() < 10 ? 0 : 1), '10:00'), kind: 'refill', petId: m.petId, title: `${pet(m.petId)}的${m.name}快吃完了`, body: `剩 ${m.count} 次，記得回診或補藥。` });
     }
   }
 
   // Reminders: N days before (default the evening before), the morning of, and up to 3 mornings after if not done.
   for (const r of store.reminders) {
     if (!r.notify || (r.repeat === 'once' && r.doneOnce)) continue;
-    const title = `${pet(r.petId)} ${r.title}`;
+    const title = `${pet(r.petId)}的${r.title}`;
+    const petId = r.petId;
     const days = daysBetween(td, r.date);
     const isDoc = !!r.docId;
     if (days >= 0) {
       const leads = [...new Set((r.lead || []).filter((L) => L > 1))];
-      for (const L of leads) push({ at: at(addDays(r.date, -L), '09:00'), kind: 'reminder', title: `${L} 天後：${title}`, body: isDoc ? '記得先辦理更新。' : '記得先預約或準備。' });
-      push({ at: at(addDays(r.date, -1), '20:00'), kind: 'reminder', title: `明天：${title}`, body: isDoc ? '明天到期，記得辦理更新。' : '記得先預約或準備。' });
-      push({ at: at(r.date, '09:00'), kind: 'reminder', title: `今天：${title}`, body: isDoc ? '今天到期。更新後在文件夾修改到期日。' : '完成後在 PetPal 按「完成」。' });
+      for (const L of leads) push({ at: at(addDays(r.date, -L), '09:00'), kind: 'reminder', petId, title: `${L} 天後：${title}`, body: isDoc ? '記得先辦理更新。' : '記得先預約或準備。' });
+      push({ at: at(addDays(r.date, -1), '20:00'), kind: 'reminder', petId, title: `明天：${title}`, body: isDoc ? '明天到期，記得辦理更新。' : '記得先預約或準備。' });
+      push({ at: at(r.date, '09:00'), kind: 'reminder', petId, title: `今天：${title}`, body: isDoc ? '今天到期。更新後在文件夾修改到期日。' : '完成後在 PetPal 按「完成」。' });
     }
     for (let k = 1; k <= 3; k++) {
       const d = addDays(r.date, k);
       if (d < td) continue;
       push(
         isDoc
-          ? { at: at(d, '09:00'), kind: 'overdue', title: `已過期：${title}`, body: '文件已過期，更新後在文件夾修改到期日。' }
-          : { at: at(d, '09:00'), kind: 'overdue', title: `逾期 ${k} 天：${title}`, body: '還沒完成嗎？完成後在 PetPal 按「完成」，或修改日期。' },
+          ? { at: at(d, '09:00'), kind: 'overdue', petId, title: `已過期：${title}`, body: '文件已過期，更新後在文件夾修改到期日。' }
+          : { at: at(d, '09:00'), kind: 'overdue', petId, title: `逾期 ${k} 天：${title}`, body: '還沒完成嗎？完成後在 PetPal 按「完成」，或修改日期。' },
       );
       if (isDoc) break; // one notice is enough for an expired document
     }
@@ -81,14 +84,14 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
   for (const s of store.supplies) {
     const left = supplyDaysLeft(s);
     if (isFinite(left) && left <= 3) {
-      push({ at: at(addDays(td, now.getHours() < 10 ? 0 : 1), '10:00'), kind: 'supply', title: `${s.name}快用完了`, body: `${pet(s.petId)}的${s.name}約剩 ${left} 天，記得補貨。` });
+      push({ at: at(addDays(td, now.getHours() < 10 ? 0 : 1), '10:00'), kind: 'supply', petId: s.petId, title: `${s.name}快用完了`, body: `${pet(s.petId)}的${s.name}約剩 ${left} 天，記得補貨。` });
     }
   }
 
   // Grooming due (morning of the due day, next 30 days).
   for (const g of store.groom) {
     const n = groomDue(g, td);
-    if (n >= 0 && n <= 30 && g.every > 1) push({ at: at(addDays(td, n), '09:00'), kind: 'groom', title: `今天：${pet(g.petId)} ${g.name}`, body: `每 ${g.every} 天一次。` });
+    if (n >= 0 && n <= 30 && g.every > 1) push({ at: at(addDays(td, n), '09:00'), kind: 'groom', petId: g.petId, title: `今天：${pet(g.petId)}的${g.name}`, body: `每 ${g.every} 天一次。` });
   }
 
   // Birthdays and "came home" anniversaries in the next 60 days.
@@ -103,7 +106,7 @@ export function planNotifications(store: Store, now: Date = new Date()): Planned
         if (dd < 0 || dd > 60) continue;
         const years = yy - Number(date.slice(0, 4));
         if (years <= 0) continue;
-        push({ at: at(occ, '09:00'), kind: 'anniversary', title: label === '生日' ? `${p.name} ${years} 歲生日快樂` : `${p.name} 來家 ${years} 週年`, body: '到「里程碑」留下今天的紀念。' });
+        push({ at: at(occ, '09:00'), kind: 'anniversary', petId: p.id, title: label === '生日' ? `${p.name} ${years} 歲生日快樂` : `${p.name} 來家 ${years} 週年`, body: '到「里程碑」留下今天的紀念。' });
       }
     }
   }
@@ -159,13 +162,25 @@ export async function askPermission(): Promise<boolean> {
 
 /** A fingerprint of a plan: two plans with the same fingerprint schedule exactly the same notifications. */
 export function planSignature(plan: PlannedNote[]): string {
-  return plan.map((n) => `${n.at.getTime()}|${n.title}|${n.body}`).join('\n');
+  return plan.map((n) => `${n.at.getTime()}|${n.title}|${n.body}|${n.petId ?? ''}`).join('\n');
 }
 
 let chain: Promise<number> = Promise.resolve(0);
 /** What is scheduled on the phone right now (null = unknown, so the next sync always runs). */
 let scheduledSig: string | null = null;
 let scheduledCount = 0;
+
+const handledTaps = new Set<string>();
+/**
+ * True the first time a notification tap is seen. The tap that launched the app can arrive both from
+ * getLastNotificationResponseAsync and the listener, and again after an error-screen retry remounts the app.
+ */
+export function firstTap(id: string | undefined | null): boolean {
+  if (!id) return true;
+  if (handledTaps.has(id)) return false;
+  handledTaps.add(id);
+  return true;
+}
 
 /** Which screen tapping a notification opens: a tab name ('health') or a pushed tool screen ('meds', …). */
 export function noteRoute(kind: PlannedNote['kind']): string {
@@ -213,7 +228,7 @@ async function doSync(store: Store, force: boolean): Promise<number> {
     const res = await Promise.allSettled(
       plan.map((n) =>
         Notifications.scheduleNotificationAsync({
-          content: { title: n.title, body: n.body, data: { route: noteRoute(n.kind) } },
+          content: { title: n.title, body: n.body, data: { route: noteRoute(n.kind), ...(n.petId ? { petId: n.petId } : {}) } },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, channelId },
         }),
       ),

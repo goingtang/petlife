@@ -94,7 +94,7 @@ export default function AiScreen(_: { params: any }) {
     const name = PROVIDERS.find((p) => p.k === provider)?.name ?? 'AI';
     confirm(
       `把資料交給 ${name}？`,
-      `會複製並送出以下內容到 ${name}（由該服務的隱私政策規範）：\n• ${pet?.name}的名字、種類、品種、年齡、性別、體重、過敏\n• 目前用藥、近 30 天健康紀錄\n• 你描述的症狀\n\n不會包含你的電話、地址或照片；描述裡像電話號碼或網址的文字也會先移除。`,
+      `會複製並送出以下內容到 ${name}（由該服務的隱私政策規範）：\n• ${pet?.name}的名字、種類、品種、年齡、性別、體重、過敏\n• 目前用藥、近 30 天健康紀錄\n• 你描述的症狀\n\n不含電話、地址或照片；描述中像電話、網址或晶片號碼的文字會先移除。`,
       () => void send(),
       '同意並開啟',
       { destructive: false },

@@ -114,7 +114,7 @@ function analyze(text: string, sp: Species): Result {
 }
 
 const SEV_STYLE = (sev: number) => (sev >= 3 ? { bg: C.danger, fg: '#fff' } : sev === 2 ? { bg: '#FBE0CF', fg: '#B4561F' } : { bg: C.yellowBg, fg: C.yellowInk });
-const scoreColor = (s: number) => (s >= 75 ? C.green : s >= 50 ? '#C8862A' : C.danger);
+const scoreColor = (s: number) => (s >= 75 ? C.greenDark : s >= 50 ? C.yellowInk : C.danger);
 
 export default function ScanScreen(_: { params: any }) {
   const { store, update, toast, petId, setPetId } = useStore();

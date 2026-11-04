@@ -216,7 +216,7 @@ export default function ExpenseScreen({ params }: { params: any }) {
           <Label>寵物</Label>
           <Choice options={[{ value: 'all', label: '全部寵物（共同）' }, ...store.pets.map((p) => ({ value: p.id, label: p.name }))]} value={draft.petId} onChange={(v) => setDraft({ ...draft, petId: v })} />
           <DateField label="日期" value={draft.date} onChange={(v) => v && setDraft({ ...draft, date: v })} />
-          <Field label="備註" value={draft.note} placeholder="例如：乾糧 7kg" onChangeText={(t) => setDraft({ ...draft, note: t })} />
+          <Field label="備註" value={draft.note} placeholder="例如：乾糧 7 kg" onChangeText={(t) => setDraft({ ...draft, note: t })} />
           <Label>收據照片（選填）</Label>
           <PhotoGrid
             photos={draft.receipt ? [draft.receipt] : []}
