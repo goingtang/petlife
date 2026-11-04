@@ -10,7 +10,7 @@ export function uid(prefix = 'x'): string {
 }
 
 export const PET_COLORS = ['#F2C66D', '#EFB8A0', '#CFDCC8', '#C9D8E6', '#E2CBE6', '#E8D9B5', '#F4C7B5'];
-export const MEMBER_COLORS = ['#C4602F', '#6F8F69', '#B8862A', '#6E8FB0', '#A77AA3', '#5E9C8A'];
+export const MEMBER_COLORS = ['#B0532A', '#6F8F69', '#B8862A', '#6E8FB0', '#A77AA3', '#5E9C8A'];
 
 export function emptyStore(): Store {
   return {
