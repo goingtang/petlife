@@ -5,6 +5,13 @@ import { addDays } from '../date';
 import { doseKey } from '../domain';
 
 describe('red flags', () => {
+  test('every swallowed object is checked, not only the first', () => {
+    expect(findRedFlags('沒有吞下襪子，但剛剛吞了電池')).toContain('吞下電池');
+    expect(findRedFlags('沒有吞下襪子')).not.toContain('吞下襪子');
+  });
+  test('a later un-negated 頻尿 still warns', () => {
+    expect(assessSymptoms('昨天沒有頻尿，今天頻尿', 'dog').warnings).toContain('頻尿');
+  });
   test('negated mentions are ignored', () => {
     expect(findRedFlags('沒有抽搐，有點吐')).toEqual([]);
     expect(findRedFlags('沒吃巧克力')).toEqual([]);
@@ -56,10 +63,10 @@ describe('red flags', () => {
 });
 
 describe('chocolate', () => {
-  test('dark chocolate uses 9 mg/g', () => {
+  test('dark chocolate uses a conservative 15 mg/g', () => {
     const r = chocolateRisk('dark', 50, 10, 'dog')!;
-    expect(Math.round(r.mgPerKg)).toBe(45);
-    expect(r.tier).toBe(2);
+    expect(Math.round(r.mgPerKg)).toBe(75);
+    expect(r.tier).toBe(3);
   });
   test('small amounts still advise calling the vet', () => {
     const r = chocolateRisk('milk', 20, 10, 'dog')!;
@@ -127,7 +134,8 @@ describe('medication edits', () => {
     const w = d.meds.find((m) => m.id === 'w')!;
     expect(old.freq).toBe('daily');
     expect(old.start).toBe('2026-10-01');
-    expect(old.end).toBe(addDays(w.start, -1));
+    // The old daily schedule stops now instead of running until the first weekly day.
+    expect(old.end).toBe(addDays(td, -1));
     expect(w.start >= td).toBe(true);
     // 2026-10-01 is a Thursday; the weekly anchor keeps the weekday.
     expect(new Date(w.start + 'T00:00').getDay()).toBe(new Date('2026-10-01T00:00').getDay());
@@ -140,6 +148,25 @@ describe('medication edits', () => {
     expect(d.meds.find((m) => m.id === 'm')!.end).toBe(addDays(td, 2));
     expect(d.meds.find((m) => m.id === 'n')!.start).toBe(addDays(td, 3));
     expect(d.doses[doseKey(td, 'm', '08:00')]).toBe('taken');
+  });
+
+  test('switching to weekly after a dose today ends the old course today, no overlap', () => {
+    const d: MedDraft = { meds: [med({ times: ['08:00', '20:00'] })], doses: { [doseKey(td, 'm', '08:00')]: 'taken' } };
+    applyMedEdit(d, 'm', { ...med({ freq: 'weekly' }), times: ['08:00', '20:00'] }, td, 'w');
+    const old = d.meds.find((m) => m.id === 'm')!;
+    const w = d.meds.find((m) => m.id === 'w')!;
+    expect(old.end).toBe(td);
+    expect(d.doses[doseKey(td, 'm', '08:00')]).toBe('taken');
+    expect(d.doses[doseKey(td, 'm', '20:00')]).toBe('skip'); // won't ring again tonight
+    expect(w.start > td || w.start === td).toBe(true);
+  });
+
+  test('correcting a daily start date to an earlier day edits in place', () => {
+    const d: MedDraft = { meds: [med({})], doses: {} };
+    const id = applyMedEdit(d, 'm', { ...med({}), start: '2026-09-20' }, td, 'n');
+    expect(id).toBe('m');
+    expect(d.meds).toHaveLength(1);
+    expect(d.meds[0].start).toBe('2026-09-20');
   });
 
   test('a course starting today is removed when stopped', () => {

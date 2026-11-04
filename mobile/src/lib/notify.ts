@@ -157,32 +157,58 @@ export async function askPermission(): Promise<boolean> {
   }
 }
 
-let chain: Promise<number> = Promise.resolve(0);
+/** A fingerprint of a plan: two plans with the same fingerprint schedule exactly the same notifications. */
+export function planSignature(plan: PlannedNote[]): string {
+  return plan.map((n) => `${n.at.getTime()}|${n.title}|${n.body}`).join('\n');
+}
 
-/** Cancel everything this app scheduled and schedule it again from the current data. Calls run one at a time. */
-export function syncNotifications(store: Store): Promise<number> {
-  chain = chain.then(() => doSync(store), () => doSync(store));
+let chain: Promise<number> = Promise.resolve(0);
+/** What is scheduled on the phone right now (null = unknown, so the next sync always runs). */
+let scheduledSig: string | null = null;
+let scheduledCount = 0;
+
+/**
+ * Cancel everything this app scheduled and schedule it again from the current data. Calls run one at a time.
+ * When the plan is the same as what is already scheduled (e.g. after checking off a dose that had no
+ * pending alert), nothing is touched. Pass `force` after the user changes notification settings.
+ */
+export function syncNotifications(store: Store, force = false): Promise<number> {
+  chain = chain.then(() => doSync(store, force), () => doSync(store, force));
   return chain;
 }
 
-async function doSync(store: Store): Promise<number> {
+async function doSync(store: Store, force: boolean): Promise<number> {
   if (Platform.OS === 'web') return 0;
   try {
+    const plan = planNotifications(store);
+    const sig = planSignature(plan);
+    if (!force && sig === scheduledSig) return scheduledCount;
+    scheduledSig = null;
     await Notifications.cancelAllScheduledNotificationsAsync();
-    if (!store.notifyEnabled) return 0;
+    if (!store.notifyEnabled) {
+      scheduledSig = sig;
+      scheduledCount = 0;
+      return 0;
+    }
     const perm = await Notifications.getPermissionsAsync();
     if (!perm.granted) return 0;
     const channelId = Platform.OS === 'android' ? 'default' : undefined;
     const res = await Promise.allSettled(
-      planNotifications(store).map((n) =>
+      plan.map((n) =>
         Notifications.scheduleNotificationAsync({
           content: { title: n.title, body: n.body },
           trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: n.at, channelId },
         }),
       ),
     );
-    return res.filter((x) => x.status === 'fulfilled').length;
+    const n = res.filter((x) => x.status === 'fulfilled').length;
+    if (n === plan.length) {
+      scheduledSig = sig;
+      scheduledCount = n;
+    }
+    return n;
   } catch {
+    scheduledSig = null;
     return 0;
   }
 }

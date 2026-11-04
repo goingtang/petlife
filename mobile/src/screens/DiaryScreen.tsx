@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore, memberName, memberColor, petName, isOwner } from '../lib/store';
 import { useNav } from '../nav';
-import { Avatar, Badge, Btn, Card, Empty, PetChips, Row, Screen, Sub, confirm } from '../ui/kit';
+import { Avatar, Badge, Btn, Card, Empty, PetChips, Row, Screen, Sub, Thumb, confirm } from '../ui/kit';
 import { C } from '../ui/theme';
 import { addDays, today, weekday, relTime, addMonths } from '../lib/date';
 import { shareText, shareFile, deleteFile } from '../lib/files';
@@ -15,14 +15,14 @@ export default function DiaryScreen() {
   const insets = useSafeAreaInsets();
   const [day, setDay] = useState<string | null>(null);
   const [pet, setPet] = useState<string>('all');
-  const [limit, setLimit] = useState(30);
   const td = today();
   const days = Array.from({ length: 7 }, (_, i) => addDays(td, i - 6));
 
-  const visible = store.journal.filter((j) => !j.private || j.author === store.me);
-  const list = visible
-    .filter((j) => (pet === 'all' || j.petId === pet) && (!day || j.at.startsWith(day)))
-    .sort((a, b) => (a.at < b.at ? 1 : -1));
+  const visible = useMemo(() => store.journal.filter((j) => !j.private || j.author === store.me), [store.journal, store.me]);
+  const list = useMemo(
+    () => visible.filter((j) => (pet === 'all' || j.petId === pet) && (!day || j.at.startsWith(day))).sort((a, b) => (a.at < b.at ? 1 : -1)),
+    [visible, pet, day],
+  );
   const lastYear = visible.filter((j) => j.at.startsWith(addMonths(td, -12)));
 
   const share = (j: JournalEntry) => {
@@ -40,9 +40,58 @@ export default function DiaryScreen() {
       toast('已刪除');
     });
 
+  const renderCard = (j: JournalEntry) => (
+      <Card style={{ gap: 12, padding: 14 }}>
+        <Row>
+          <Avatar name={memberName(store, j.author)} color={memberColor(store, j.author)} size={38} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>{memberName(store, j.author)}</Text>
+            <Sub style={{ fontSize: 12 }}>{petName(store, j.petId)} · {relTime(j.at)}</Sub>
+          </View>
+          {j.private ? <Badge text="私密" bg={C.sand2} fg="#5E4E42" /> : null}
+        </Row>
+        {j.photos.length ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, borderRadius: 18, overflow: 'hidden' }}>
+            {j.photos.map((u, i) => (
+              <Thumb
+                key={u + i}
+                uri={u}
+                label={`${j.title} 的照片 ${i + 1}`}
+                style={{ width: j.photos.length === 1 || (j.photos.length === 3 && i === 0) ? '100%' : '49.3%', height: j.photos.length === 1 ? 230 : 150 }}
+              />
+            ))}
+          </View>
+        ) : null}
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: C.ink, lineHeight: 24 }}>{j.title}</Text>
+          {j.body ? <Text style={{ fontSize: 14, lineHeight: 23, color: C.body }}>{j.body}</Text> : null}
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {[j.mood, ...j.acts].map((t) => (
+            <Badge key={t} text={t} bg={C.sand} fg="#5E4E42" />
+          ))}
+        </View>
+        <Row gap={8} style={{ borderTopWidth: 1.5, borderTopColor: C.lineSoft, paddingTop: 10 }}>
+          <Btn small kind="soft" title="分享" onPress={() => share(j)} />
+          <Btn small kind="soft" title="編輯" onPress={() => nav.push('form', { form: 'diary', editId: j.id, petId: j.petId })} />
+          {j.author === store.me || isOwner(store) ? <Btn small kind="soft" title="刪除" onPress={() => remove(j)} textStyle={{ color: C.danger }} /> : null}
+        </Row>
+      </Card>
+  );
+
   return (
     <View style={{ flex: 1 }}>
-      <Screen root title="日記">
+      <Screen
+        root
+        title="日記"
+        list={{
+          data: list,
+          keyExtractor: (j) => j.id,
+          renderItem: renderCard,
+          // room so the floating 寫日記 button never covers the last card
+          footer: <View style={{ height: 64 }} />,
+        }}
+      >
 
         <Sub style={{ fontSize: 12 }}>最近 7 天（點一天只看那天，有圓點的是有日記的日子）</Sub>
         <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -58,8 +107,8 @@ export default function DiaryScreen() {
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={d}
               >
-                <Text style={{ fontSize: 12, color: on ? C.bg : C.ink }}>{d === td ? '今' : weekday(d)}</Text>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: on ? C.bg : C.ink }}>{Number(d.slice(8))}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: on ? C.bg : C.ink }}>{d === td ? '今' : weekday(d)}</Text>
+                <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 17, fontWeight: '700', color: on ? C.bg : C.ink }}>{Number(d.slice(8))}</Text>
                 <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: has ? (on ? C.yellow : C.accent) : 'transparent' }} />
               </Pressable>
             );
@@ -76,43 +125,6 @@ export default function DiaryScreen() {
           </Card>
         ) : null}
 
-        {list.slice(0, limit).map((j) => (
-          <Card key={j.id} style={{ gap: 12, padding: 14 }}>
-            <Row>
-              <Avatar name={memberName(store, j.author)} color={memberColor(store, j.author)} size={38} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>{memberName(store, j.author)}</Text>
-                <Sub style={{ fontSize: 12 }}>{petName(store, j.petId)} · {relTime(j.at)}</Sub>
-              </View>
-              {j.private ? <Badge text="私密" bg={C.sand2} fg="#5E4E42" /> : null}
-            </Row>
-            {j.photos.length ? (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, borderRadius: 18, overflow: 'hidden' }}>
-                {j.photos.map((u, i) => (
-                  <Image
-                    key={u + i}
-                    source={{ uri: u }}
-                    style={{ width: j.photos.length === 1 || (j.photos.length === 3 && i === 0) ? '100%' : '49.3%', height: j.photos.length === 1 ? 230 : 150, backgroundColor: C.sand }}
-                  />
-                ))}
-              </View>
-            ) : null}
-            <View style={{ gap: 6 }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: C.ink, lineHeight: 24 }}>{j.title}</Text>
-              {j.body ? <Text style={{ fontSize: 14, lineHeight: 23, color: C.body }}>{j.body}</Text> : null}
-            </View>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-              {[j.mood, ...j.acts].map((t) => (
-                <Badge key={t} text={t} bg={C.sand} fg="#5E4E42" />
-              ))}
-            </View>
-            <Row gap={8} style={{ borderTopWidth: 1.5, borderTopColor: C.lineSoft, paddingTop: 10 }}>
-              <Btn small kind="soft" title="分享" onPress={() => share(j)} />
-              <Btn small kind="soft" title="編輯" onPress={() => nav.push('form', { form: 'diary', editId: j.id, petId: j.petId })} />
-              {j.author === store.me || isOwner(store) ? <Btn small kind="soft" title="刪除" onPress={() => remove(j)} textStyle={{ color: C.danger }} /> : null}
-            </Row>
-          </Card>
-        ))}
         {!list.length ? (
           <Empty
             text={!store.pets.length ? '先新增寵物，就能開始寫日記' : day ? '這天還沒有日記' : '還沒有日記，寫下第一篇吧'}
@@ -125,9 +137,6 @@ export default function DiaryScreen() {
             }
           />
         ) : null}
-        {list.length > limit ? <Btn kind="outline" title={`顯示更早的日記（還有 ${list.length - limit} 篇）`} onPress={() => setLimit((n) => n + 30)} /> : null}
-        {/* room so the floating 寫日記 button never covers the last card */}
-        <View style={{ height: 64 }} />
       </Screen>
       {store.pets.length ? (
         <Btn

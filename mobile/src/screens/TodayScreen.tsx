@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useStore, usePet, memberName, memberColor } from '../lib/store';
 import { useNav } from '../nav';
@@ -16,12 +16,18 @@ export default function TodayScreen() {
   const pet = usePet();
   const nav = useNav();
   const td = today();
+  // Re-render once a minute so 下一件事 and 已過時間 follow the clock while the screen stays open.
+  const [now, setNow] = useState(hm());
+  useEffect(() => {
+    const iv = setInterval(() => setNow(hm()), 60_000);
+    return () => clearInterval(iv);
+  }, []);
 
   const header = (
     <Row style={{ justifyContent: 'space-between' }}>
       <Sub style={{ fontWeight: '500' }}>{dateLabel()}</Sub>
       <Row gap={6}>
-        <Pressable onPress={() => nav.push('sos')} style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
+        <Pressable onPress={() => nav.push('sos')} style={{ minHeight: 44, paddingHorizontal: 18, paddingVertical: 8, borderRadius: 22, backgroundColor: C.danger, justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="緊急求助">
           <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 }}>SOS 緊急</Text>
         </Pressable>
       </Row>
@@ -45,7 +51,6 @@ export default function TodayScreen() {
   const done = (id: string) => doneBy(store, id, td);
   const doneCount = tasks.filter((t) => done(t.id)).length;
   // 下一件事 follows the clock: the earliest task whose time has passed comes first (overdue), else the next one coming up.
-  const now = hm();
   const pending = tasks.filter((t) => !done(t.id));
   const next = pending.find((t) => t.time <= now) ?? pending.find((t) => t.time > now) ?? pending[0];
   const nextLate = !!next && next.time <= now;

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Text, View } from 'react-native';
-import { Screen, Card, Btn, Field, DateField, PetChips, Row, Sub, Label, Toggle, Banner, Empty } from '../../ui/kit';
+import { Text, View } from 'react-native';
+import { Screen, Card, Btn, Field, DateField, PetChips, Row, Sub, Label, Toggle, Banner, Empty, Thumb } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet, useDraft, useFlushOnBackground, memberName } from '../../lib/store';
 import { chunk } from '../../lib/life';
@@ -192,7 +192,7 @@ export default function CareSheetScreen(_: { params: any }) {
         {all.map(({ pet: p, secs }) => (
           <View key={p.id} style={{ gap: 12, borderTopWidth: 1.5, borderTopColor: C.line, paddingTop: 12 }}>
             <Row>
-              {p.photo ? <Image source={{ uri: p.photo }} style={{ width: 48, height: 48, borderRadius: 24 }} /> : <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: p.color }} />}
+              {p.photo ? <Thumb uri={p.photo} label={`${p.name}的照片`} style={{ width: 48, height: 48, borderRadius: 24 }} /> : <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: p.color }} />}
               <Text style={{ fontSize: 18, fontWeight: '700', color: C.ink }}>{p.name}</Text>
             </Row>
             {secs.map((s) => <SecView key={s.title} s={s} />)}

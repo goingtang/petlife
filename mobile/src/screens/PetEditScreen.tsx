@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
 import { today } from '../lib/date';
 import { useNav, useBackHandler } from '../nav';
-import { Btn, Choice, DateField, Field, Label, Row, Screen, Segment, Sub, Toggle, confirm } from '../ui/kit';
+import { Btn, Choice, DateField, Field, Label, Row, Screen, Segment, Sub, Toggle, confirm, Thumb } from '../ui/kit';
 import { C } from '../ui/theme';
 import { choosePhotos, deleteFile, deleteIfUnused, usePendingFiles } from '../lib/files';
 import { PET_COLORS, defaultGroom, defaultTasks, uid } from '../lib/seed';
@@ -128,7 +128,7 @@ export default function PetEditScreen({ params }: { params: any }) {
     >
       <Row>
         <Pressable onPress={() => choosePhotos(1, (u) => u[0] && setPhoto(u[0]))} style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: p.color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="選擇寵物照片">
-          {p.photo ? <Image source={{ uri: p.photo }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: 13, color: C.ink, textAlign: 'center' }}>加入{'\n'}照片</Text>}
+          {p.photo ? <Thumb uri={p.photo} label="寵物照片" style={{ width: '100%', height: '100%' }} /> : <Text style={{ fontSize: 13, color: C.ink, textAlign: 'center' }}>加入{'\n'}照片</Text>}
         </Pressable>
         <View style={{ flex: 1, gap: 8 }}>
           <Btn small kind="outline" title={p.photo ? '更換照片' : '拍照或選照片'} onPress={() => choosePhotos(1, (u) => u[0] && setPhoto(u[0]))} />

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useStore } from '../lib/store';
 import { useNav } from '../nav';
-import { Badge, Btn, Card, Empty, KV, ListCard, Row, Screen, Section, Sub } from '../ui/kit';
+import { Badge, Btn, Card, Empty, KV, ListCard, Row, Screen, Section, Sub, Thumb } from '../ui/kit';
 import { C } from '../ui/theme';
 import { ageText, today, relTime } from '../lib/date';
 import { daysTogether } from '../lib/domain';
@@ -41,7 +41,7 @@ export default function ProfileScreen({ params }: { params: any }) {
     <Screen title={pet.name} right={<Btn small kind="outline" title="編輯資料" onPress={() => nav.push('petEdit', { petId: pet.id })} />}>
       <Pressable onPress={setPhoto} style={{ height: 230, borderRadius: 28, backgroundColor: pet.color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="更換照片">
         {pet.photo ? (
-          <Image source={{ uri: pet.photo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          <Thumb uri={pet.photo} label={`${pet.name}的照片`} style={{ width: '100%', height: '100%' }} />
         ) : (
           <View style={{ alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>＋ 加入照片</Text>

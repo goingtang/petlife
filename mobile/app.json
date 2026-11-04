@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F7F0E6"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "tw.petpal.app",
@@ -19,7 +14,8 @@
       },
       "infoPlist": {
         "CFBundleDevelopmentRegion": "zh_TW",
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+        "NSLocationWhenInUseUsageDescription": "PetPal 只在你打開「附近地點」時使用位置，用來搜尋附近的動物醫院、寵物用品店與公園。位置會先模糊到約 100 公尺再查詢，不會被儲存。"
       }
     },
     "android": {
@@ -53,7 +49,8 @@
           "locationAlwaysPermission": false,
           "isIosBackgroundLocationEnabled": false,
           "isAndroidBackgroundLocationEnabled": false,
-          "isAndroidForegroundServiceEnabled": false
+          "isAndroidForegroundServiceEnabled": false,
+          "motionUsagePermission": false
         }
       ],
       [

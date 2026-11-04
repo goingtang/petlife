@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Polygon, Text as SvgText } from 'react-native-svg';
 import { useStore, usePet, memberName } from '../lib/store';
 import { useNav, useBackHandler } from '../nav';
-import { Badge, Btn, Card, Empty, ListCard, PetChips, Row, Screen, Section, Sub } from '../ui/kit';
+import { Badge, Btn, Card, Empty, ListCard, PetChips, Row, Screen, Section, Sub, Thumb } from '../ui/kit';
 import { C } from '../ui/theme';
 import { parseYmd, relTime, shortDate, today } from '../lib/date';
 import { entriesFor, entrySummary, reminderState, reminderLabel, completeReminder, REPEAT_LABEL } from '../lib/domain';
@@ -95,7 +95,7 @@ export default function HealthScreen() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <View>
             <Sub style={{ fontWeight: '500' }}>體重</Sub>
-            <Text style={{ fontSize: 38, fontWeight: '700', color: C.ink }}>
+            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 38, fontWeight: '700', color: C.ink }}>
               {latest ? Number(latest.v.weight) : '–'}
               <Text style={{ fontSize: 15, color: C.sub, fontWeight: '400' }}> kg</Text>
             </Text>
@@ -194,7 +194,13 @@ export default function HealthScreen() {
             const isOpen = open === e.id;
             const docs: string[] = e.v.docs || [];
             return (
-              <Card key={e.id} onPress={() => setOpen(isOpen ? null : e.id)} style={{ gap: 6, padding: 14 }}>
+              <Card
+                key={e.id}
+                onPress={() => setOpen(isOpen ? null : e.id)}
+                style={{ gap: 6, padding: 14 }}
+                accessibilityLabel={`${entrySummary(e)}，${relTime(e.at)}，${memberName(store, e.who)}${docs.length ? `，${docs.length} 張附件` : ''}`}
+                accessibilityHint={isOpen ? '收合詳細內容' : '展開詳細內容'}
+              >
                 <Row style={{ justifyContent: 'space-between' }}>
                   <Text style={{ flex: 1, fontSize: 15, fontWeight: '700', color: C.ink }}>{entrySummary(e)}</Text>
                   <Sub style={{ fontSize: 12 }}>{relTime(e.at)}</Sub>
@@ -210,7 +216,7 @@ export default function HealthScreen() {
                     {docs.length ? (
                       <Row gap={6}>
                         {docs.map((u) => (
-                          <Image key={u} source={{ uri: u }} style={{ width: 70, height: 70, borderRadius: 12, backgroundColor: C.sand }} />
+                          <Thumb key={u} uri={u} label="看診照片" style={{ width: 70, height: 70, borderRadius: 12 }} />
                         ))}
                       </Row>
                     ) : null}

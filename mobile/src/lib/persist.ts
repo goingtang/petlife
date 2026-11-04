@@ -87,11 +87,15 @@ async function readLegacy(): Promise<any | null> {
 export async function loadRaw(): Promise<LoadResult> {
   if (native) {
     const f = files();
+    // Parse only what is needed: .tmp only when it exists (an interrupted save), .bak only when main
+    // can't be read. A normal launch parses the main file once.
+    const mainData = await readJson(f.main);
+    const tmpExists = f.tmp.exists;
     const cands: Candidate[] = [
-      { name: 'main', exists: f.main.exists, data: await readJson(f.main) },
-      { name: 'tmp', exists: f.tmp.exists, data: await readJson(f.tmp) },
-      { name: 'bak', exists: f.bak.exists, data: await readJson(f.bak) },
+      { name: 'main', exists: f.main.exists, data: mainData },
+      { name: 'tmp', exists: tmpExists, data: tmpExists ? await readJson(f.tmp) : null },
     ];
+    if (!mainData || typeof mainData !== 'object') cands.push({ name: 'bak', exists: f.bak.exists, data: await readJson(f.bak) });
     const r = chooseCopy(cands);
     mainNeedsSetAside = r.mainUnreadable;
     if (r.data) return { data: r.data, source: r.source, mainUnreadable: r.mainUnreadable };
@@ -149,18 +153,30 @@ export async function wipeAll(): Promise<void> {
   }
   if (!native) return;
   mainNeedsSetAside = false;
-  try {
-    for (const item of Paths.document.list()) {
-      const name = item.uri.replace(/\/$/, '').split('/').pop() || '';
-      if (item instanceof File && name.startsWith(NAME)) item.delete();
-      else if (item instanceof Directory && name === 'petpal') item.delete();
+  // Each item is deleted on its own, so one file that can't be removed doesn't stop the rest.
+  const del = (item: File | Directory) => {
+    try {
+      item.delete();
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
+  };
+  let docs: (File | Directory)[] = [];
   try {
-    for (const item of Paths.cache.list()) item.delete();
+    docs = Paths.document.list();
   } catch {
     // ignore
   }
+  for (const item of docs) {
+    const name = item.uri.replace(/\/$/, '').split('/').pop() || '';
+    if (item instanceof File && name.startsWith(NAME)) del(item);
+    else if (item instanceof Directory && name === 'petpal') del(item);
+  }
+  let cache: (File | Directory)[] = [];
+  try {
+    cache = Paths.cache.list();
+  } catch {
+    // ignore
+  }
+  cache.forEach(del);
 }

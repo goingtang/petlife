@@ -162,6 +162,11 @@ export default function MedsScreen(_: { params: any }) {
   const nav = useNav();
   const pet = usePet();
   const [editing, setEditing] = useState<Med | 'new' | null>(null);
+  // After 清除所有資料 / restoring a backup without meds, forget check-ins from the old data.
+  if (!store.meds.length && (decremented.current.size || sessionTaken.current.size)) {
+    decremented.current.clear();
+    sessionTaken.current.clear();
+  }
   const [which, setWhich] = useState<'today' | 'yesterday'>('today');
   const [showEnded, setShowEnded] = useState(false);
   const [moreFor, setMoreFor] = useState<string | null>(null);

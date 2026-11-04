@@ -45,7 +45,7 @@ export default function SettingsScreen() {
 
   /** Erase everything: data file and its copies, photos, exports, scheduled notifications. */
   const eraseEverything = async () => {
-    await syncNotifications({ ...store, notifyEnabled: false }); // cancels everything this app scheduled
+    await syncNotifications({ ...store, notifyEnabled: false }, true); // cancels everything this app scheduled
     replace(emptyStore());
     // After the empty data is saved, remove every file this app wrote (and its copies), then save the
     // empty data once more so the app opens to the welcome screen next time.
@@ -68,7 +68,7 @@ export default function SettingsScreen() {
       d.notifyEnabled = on;
     });
     if (on) {
-      const n = await syncNotifications({ ...store, notifyEnabled: true });
+      const n = await syncNotifications({ ...store, notifyEnabled: true }, true);
       setCount(n);
       toast(`已開啟通知，排定 ${n} 則提醒`);
     } else {

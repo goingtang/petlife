@@ -1,8 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import {
-  Screen, Card, Btn, PetChips, Choice, Field, DateField, NumberField, Progress, ListCard, Row, Section, Empty, H2, Sub, Label,
+  Screen, Card, Btn, Thumb, PetChips, Choice, Field, DateField, NumberField, Progress, ListCard, Row, Section, Empty, H2, Sub, Label,
   Segment, PhotoGrid, Banner, confirm,
 } from '../../ui/kit';
 import { C } from '../../ui/theme';
@@ -246,7 +246,7 @@ export default function ExpenseScreen({ params }: { params: any }) {
                   });
                 } else {
                   drop();
-                  toast('已刪除', { action: { label: '復原', onPress: () => update((d) => { d.expenses.push(rec); }) } });
+                  toast('已刪除', { action: { label: '復原', onPress: () => update((d) => { if (!d.expenses.some((x) => x.id === rec.id)) d.expenses.push(rec); }) } });
                 }
               }} />
             ) : null}
@@ -264,7 +264,7 @@ export default function ExpenseScreen({ params }: { params: any }) {
 
           <Card style={{ gap: 10 }}>
             <Label>{pf === 'all' ? '本月花費' : `${petName(store, pf)}本月花費`}</Label>
-            <Text style={{ fontSize: 34, fontWeight: '700', color: C.ink }}>{money(total)}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 34, fontWeight: '700', color: C.ink }}>{money(total)}</Text>
             {pf === 'all' ? (
               <>
                 <Progress pct={(total / budget) * 100} color={total > budget ? C.danger : C.green} height={10} />
@@ -359,14 +359,14 @@ export default function ExpenseScreen({ params }: { params: any }) {
 
           <Card style={{ gap: 10 }}>
             <Label>近 6 個月</Label>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, height: 130 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, minHeight: 130 }}>
               {months.map((m, i) => (
                 <Pressable key={m} onPress={() => setMonth(m)} style={{ flex: 1, alignItems: 'center', gap: 4, minHeight: 44, justifyContent: 'flex-end' }} accessibilityRole="button" accessibilityLabel={`${monthLabel(m)} ${tots[i] ? money(tots[i]) : '沒有花費'}`}>
-                  <Text style={{ fontSize: 12, color: C.sub }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{hundreds(tots[i])}</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: C.sub }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{hundreds(tots[i])}</Text>
                   {tots[i] ? (
                     <View style={{ width: '100%', maxWidth: 30, height: Math.max(4, Math.round((tots[i] / tmax) * 80)), borderRadius: 8, backgroundColor: m === month ? C.accent : '#E5D8C6' }} />
                   ) : null}
-                  <Text style={{ fontSize: 12, color: m === month ? C.ink : C.sub, fontWeight: m === month ? '700' : '400' }}>{Number(m.slice(5))}月</Text>
+                  <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 12, color: m === month ? C.ink : C.sub, fontWeight: m === month ? '700' : '400' }}>{Number(m.slice(5))}月</Text>
                 </Pressable>
               ))}
             </View>
@@ -383,7 +383,7 @@ export default function ExpenseScreen({ params }: { params: any }) {
                       <Text style={{ fontSize: 14, fontWeight: '500', color: C.ink }}>{x.cat}{x.note ? ' · ' + x.note : ''}</Text>
                       <Sub>{shortDate(x.date)} · {petName(store, x.petId)}{x.recurringId ? ' · 固定支出' : ''}</Sub>
                     </View>
-                    {x.receipt ? <Image source={{ uri: x.receipt }} style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: C.sand }} /> : null}
+                    {x.receipt ? <Thumb uri={x.receipt} style={{ width: 36, height: 36, borderRadius: 8 }} /> : null}
                     <Text style={{ fontSize: 15, fontWeight: '600', color: C.ink }}>{money(x.amt)}</Text>
                   </Pressable>
                 ))}
@@ -460,7 +460,7 @@ export default function ExpenseScreen({ params }: { params: any }) {
           </Row>
           <Card style={{ gap: 8 }}>
             <Label>{pf === 'all' ? '年度總花費' : `${petName(store, pf)}年度花費`}</Label>
-            <Text style={{ fontSize: 34, fontWeight: '700', color: C.ink }}>{money(yearTotal)}</Text>
+            <Text maxFontSizeMultiplier={1.3} style={{ fontSize: 34, fontWeight: '700', color: C.ink }}>{money(yearTotal)}</Text>
             <Sub>平均每月 {money(yearTotal / (year === cur.slice(0, 4) ? Number(cur.slice(5)) : 12))}</Sub>
           </Card>
           <Section title="依分類">

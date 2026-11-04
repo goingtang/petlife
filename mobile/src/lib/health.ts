@@ -45,7 +45,7 @@ function negated(text: string, i: number): boolean {
 }
 
 /** Swallowed objects that can block the gut or poison (pills given on purpose are not included). */
-const SWALLOWED = /(吞下|吞了|誤吞|吞進)[^，。；,.;!！?？\n]{0,4}?(電池|襪子|繩|線|骨頭|玩具|針|塑膠|磁鐵|硬幣|橡皮筋|毛巾|布|石頭|玉米)/;
+const SWALLOWED = /(吞下|吞了|誤吞|吞進)[^，。；,.;!！?？\n]{0,4}?(電池|襪子|繩|線|骨頭|玩具|針|塑膠|磁鐵|硬幣|橡皮筋|毛巾|布|石頭|玉米)/g;
 
 export interface Assessment {
   /** Go to a vet now. */
@@ -78,13 +78,13 @@ export function assessSymptoms(text: string, species?: PetKind): Assessment {
   }
   const flags = new Set(taken.filter((h) => !h.neg).map((h) => h.term));
 
-  const sw = SWALLOWED.exec(text);
-  if (sw && !negated(text, sw.index)) flags.add(`吞下${sw[2]}`);
+  // Check every mention: 「沒有吞下襪子，但剛剛吞了電池」 must still flag the battery.
+  for (const sw of text.matchAll(SWALLOWED)) if (!negated(text, sw.index!)) flags.add(`吞下${sw[2]}`);
 
   const warnings: string[] = [];
   // 頻尿: an emergency for male cats (urethral blockage); otherwise see a vet today.
-  const fi = text.indexOf('頻尿');
-  if (fi >= 0 && !negated(text, fi)) {
+  const fi = [...text.matchAll(/頻尿/g)].some((m) => !negated(text, m.index!));
+  if (fi) {
     if (/公貓/.test(text)) flags.add('公貓頻尿');
     else warnings.push('頻尿');
   }
@@ -113,11 +113,14 @@ export function reassurance(species: PetKind | undefined, birthday: string, warn
 
 // ---------------- Chocolate ----------------
 
-/** Approximate theobromine, mg per gram. When unsure, assume the strongest. */
+/**
+ * Approximate theobromine, mg per gram. Dark chocolate uses a high-cocoa (70–85%) value, not an average,
+ * so the estimate errs on the safe side. When unsure, assume the strongest.
+ */
 export const CHOCOLATES = [
   { k: 'white', label: '白巧克力', mg: 0.01 },
   { k: 'milk', label: '牛奶巧克力', mg: 2.0 },
-  { k: 'dark', label: '黑巧克力（70–85%）', mg: 9 },
+  { k: 'dark', label: '黑巧克力（70–85%）', mg: 15 },
   { k: 'cocoa', label: '烘焙用可可、可可粉', mg: 26 },
   { k: 'unknown', label: '不確定種類', mg: 26 },
 ] as const;
@@ -192,8 +195,10 @@ function firstDueOnOrAfter(m: Pick<Med, 'freq' | 'start'>, from: string): string
  * Save edits to an existing course without rewriting history.
  * - A course that started before today is split when its frequency, start (the weekly/monthly anchor) or,
  *   for daily courses, its times/dose change: the old course keeps the past, a new one carries the schedule.
- *   The new one starts today (or the later start the user picked, or — weekly/monthly with a past anchor —
- *   the first due day from today). The old one ends the day before, so today's records stay visible.
+ *   The new one starts today, or the later start the user picked (the old one runs until the day before),
+ *   or — weekly/monthly with a past anchor — the first due day from today; then the old one ends now
+ *   (today if a dose was already given today, else yesterday) so the two schedules never overlap.
+ * - A daily course whose start is only corrected to another past day is edited in place.
  * - Weekly/monthly courses whose times/dose change but keep their anchor are edited in place.
  * - Records for times that no longer exist are removed and their pills given back.
  * - A course shortened to before today loses today's records (pills given back).
@@ -212,13 +217,31 @@ export function applyMedEdit(d: MedDraft, medId: string, next: Omit<Med, 'id'>, 
     return medId;
   }
 
+  // A daily course whose start date is corrected to another past day: nothing else changed, edit in place.
+  if (old.freq === 'daily' && !freqChanged && !scheduleChanged && startChanged && next.start <= td) {
+    Object.assign(old, next);
+    dropDoses(d, medId, td, next.times);
+    return medId;
+  }
+
   if (old.start < td && (freqChanged || startChanged || (old.freq === 'daily' && scheduleChanged))) {
     const start = firstDueOnOrAfter(next, td);
-    const oldEnd = addDays(start, -1);
-    old.end = old.end && old.end < oldEnd ? old.end : oldEnd;
+    const capEnd = (e: string) => (old.end && old.end < e ? old.end : e);
+    if (next.start > td || start === td) {
+      // The user picked a later start (keep the old schedule until then), or the new course starts today
+      // (today's matching records move over to it).
+      old.end = capEnd(addDays(start, -1));
+      d.meds.push({ ...next, id: newId, start });
+      dropDoses(d, medId, start, next.times, newId);
+      return newId;
+    }
+    // The new schedule's first due day is later (weekly/monthly anchor): stop the old schedule now, so
+    // the two don't overlap. If a dose was already given today, the old course ends today and keeps it.
+    const takenToday = old.times.some((t) => d.doses[doseKey(td, medId, t)] === 'taken');
+    old.end = capEnd(takenToday ? td : addDays(td, -1));
     d.meds.push({ ...next, id: newId, start });
-    // Records from the new start on belong to the new course (only matching times move over).
-    dropDoses(d, medId, start, next.times, newId);
+    dropDoses(d, medId, takenToday ? addDays(td, 1) : td);
+    if (takenToday) for (const t of old.times) if (!d.doses[doseKey(td, medId, t)]) d.doses[doseKey(td, medId, t)] = 'skip';
     return newId;
   }
 

@@ -20,7 +20,7 @@ export const CONTENT = {
    "lv": [
     3,
     2,
-    1,
+    2,
     2
    ],
    "name": "葡萄、葡萄乾",
@@ -42,7 +42,7 @@ export const CONTENT = {
    "id": "garlic",
    "cat": "食物",
    "lv": [
-    2,
+    3,
     3,
     2,
     2
@@ -55,8 +55,8 @@ export const CONTENT = {
    "cat": "食物",
    "lv": [
     3,
-    1,
-    1,
+    2,
+    2,
     2
    ],
    "name": "木糖醇（口香糖）",
@@ -103,9 +103,9 @@ export const CONTENT = {
    "cat": "食物",
    "lv": [
     2,
-    1,
-    1,
-    1
+    2,
+    2,
+    2
    ],
    "name": "夏威夷豆",
    "note": "狗會無力、發抖"

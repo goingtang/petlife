@@ -1,7 +1,7 @@
 // Shared UI building blocks. Every screen is composed from these so the app looks consistent.
 import React, { useState } from 'react';
 import {
-  Alert, Image, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
+  Alert, FlatList, Image, ImageStyle, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -34,11 +34,22 @@ export function Label({ children, style }: { children: React.ReactNode; style?: 
  * A full screen with an optional header. `root` screens (tabs) get room for the tab bar;
  * pushed screens get a back button.
  */
-export function Screen({
-  title, subtitle, children, right, root, scroll = true, footer, bg, scrollRef,
+/** A long list rendered lazily (FlatList) below the screen's normal content, so years of entries don't all mount at once. */
+export type ScreenList<T> = {
+  data: T[];
+  renderItem: (item: T, index: number) => React.ReactElement | null;
+  keyExtractor: (item: T) => string;
+  /** Rendered after the list (e.g. "show more", spacing). */
+  footer?: React.ReactNode;
+};
+
+export function Screen<T = unknown>({
+  title, subtitle, children, right, root, scroll = true, footer, bg, scrollRef, list,
 }: {
   title?: string; subtitle?: string; children: React.ReactNode; right?: React.ReactNode; root?: boolean;
   scroll?: boolean; footer?: React.ReactNode; bg?: string;
+  /** When set, the screen scrolls as a virtualized list: `children` become the list header. */
+  list?: ScreenList<T>;
   /** Pass a ref to scroll programmatically, e.g. to an edit form that just opened. */
   scrollRef?: React.RefObject<any>;
 }) {
@@ -65,8 +76,29 @@ export function Screen({
   );
   const pad = { paddingTop: insets.top + 12, paddingBottom: (root ? 110 : 40) + insets.bottom, paddingHorizontal: 20 };
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: bg ?? C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {scroll ? (
+    // Android draws edge-to-edge (SDK 58), so the window no longer resizes for the keyboard: pad on both platforms.
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: bg ?? C.bg }} behavior="padding">
+      {list ? (
+        <FlatList
+          ref={scrollRef}
+          data={list.data}
+          keyExtractor={list.keyExtractor}
+          renderItem={({ item, index }) => list.renderItem(item, index) ?? <View />}
+          ListHeaderComponent={
+            <View style={{ gap: 16 }}>
+              {header}
+              {children}
+            </View>
+          }
+          ListFooterComponent={list.footer ? <View style={{ gap: 16 }}>{list.footer}</View> : undefined}
+          contentContainerStyle={[pad, { gap: 16 }]}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
+        />
+      ) : scroll ? (
         <ScrollView ref={scrollRef} contentContainerStyle={[pad, { gap: 16 }]} keyboardShouldPersistTaps="handled">
           {header}
           {children}
@@ -82,10 +114,14 @@ export function Screen({
   );
 }
 
-export function Card({ children, style, onPress, onLongPress }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; onLongPress?: () => void }) {
+export function Card({ children, style, onPress, onLongPress, accessibilityLabel, accessibilityHint }: {
+  children: React.ReactNode; style?: StyleProp<ViewStyle>; onPress?: () => void; onLongPress?: () => void;
+  /** Read as one phrase by screen readers when the whole card is tappable. */
+  accessibilityLabel?: string; accessibilityHint?: string;
+}) {
   if (onPress || onLongPress)
     return (
-      <Pressable onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => [s.card, style, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+      <Pressable onPress={onPress} onLongPress={onLongPress} style={({ pressed }) => [s.card, style, pressed && { opacity: 0.85 }]} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityHint={accessibilityHint}>
         {children}
       </Pressable>
     );
@@ -525,12 +561,30 @@ export function PetChips({ value, onChange, allowAll }: { value: string | null; 
   );
 }
 
+/**
+ * A photo shown smaller than its stored size (stored photos are up to 1280px).
+ * On Android `resizeMethod="resize"` decodes a downsized bitmap, which keeps long photo lists from running out of memory.
+ */
+export function Thumb({ uri, style, label, resizeMode = 'cover' }: { uri: string; style: StyleProp<ImageStyle>; label?: string; resizeMode?: 'cover' | 'contain' }) {
+  return (
+    <Image
+      source={{ uri }}
+      style={[{ backgroundColor: C.sand }, style]}
+      resizeMode={resizeMode}
+      resizeMethod="resize"
+      accessible={!!label}
+      accessibilityLabel={label}
+      accessibilityIgnoresInvertColors
+    />
+  );
+}
+
 export function PhotoGrid({ photos, onRemove, onAdd, max = 4, size = 76 }: { photos: string[]; onRemove?: (i: number) => void; onAdd?: () => void; max?: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {photos.map((u, i) => (
         <View key={u + i} style={{ width: size, height: size, borderRadius: 14, overflow: 'hidden', backgroundColor: C.sand2 }}>
-          <Image source={{ uri: u }} style={{ width: '100%', height: '100%' }} accessibilityLabel={`照片 ${i + 1}`} />
+          <Thumb uri={u} style={{ width: '100%', height: '100%' }} label={`照片 ${i + 1}`} />
           {onRemove ? (
             <Pressable onPress={() => onRemove(i)} style={s.photoX} accessibilityRole="button" accessibilityLabel={`移除第 ${i + 1} 張照片`} hitSlop={8}>
               <Text style={{ color: '#fff', fontSize: 12 }}>✕</Text>
@@ -588,7 +642,7 @@ export const s = StyleSheet.create({
   sub: { fontSize: 13, color: C.sub, lineHeight: 19 },
   label: { fontSize: 13, color: C.sub, fontWeight: '500' },
   headRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  back: { height: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' },
+  back: { minHeight: 44, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1.5, borderColor: C.line, backgroundColor: C.card, justifyContent: 'center' },
   card: { backgroundColor: C.card, borderRadius: R.lg, borderWidth: 1.5, borderColor: C.line, padding: 16 },
   btn: { minHeight: 50, borderRadius: 25, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   btnSmall: { minHeight: 44, borderRadius: 22, paddingHorizontal: 14 },

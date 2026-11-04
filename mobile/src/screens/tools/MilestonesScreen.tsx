@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Modal, Pressable, Text, View } from 'react-native';
-import { Screen, Card, Btn, Field, DateField, PhotoGrid, PetChips, Row, Section, Empty, H2, Sub, Label, confirm } from '../../ui/kit';
+import { Screen, Card, Btn, Field, DateField, PhotoGrid, PetChips, Row, Section, Empty, H2, Sub, Label, confirm, Thumb } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { entriesFor, isRoutineReminder } from '../../lib/domain';
@@ -158,7 +158,7 @@ export default function MilestonesScreen(_: { params: any }) {
         <Card style={{ gap: 12, borderColor: C.accent }}>
           {detail.photo ? (
             <Pressable onPress={() => setFull(detail.photo!)} accessibilityRole="button" accessibilityLabel="放大照片">
-              <Image source={{ uri: detail.photo }} style={{ width: '100%', height: 240, borderRadius: 18, backgroundColor: C.sand }} />
+              <Thumb uri={detail.photo} label={`${detail.text}的照片`} style={{ width: '100%', height: 240, borderRadius: 18 }} />
             </Pressable>
           ) : null}
           <H2>{detail.text}</H2>
@@ -193,7 +193,7 @@ export default function MilestonesScreen(_: { params: any }) {
                 <View style={{ flex: 1, paddingBottom: 16, gap: 2 }}>
                   <Sub style={{ fontSize: 12, fontWeight: '600' }}>{it.date.replace(/-/g, '/')}</Sub>
                   <Text style={{ fontSize: 15, fontWeight: '500', color: C.ink, lineHeight: 21 }}>{it.text}</Text>
-                  {it.photo ? <Image source={{ uri: it.photo }} style={{ width: 120, height: 90, borderRadius: 12, marginTop: 4, backgroundColor: C.sand }} /> : null}
+                  {it.photo ? <Thumb uri={it.photo} label={`${it.text}的照片`} style={{ width: 120, height: 90, borderRadius: 12, marginTop: 4 }} /> : null}
                 </View>
               </Pressable>
             ))}
@@ -204,7 +204,7 @@ export default function MilestonesScreen(_: { params: any }) {
 
       <Modal visible={!!full} transparent animationType="fade" onRequestClose={() => setFull(null)}>
         <Pressable onPress={() => setFull(null)} style={{ flex: 1, backgroundColor: 'rgba(0,0,0,.9)', alignItems: 'center', justifyContent: 'center' }} accessibilityRole="button" accessibilityLabel="關閉照片">
-          {full ? <Image source={{ uri: full }} style={{ width: '100%', height: '80%' }} resizeMode="contain" /> : null}
+          {full ? <Image source={{ uri: full }} style={{ width: '100%', height: '80%' }} resizeMode="contain" accessibilityLabel="照片全螢幕" /> : null}
           <Text style={{ color: '#fff', marginTop: 12 }}>點一下關閉</Text>
         </Pressable>
       </Modal>

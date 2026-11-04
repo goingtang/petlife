@@ -42,6 +42,13 @@ describe('dailyMaintenance', () => {
     expect(Object.keys(s.taskDone)).toEqual(['2026-11-01']);
   });
 
+  test('drops dose check-offs older than 90 days, keeps recent ones', () => {
+    const s = emptyStore();
+    s.doses = { '2026-07-01|m|08:00': 'taken', '2026-08-04|m|08:00': 'taken', '2026-11-01|m|08:00': 'skip' };
+    dailyMaintenance(s, '2026-11-02');
+    expect(Object.keys(s.doses).sort()).toEqual(['2026-08-04|m|08:00', '2026-11-01|m|08:00']);
+  });
+
   test('posts recurring expenses once per month, including missed months', () => {
     const s = emptyStore();
     s.recurring = [{ id: 'r', cat: '保險', amt: 650, petId: 'all', note: '月繳', day: 5, lastPosted: '2026-08' }];

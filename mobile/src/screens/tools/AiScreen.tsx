@@ -4,11 +4,12 @@ import { Screen, Card, Btn, Chip, ChipRow, Field, Banner, PetChips, Section, Sub
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { useNav } from '../../nav';
-import { KIND_LABEL, SEX_LABEL, entriesFor, entrySummary, medActiveOn, primaryVetPhone } from '../../lib/domain';
-import { addDays, ageText, hm, today } from '../../lib/date';
+import { primaryVetPhone } from '../../lib/domain';
+import { hm, today } from '../../lib/date';
 import { callPhone, copyText, openUrl } from '../../lib/files';
 import { uid } from '../../lib/seed';
 import { assessSymptoms, reassurance } from '../../lib/health';
+import { buildAiPrompt } from '../../lib/aiPrompt';
 
 const QUICK = ['嘔吐', '腹瀉', '不吃東西', '搔癢', '跛腳', '誤食東西', '沒精神', '呼吸急促', '抽搐', '無法排尿', '出血'];
 // Quick chips that are emergencies on their own; mapped to a matching sign so the checker sees them.
@@ -81,38 +82,7 @@ export default function AiScreen(_: { params: any }) {
   ].filter(Boolean) as string[];
   const vet = pet ? primaryVetPhone(store, pet.id) : null;
 
-  const prompt = useMemo(() => {
-    if (!pet) return '';
-    const td = today();
-    const cutoff = addDays(td, -30);
-    const growth = entriesFor(store, pet.id, 'growth')[0];
-    const meds = store.meds.filter((m) => m.petId === pet.id && medActiveOn(m, td)).map((m) => `${m.name}${m.dose ? ' ' + m.dose : ''}`);
-    const health = entriesFor(store, pet.id, 'health')
-      .filter((e) => e.at.slice(0, 10) >= cutoff)
-      .slice(0, 5)
-      .map((e) => `${e.at.slice(0, 10)} ${entrySummary(e)}`);
-    return [
-      '你是協助新手飼主的獸醫分診助理。請用繁體中文回答。',
-      '',
-      '【寵物資料】',
-      `名字：${pet.name}`,
-      `種類：${KIND_LABEL[pet.kind]}${pet.breed ? '（' + pet.breed + '）' : ''}`,
-      `年齡：${ageText(pet.birthday) || '不詳'}`,
-      `性別：${SEX_LABEL[pet.sex]}${pet.neutered ? '，已結紮' : ''}`,
-      `體重：${growth ? `${growth.v.weight} kg（${growth.at.slice(0, 10)} 記錄）` : '不詳'}`,
-      `過敏：${pet.allergy || '無'}`,
-      `目前用藥：${meds.join('、') || '無'}`,
-      `近 30 天健康紀錄：${health.join('；') || '無'}`,
-      '',
-      '【目前狀況】',
-      symptoms || '（尚未描述）',
-      ...details,
-      '',
-      '請先用一行標示緊急程度：立即就醫／24小時內就醫／居家觀察。',
-      '接著用最多 4 點說明：可能原因、在家可以觀察什麼、什麼情況要馬上就醫。',
-      '請提醒這不是診斷。',
-    ].join('\n');
-  }, [pet, store, symptoms, details.join('|')]);
+  const prompt = useMemo(() => (pet ? buildAiPrompt(store, pet, symptoms, details, today()) : ''), [pet, store, symptoms, details.join('|')]);
 
   const toggleChip = (c: string) => setChips((cur) => (cur.includes(c) ? cur.filter((x) => x !== c) : [...cur, c]));
 
@@ -124,7 +94,7 @@ export default function AiScreen(_: { params: any }) {
     const name = PROVIDERS.find((p) => p.k === provider)?.name ?? 'AI';
     confirm(
       `把資料交給 ${name}？`,
-      `會複製並送出以下內容到 ${name}（由該服務的隱私政策規範）：\n• ${pet?.name}的名字、種類、品種、年齡、性別、體重、過敏\n• 目前用藥、近 30 天健康紀錄\n• 你描述的症狀\n\n不會包含你的電話、地址或照片。`,
+      `會複製並送出以下內容到 ${name}（由該服務的隱私政策規範）：\n• ${pet?.name}的名字、種類、品種、年齡、性別、體重、過敏\n• 目前用藥、近 30 天健康紀錄\n• 你描述的症狀\n\n不會包含你的電話、地址或照片；描述裡像電話號碼或網址的文字也會先移除。`,
       () => void send(),
       '同意並開啟',
       { destructive: false },

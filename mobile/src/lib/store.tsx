@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AccessibilityInfo, AppState } from 'react-native';
 import { produce, setAutoFreeze } from 'immer';
 import type { Store, Pet, Member } from './types';
 import { emptyStore, sampleStore, STORE_VERSION, uid } from './seed';
@@ -77,10 +77,16 @@ export function migrate(raw: any): Store {
   return out as Store;
 }
 
+/** Dose check-offs older than this are dropped (adherence looks at 7 days; the meds screen at 2). */
+export const DOSE_KEEP_DAYS = 90;
+
 /** Housekeeping that should happen once a day: trim old check-offs, add this month's fixed expenses. */
 export function dailyMaintenance(d: Store, td = today()): void {
   const cutoff = addDays(td, -60);
   for (const k of Object.keys(d.taskDone)) if (k < cutoff) delete d.taskDone[k];
+  // Dose keys are 'YYYY-MM-DD|medId|HH:MM', so a string compare on the key finds old days.
+  const doseCutoff = addDays(td, -DOSE_KEEP_DAYS);
+  for (const k of Object.keys(d.doses)) if (k.slice(0, 10) < doseCutoff) delete d.doses[k];
   const month = td.slice(0, 7);
   const dom = Number(td.slice(8, 10));
   for (const r of d.recurring) {
@@ -116,7 +122,8 @@ interface Ctx {
 }
 
 export interface ToastOpts {
-  /** A button in the toast, e.g. { label: '復原', onPress: undo }. The toast then stays about 5 seconds. */
+  /** A button in the toast, e.g. { label: '復原', onPress: undo }. The toast then stays about 5 seconds
+   * (10 seconds while a screen reader is on, so there is time to reach the button). */
   action?: { label: string; onPress: () => void };
 }
 export interface ToastState {
@@ -153,6 +160,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const loadedSomething = useRef(false);
   const drafts = useRef(new Set<() => void>()).current;
   const toastSeq = useRef(0);
+  const screenReader = useRef(false);
+  useEffect(() => {
+    AccessibilityInfo.isScreenReaderEnabled()
+      .then((on) => {
+        screenReader.current = on;
+      })
+      .catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', (on) => {
+      screenReader.current = on;
+    });
+    return () => sub.remove();
+  }, []);
 
   const dismissToast = useCallback(() => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -161,7 +180,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const toast = useCallback((msg: string, opts?: ToastOpts) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToastMsg({ msg, action: opts?.action, id: ++toastSeq.current });
-    toastTimer.current = setTimeout(() => setToastMsg(null), opts?.action ? 5000 : 2600);
+    toastTimer.current = setTimeout(() => setToastMsg(null), opts?.action ? (screenReader.current ? 10000 : 5000) : screenReader.current ? 5000 : 2600);
   }, []);
   const toastValue = useMemo(() => ({ toast: toastMsg, dismiss: dismissToast }), [toastMsg, dismissToast]);
 
@@ -199,7 +218,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [toast]);
 
   const persist = useCallback(
-    (delay = 300) => {
+    // 1 s: typing and quick taps share one write. Going to the background still writes immediately.
+    (delay = 1000) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(writeNow, delay);
     },
@@ -230,6 +250,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const r = await loadRaw();
         if (r.data) {
           let s = migrate(r.data);
+          const migrated = s;
           try {
             s = produce(s, (d) => dailyMaintenance(d));
           } catch {
@@ -239,7 +260,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           loadedSomething.current = true;
           setStore(s);
           if (r.source === 'tmp' || r.source === 'bak') toast('上次儲存沒有完成，已從最近的完整資料還原');
-          persist(50); // writes the migrated file (and moves data out of the old AsyncStorage key)
+          else if (r.source === 'legacy' && r.mainUnreadable) toast('資料檔無法讀取，已改用較早的資料並另外保留原檔；請確認內容，必要時用備份檔還原');
+          // A normal launch (main file, current format, nothing changed by housekeeping) needs no write.
+          const unchanged = r.source === 'main' && r.data.v === STORE_VERSION;
+          if (!unchanged || s !== migrated) persist(50); // writes the migrated file (and moves data out of the old copy)
+          else {
+            dirty.current = false;
+            savedOnce.current = true; // data came from the file; there's no old copy left to clear
+          }
         } else if (r.mainUnreadable) {
           toast('資料檔無法讀取，已另外保留原檔；目前從空白開始');
         }

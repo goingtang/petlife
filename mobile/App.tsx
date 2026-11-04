@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, InteractionManager, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,39 @@ import { initNotifications, syncNotifications } from './src/lib/notify';
 import { C } from './src/ui/theme';
 
 // Keep the launch screen up until the saved data has loaded, so the app never flashes an empty screen.
+// Never longer than 8 seconds, even if loading hangs or the first screen fails to draw.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+const hideSplash = () => SplashScreen.hideAsync().catch(() => {});
+setTimeout(hideSplash, 8000);
+
+/** Last line of defence: a screen that throws shows a way out instead of a blank (or frozen splash) app. */
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch() {
+    hideSplash();
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg, padding: 28, gap: 14 }}>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: C.ink }}>發生了一點問題</Text>
+        <Text style={{ fontSize: 15, lineHeight: 23, color: C.body, textAlign: 'center' }}>
+          你的資料仍保存在手機裡。請按下面的按鈕再試一次；如果一直出現，請完全關閉 App 後重新開啟，並來信 mypetlifedaily@gmail.com。
+        </Text>
+        <Pressable
+          onPress={() => this.setState({ error: null })}
+          accessibilityRole="button"
+          style={{ minHeight: 48, paddingHorizontal: 28, borderRadius: 24, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>再試一次</Text>
+        </Pressable>
+      </View>
+    );
+  }
+}
 
 const TABS: { k: TabName; name: string; d: string; d2?: string }[] = [
   { k: 'today', name: '今天', d: 'M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z' },
@@ -56,7 +88,7 @@ function TabBar() {
               <Path d={t.d} />
               {t.d2 ? <Path d={t.d2} /> : null}
             </Svg>
-            <Text style={{ fontSize: 12, color: on ? C.ink : '#EFE4D6', fontWeight: '500' }}>{t.name}</Text>
+            <Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={{ fontSize: 12, color: on ? C.ink : '#EFE4D6', fontWeight: '500' }}>{t.name}</Text>
           </Pressable>
         );
       })}
@@ -76,7 +108,7 @@ function Toast() {
   return (
     <View pointerEvents="box-none" style={[st.toastWrap, { top: insets.top + 12 }]}>
       <View pointerEvents={action ? 'auto' : 'none'} style={[st.toast, action && st.toastRow]} accessibilityLiveRegion="polite">
-        <Text style={{ color: C.bg, fontSize: 14, fontWeight: '500', textAlign: action ? 'left' : 'center', flexShrink: 1 }}>{toast.msg}</Text>
+        <Text maxFontSizeMultiplier={1.5} style={{ color: C.bg, fontSize: 14, fontWeight: '500', textAlign: action ? 'left' : 'center', flexShrink: 1 }}>{toast.msg}</Text>
         {action ? (
           <Pressable
             onPress={() => {
@@ -104,12 +136,15 @@ function NotificationSync() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     initNotifications();
-    cleanupCacheExports(); // PDFs/CSVs shared during the last session
+    // PDFs/CSVs shared during the last session; not urgent, so wait until the first screen has settled.
+    const task = InteractionManager.runAfterInteractions(() => cleanupCacheExports());
     return () => {
+      task.cancel();
       if (timer.current) clearTimeout(timer.current);
     };
   }, []);
   // immer keeps unchanged parts of the store identical, so these references only change when that data changes.
+  // syncNotifications itself skips the phone's scheduler when the planned notifications are unchanged.
   useEffect(() => {
     if (!ready) return;
     if (timer.current) clearTimeout(timer.current);
@@ -178,7 +213,7 @@ function Shell() {
   const { store, ready } = useStore();
   const { tab, stack } = useNav();
   useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
+    if (ready) hideSplash();
   }, [ready]);
   if (!ready)
     return (
@@ -217,7 +252,9 @@ export default function App() {
       <StoreProvider>
         <NavProvider>
           <StatusBar style="dark" />
-          <Shell />
+          <ErrorBoundary>
+            <Shell />
+          </ErrorBoundary>
           <NotificationSync />
           <Toast />
         </NavProvider>
@@ -228,11 +265,11 @@ export default function App() {
 
 const st = StyleSheet.create({
   bar: {
-    position: 'absolute', left: 14, right: 14, height: 68, borderRadius: 34, backgroundColor: C.ink,
+    position: 'absolute', left: 14, right: 14, minHeight: 68, paddingVertical: 6, borderRadius: 34, backgroundColor: C.ink,
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6,
     shadowColor: '#3B2F28', shadowOpacity: 0.25, shadowRadius: 15, shadowOffset: { width: 0, height: 10 }, elevation: 8,
   },
-  tab: { flex: 1, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  tab: { flex: 1, minHeight: 56, paddingVertical: 4, borderRadius: 28, alignItems: 'center', justifyContent: 'center', gap: 3 },
   toastWrap: { position: 'absolute', left: 20, right: 20, alignItems: 'center', zIndex: 100 },
   toast: { backgroundColor: C.ink, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 22, maxWidth: 360 },
   toastRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6, paddingRight: 6 },

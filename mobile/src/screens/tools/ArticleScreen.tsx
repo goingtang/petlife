@@ -23,7 +23,7 @@ export default function ArticleScreen({ params }: { params: any }) {
 
   return (
     <Screen>
-      <View style={{ height: 130, borderRadius: 28, backgroundColor: a.color, justifyContent: 'flex-end', padding: 18 }}>
+      <View style={{ minHeight: 130, borderRadius: 28, backgroundColor: a.color, justifyContent: 'flex-end', padding: 18 }}>
         <Badge text={`${a.cat} · ${a.mins} 分鐘閱讀`} bg={C.card} />
       </View>
       <Text style={{ fontSize: 25, fontWeight: '700', color: C.ink, lineHeight: 33 }}>{a.title}</Text>

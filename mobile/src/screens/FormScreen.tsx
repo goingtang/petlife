@@ -7,6 +7,7 @@ import { useNav, useBackHandler } from '../nav';
 import {
   Banner, Btn, Choice, DateField, Field, Label, PetChips, PhotoGrid, Row, Screen, Segment, Stepper, Sub, TimeField, Toggle, confirm,
 } from '../ui/kit';
+import { C } from '../ui/theme';
 import { today, hm, addDays } from '../lib/date';
 import { latestGrowth, tasksFor, doneBy, primaryVetPhone, FOOD_LABEL } from '../lib/domain';
 import { choosePhotos, callPhone, deleteFile, usePendingFiles } from '../lib/files';
@@ -67,7 +68,8 @@ export default function FormScreen({ params }: { params: any }) {
   const [v, setV] = useState<any>(init);
   const [date, setDate] = useState<string>(existingEntry ? existingEntry.at.slice(0, 10) : today());
   const [initDate] = useState(date);
-  const [time, setTime] = useState<string>(existingEntry ? existingEntry.at.slice(11, 16) : hm());
+  // Older entries may have no time part; treat those as midday.
+  const [time, setTime] = useState<string>(existingEntry ? (/^\d{2}:\d{2}$/.test(existingEntry.at.slice(11, 16)) ? existingEntry.at.slice(11, 16) : '12:00') : hm());
   const [initTime] = useState(time);
   const scrollRef = useRef<any>(null);
   const [alsoMed, setAlsoMed] = useState(false);
@@ -127,7 +129,9 @@ export default function FormScreen({ params }: { params: any }) {
           .sort((a, b) => (a.at < b.at ? 1 : -1))[0]
       : undefined;
 
-  const entryAt = () => `${date}T${time}`;
+  const entryAt = () => `${date}T${/^\d{2}:\d{2}$/.test(time) ? time : '12:00'}`;
+  // A log for today can't be in the future (a minute of slack for the clock ticking over while saving).
+  const futureTime = date === today() && time > hm();
   // The care task a feed log will tick off (same food, same part of the day, not done yet).
   const feedTask =
     form === 'feed' && !editId && date === today()
@@ -136,6 +140,10 @@ export default function FormScreen({ params }: { params: any }) {
 
   const submit = (force = false) => {
     setTried(true);
+    if ((form === 'feed' || form === 'health' || form === 'growth') && futureTime) {
+      toast(`時間不能晚於現在（${hm()}）`);
+      return;
+    }
     if (hasErr) {
       scrollRef.current?.scrollTo?.({ y: 0, animated: true });
       toast('請完成標示紅字的欄位');
@@ -209,7 +217,8 @@ export default function FormScreen({ params }: { params: any }) {
       return;
     }
     if (form === 'diary') {
-      const jTitle = v.title.trim() || `${petName(store, v.petId)}的日記 ${Number(today().slice(5, 7))}/${Number(today().slice(8))}`;
+      const jDay = existingJ ? existingJ.at.slice(0, 10) : today();
+      const jTitle = v.title.trim() || `${petName(store, v.petId)}的日記 ${Number(jDay.slice(5, 7))}/${Number(jDay.slice(8, 10))}`;
       update((d) => {
         if (existingJ) {
           const j = d.journal.find((x) => x.id === existingJ.id);
@@ -277,6 +286,7 @@ export default function FormScreen({ params }: { params: any }) {
           </View>
           <View style={{ flex: 2 }}>
             <TimeField label="時間" value={time} onChange={setTime} />
+            {futureTime ? <Sub style={{ color: C.danger, fontSize: 12 }}>不能晚於現在</Sub> : null}
           </View>
         </Row>
       )}

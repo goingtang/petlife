@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Text, View } from 'react-native';
-import { Screen, Btn, Banner, PetChips, Section, Field, Sub, P, Row, Label, Card, DateField, TimeField, Toggle, confirm } from '../../ui/kit';
+import { Text, View } from 'react-native';
+import { Screen, Btn, Banner, PetChips, Section, Field, Sub, P, Row, Label, Card, DateField, TimeField, Toggle, confirm, Thumb } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet, initialOf } from '../../lib/store';
 import { useBackHandler, useNav } from '../../nav';
@@ -138,7 +138,7 @@ function LostForm({ pet, store, initial, onSave, onCancel, dirtyRef }: { pet: Pe
       <Label>寵物照片</Label>
       <Row>
         {photo ? (
-          <Image source={{ uri: photo }} style={{ width: 72, height: 72, borderRadius: 18 }} />
+          <Thumb uri={photo} label="協尋照片" style={{ width: 72, height: 72, borderRadius: 18 }} />
         ) : (
           <View style={{ width: 72, height: 72, borderRadius: 18, backgroundColor: pet.color, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ fontSize: 26, color: C.ink }}>{initialOf(pet.name)}</Text>
