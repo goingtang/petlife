@@ -67,7 +67,7 @@ npx expo start
 - **AI**：手機上沒有內建 AI，需要後端代為呼叫；目前改為整理提問後開啟使用者自己的 AI App。
 - **成分掃描拍照辨識**：Expo Go 沒有文字辨識模組，目前用貼上文字。
 - **介面語言**：目前只有繁體中文。
-- **地圖（附近地點的「地圖」檢視）**：Expo Go 與 iOS 不需要金鑰。正式打包 Android 版時，Google 地圖需要 API 金鑰：在 Google Cloud 啟用 Maps SDK for Android，把金鑰填到 `app.json` 的 `expo.android.config.googleMaps.apiKey`（或改用 `app.config.js` 從環境變數讀取，不要把金鑰提交到版本庫）。沒有金鑰時 Android 正式版的地圖會是空白，清單檢視不受影響。
+- **地圖（附近地點的「地圖」檢視）**：Expo Go 與 iOS 不需要金鑰。正式打包 Android 版時，Google 地圖需要 API 金鑰：在 Google Cloud 啟用 Maps SDK for Android，把金鑰設成 EAS 環境變數 `GOOGLE_MAPS_ANDROID_API_KEY`，`app.config.js` 會在打包時讀取（不要把金鑰寫進 `app.json` 或提交到版本庫）。沒有金鑰時 Android 正式版的地圖會是空白，清單檢視不受影響。
 
 ## 資料與穩定性
 

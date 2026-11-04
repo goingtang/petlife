@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Animated, InteractionManager, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -137,9 +137,9 @@ function NotificationSync() {
   useEffect(() => {
     initNotifications();
     // PDFs/CSVs shared during the last session; not urgent, so wait until the first screen has settled.
-    const task = InteractionManager.runAfterInteractions(() => cleanupCacheExports());
+    const task = setTimeout(() => cleanupCacheExports(), 4000);
     return () => {
-      task.cancel();
+      clearTimeout(task);
       if (timer.current) clearTimeout(timer.current);
     };
   }, []);

@@ -10,6 +10,7 @@ import { Banner, Btn, Card, Field, KV, ListCard, Screen, Section, Sub, Toggle, c
 import { askPermission, syncNotifications, testNotification } from '../lib/notify';
 import { wipeAll } from '../lib/persist';
 import { cleanupOrphans, shareTextFile } from '../lib/files';
+import { clearPlacesCache } from './tools/PlacesScreen';
 import { today } from '../lib/date';
 
 export default function SettingsScreen() {
@@ -24,7 +25,7 @@ export default function SettingsScreen() {
   };
   const nav = useNav();
   const [count, setCount] = useState<number | null>(null);
-  const [phone, setPhone] = useDraft(store.ownerPhone, (v) =>
+  const [phone, setPhone, flushPhone] = useDraft(store.ownerPhone, (v) =>
     update((d) => {
       d.ownerPhone = v.trim();
     }),
@@ -45,14 +46,15 @@ export default function SettingsScreen() {
 
   /** Erase everything: data file and its copies, photos, exports, scheduled notifications. */
   const eraseEverything = async () => {
+    flushPhone(); // typing in this screen must not land in the new, empty data
     await syncNotifications({ ...store, notifyEnabled: false }, true); // cancels everything this app scheduled
+    // Delete the files first, then save the empty data: nothing is queued for "after the next save",
+    // so a failed save can never wipe files the user adds later.
+    await wipeAll();
+    clearPlacesCache();
     replace(emptyStore());
-    // After the empty data is saved, remove every file this app wrote (and its copies), then save the
-    // empty data once more so the app opens to the welcome screen next time.
-    afterSave(() => {
-      wipeAll().then(() => update(() => {}));
-    });
     nav.popToRoot();
+    nav.setTab('today');
     toast('已清除所有資料與照片');
   };
 

@@ -31,8 +31,10 @@
 ## 2. 上架前要填好的東西
 
 - [x] **聯絡信箱**：已填入 mypetlifedaily@gmail.com（docs/privacy.html、docs/index.html、App 內隱私說明）。
-- [ ] **開啟 GitHub Pages**：GitHub repo → Settings → Pages → Source 選「Deploy from a branch」，Branch 選 `main`、資料夾選 `/docs` → Save。幾分鐘後隱私權政策網址就是：
-  `https://goingtang.github.io/petlife/privacy.html`
+- [x] **GitHub Pages 已開啟**（main 分支 `/docs`）：
+  - 隱私權政策網址：`https://goingtang.github.io/petlife/privacy.html`
+  - 支援網址（含常見問題）：`https://goingtang.github.io/petlife/`
+- [ ] **商店文字**：見 `store-listing.md`（名稱、副標、簡短說明、完整說明、關鍵字、截圖腳本）。
 - [ ] **App 名稱**：商店顯示名稱建議「PetPal 寵物生活」（App 圖示下方仍顯示 PetPal）。先到兩個商店搜尋確認沒有撞名。
 - [ ] **Google 地圖金鑰（Android 地圖檢視）**：在 Google Cloud 啟用 Maps SDK for Android 建立金鑰，存成 EAS 環境變數（不要提交到 GitHub）。沒有金鑰時 Android 版地圖空白，清單檢視不受影響。
 
@@ -70,6 +72,8 @@ eas build -p ios --profile production
 
 第一次打包 iOS 時，EAS 會請你登入 Apple 帳號並自動建立憑證。版本號由 EAS 遠端管理，每次 production 打包會自動加一。
 
+> `eas init` 會建立 Expo 專案並給一組 projectId。因為這個專案有 `app.config.js`，EAS 可能無法自動寫回設定；如果它提示要手動加入，請把 `"extra": { "eas": { "projectId": "（EAS 給的 ID）" } }` 加到 `app.json` 的 `expo` 底下。
+
 ## 4. 送審（EAS Submit）
 
 ```bash
@@ -81,7 +85,10 @@ eas submit -p android --latest
 ```
 
 - iOS：上傳後到 App Store Connect 的 TestFlight 先自己測，再送審。
-- Android：第一次上傳要在 Play Console 手動建立 App；之後可以用上面的指令上傳到封閉測試軌道。
+- Android：
+  1. **第一次的 AAB 要手動上傳**：在 Play Console 建立 App，到「測試 → 封閉測試」建立測試群組，把 `eas build` 產生的 .aab 檔上傳。
+  2. 之後要用 `eas submit` 自動上傳，需要 Google 服務帳戶金鑰：Play Console →「設定 → API 存取權」連結 Google Cloud 專案、建立服務帳戶並授予「發布管理員」權限、下載 JSON 金鑰，放在 `mobile/` 外面或用 EAS 憑證管理（`eas credentials`），**不要提交到 GitHub**。
+  3. `eas.json` 目前設定上傳到「內部測試」軌道（`"track": "internal"`）。封閉測試期間要上傳到封閉測試時，把它改成 `"alpha"`；正式上架時改成 `"production"`。
 
 ## 5. 隱私表單怎麼填
 
@@ -100,6 +107,14 @@ eas submit -p android --latest
 - 傳輸是否加密：是（HTTPS）。
 - 使用者能否要求刪除資料：可以，在 App 內「設定 → 清除所有資料」。
 - 隱私權政策網址同上。
+
+### Google Play 其他必填聲明（「政策 → 應用程式內容」）
+- **健康應用程式聲明**：照實填寫。重點：本 App 記錄的是**寵物**的照護與健康資訊，不提供人類醫療或健康功能、不連接醫療器材、不是醫療器材軟體。問卷的選項以當下 Play Console 顯示為準；沒有完全符合的類別時，選最接近的「其他」並說明「寵物照護紀錄與提醒，非人類健康用途」。
+- **政府應用程式**：否。
+- **金融功能**：無（花費記帳只是使用者自己記錄的數字，沒有付款、借貸或投資功能）。
+- **廣告**：本 App 不含廣告。
+- **新聞應用程式**：否。
+- **目標對象與內容**：18 歲以上（見第 8 節）。
 
 ### 權限說明
 - 只有「使用期間」定位，沒有背景定位；不使用麥克風（`app.json` 已封鎖這兩個權限）。
@@ -129,7 +144,7 @@ eas submit -p android --latest
 PetPal is a local-only pet care log. No account or login is required.
 To see every feature with data, tap "使用範例資料" (Use sample data) on the first screen.
 The sample phone numbers are fictional and dialing them is blocked in the app.
-"附近地點" (Nearby places) asks for location only when the user taps "使用目前位置", and queries OpenStreetMap.
+"附近地點" (Nearby places) first explains the use and asks for location only after the user taps "使用目前位置"; once allowed, it locates automatically when that screen is opened. Coordinates are rounded to ~100 m and sent to public OpenStreetMap-based services.
 "症狀檢查 · 問 AI" (Symptom check) is rule-based and shows a one-time disclaimer; it does not diagnose.
 "問 AI" only opens the user's chosen AI website after a confirmation dialog listing the data to be shared.
 No data is sent to the developer; there is no backend.
@@ -140,10 +155,11 @@ No data is sent to the developer; there is no backend.
 - App Store：年齡分級問卷照實填寫（無暴力、無使用者互動內容、無賭博；含一般醫療／健康資訊，頻率為「偶爾」）。
 - Google Play：在「內容分級」填 IARC 問卷；類別選「參考資料、新聞或教育」或「生活風格」。
 - 「目標對象」選 18 歲以上（或 13 歲以上），避免適用兒童專屬政策。
+- App Store 問卷「不受限制的網頁存取」：選「否」。App 只會用系統瀏覽器開啟固定網址（使用者選的 AI 網站、蝦皮搜尋、地圖），沒有內建可任意瀏覽的網頁瀏覽器。
 
 ## 9. 送審前檢查清單
 
-- [ ] `npx tsc --noEmit`、`npm test` 全部通過
+- [ ] `npx tsc --noEmit`、`npm test`、`npx expo-doctor` 全部通過
 - [ ] 用 preview 版 APK 在實機走過：新增寵物、打卡、用藥通知、附近地點、拍照、分享 PDF、備份與還原、清除所有資料
 - [ ] iOS 用 TestFlight 走過同樣流程
 - [ ] 隱私權政策網址打得開，聯絡信箱已填

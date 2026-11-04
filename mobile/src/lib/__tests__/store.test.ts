@@ -1,6 +1,6 @@
 import { migrate, dailyMaintenance } from '../store';
 import { emptyStore, sampleStore } from '../seed';
-import { planNotifications, MAX_NOTES } from '../notify';
+import { planNotifications, planSignature, MAX_NOTES } from '../notify';
 import { addDays, today, ymd } from '../date';
 import { doseKey } from '../domain';
 
@@ -138,5 +138,17 @@ describe('planNotifications', () => {
     s.reminders = [{ id: 'r', petId: 'p', title: '驅蟲', date: addDays(td, -1), repeat: 'monthly', notify: true, history: [] }];
     const o = planNotifications(s, now).filter((n) => n.kind === 'overdue');
     expect(o.length).toBe(3); // today 09:00 (1 day late), plus the next two mornings
+  });
+});
+
+describe('notification plan signature', () => {
+  test('same data gives the same signature; a new reminder changes it', () => {
+    const now = new Date();
+    const s = sampleStore();
+    s.notifyEnabled = true;
+    const a = planSignature(planNotifications(s, now));
+    expect(planSignature(planNotifications(s, now))).toBe(a);
+    s.reminders.push({ ...s.reminders[0], id: 'extra', title: '新的提醒', date: addDays(today(), 3), notify: true, doneOnce: false });
+    expect(planSignature(planNotifications(s, now))).not.toBe(a);
   });
 });

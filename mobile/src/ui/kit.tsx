@@ -1,4 +1,5 @@
 // Shared UI building blocks. Every screen is composed from these so the app looks consistent.
+import { Image as ExpoImage } from 'expo-image';
 import React, { useState } from 'react';
 import {
   Alert, FlatList, Image, ImageStyle, Platform, Pressable, ScrollView, StyleProp, StyleSheet, Text, TextInput, TextStyle, View, ViewStyle, KeyboardAvoidingView,
@@ -566,15 +567,16 @@ export function PetChips({ value, onChange, allowAll }: { value: string | null; 
  * On Android `resizeMethod="resize"` decodes a downsized bitmap, which keeps long photo lists from running out of memory.
  */
 export function Thumb({ uri, style, label, resizeMode = 'cover' }: { uri: string; style: StyleProp<ImageStyle>; label?: string; resizeMode?: 'cover' | 'contain' }) {
+  // expo-image downsamples to the view size and recycles bitmaps in lists, which keeps memory low on Android.
   return (
-    <Image
+    <ExpoImage
       source={{ uri }}
-      style={[{ backgroundColor: C.sand }, style]}
-      resizeMode={resizeMode}
-      resizeMethod="resize"
+      recyclingKey={uri}
+      contentFit={resizeMode}
+      transition={0}
+      style={[{ backgroundColor: C.sand }, style as any]}
       accessible={!!label}
       accessibilityLabel={label}
-      accessibilityIgnoresInvertColors
     />
   );
 }

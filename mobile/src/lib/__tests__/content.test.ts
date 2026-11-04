@@ -1,7 +1,7 @@
 import { CONTENT } from '../../data/content';
 import { EXTRA_TOXIC } from '../../data/content-health';
 
-const all = [...(CONTENT.toxic as { id: string; cat: string; lv: number[]; name: string }[]), ...EXTRA_TOXIC];
+const all = [...(CONTENT.toxic as unknown as { id: string; cat: string; lv: number[]; name: string }[]), ...EXTRA_TOXIC];
 
 describe('toxic content integrity', () => {
   test('every item has 4 levels between 0 and 3', () => {
@@ -15,7 +15,7 @@ describe('toxic content integrity', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
   test('foods listed because they are toxic never show 「少量可」', () => {
-    for (const id of ['garlic', 'xylitol', 'macadamia', 'grape', 'onion', 'chocolate']) {
+    for (const id of ['garlic', 'xylitol', 'macadamia', 'grape', 'onion', 'choc']) {
       const t = all.find((x) => x.id === id);
       if (t) expect(t.lv.includes(1)).toBe(false);
     }

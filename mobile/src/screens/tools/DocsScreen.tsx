@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Alert, Image, Platform, Pressable, Text, View } from 'react-native';
-import { Screen, Btn, Card, Chip, ChipRow, Choice, Field, DateField, Toggle, Badge, PetChips, Sub, Row, Label, Empty, Banner, confirm } from '../../ui/kit';
+import { Screen, Btn, Card, Chip, ChipRow, Choice, Field, DateField, Toggle, Badge, PetChips, Sub, Row, Label, Empty, Banner, Thumb as Photo, confirm } from '../../ui/kit';
 import { C } from '../../ui/theme';
 import { useStore, usePet } from '../../lib/store';
 import { useBackHandler } from '../../nav';
@@ -38,7 +38,7 @@ function Thumb({ d, size = 56 }: { d: Doc; size?: number }) {
   if (imgs[0])
     return (
       <View>
-        <Image source={{ uri: imgs[0] }} style={{ width: size, height: size * 1.2, borderRadius: 10, backgroundColor: C.sand }} />
+        <Photo uri={imgs[0]} label="文件縮圖" style={{ width: size, height: size * 1.2, borderRadius: 10 }} />
         {imgs.length > 1 ? (
           <View style={{ position: 'absolute', right: 2, bottom: 2, backgroundColor: 'rgba(59,47,40,.8)', borderRadius: 8, paddingHorizontal: 5 }}>
             <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{imgs.length} 頁</Text>
@@ -75,7 +75,9 @@ function syncReminder(s: Store, doc: Doc, remind: boolean) {
   s.reminders.push({ id: uid('r'), petId: doc.petId, title: `${doc.title} 到期`, date: doc.exp, repeat: 'once', notify: true, history: [], docId: doc.id, lead: [30, 7, 1] });
 }
 
-const MAX_PAGES = 30;
+// The merged PDF is built as one HTML string in memory and printed by a WebView; keep it small enough
+// for mid-range Android phones.
+const MAX_PAGES = Platform.OS === 'android' ? 15 : 30;
 
 function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null; onDone: () => void; dirty: React.MutableRefObject<boolean> }) {
   const { store, update, toast, afterSave } = useStore();
@@ -189,7 +191,7 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
                 accessibilityRole="button"
                 accessibilityLabel="第 1 頁，點一下移除"
               >
-                <Image source={{ uri: file.uri }} style={{ width: 72, height: 86, borderRadius: 10 }} />
+                <Photo uri={file.uri} label="文件頁面" style={{ width: 72, height: 86, borderRadius: 10 }} />
               </Pressable>
             )}
             {pages.map((u, i) => (
@@ -205,7 +207,7 @@ function DocForm({ petId, doc, onDone, dirty }: { petId: string; doc: Doc | null
                 accessibilityRole="button"
                 accessibilityLabel={`第 ${i + 2} 頁，點一下移除`}
               >
-                <Image source={{ uri: u }} style={{ width: 72, height: 86, borderRadius: 10 }} />
+                <Photo uri={u} label="文件頁面" style={{ width: 72, height: 86, borderRadius: 10 }} />
               </Pressable>
             ))}
           </View>
@@ -269,7 +271,7 @@ function DocDetail({ doc, onClose, onEdit }: { doc: Doc; onClose: () => void; on
       {imgs.map((u, i) => (
         <View key={u} style={{ gap: 6 }}>
           {imgs.length > 1 ? <Sub>第 {i + 1} 頁，共 {imgs.length} 頁</Sub> : null}
-          <Image source={{ uri: u }} resizeMode="contain" style={{ width: '100%', height: 420, borderRadius: 16, backgroundColor: C.sand }} />
+          <Photo uri={u} resizeMode="contain" label="文件內容" style={{ width: '100%', height: 420, borderRadius: 16 }} />
           <Btn small kind="outline" title={imgs.length > 1 ? `分享第 ${i + 1} 頁` : '分享'} onPress={() => shareFile(u, mimeOf(u), doc.title)} style={{ alignSelf: 'flex-start' }} />
         </View>
       ))}
@@ -400,7 +402,7 @@ export default function DocsScreen(_: { params: any }) {
             skipped++;
             continue;
           }
-          const src = await imageDataUri(u, 1000);
+          const src = await imageDataUri(u, 800, 0.6);
           if (src) {
             pagesLeft--;
             chunks.push(`<div style="page-break-inside:avoid;margin:8px 0"><img src="${src}" style="max-width:100%;max-height:740px;display:block;margin:0 auto"/></div>`);

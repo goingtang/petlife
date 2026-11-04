@@ -11,7 +11,7 @@ export const PRIVACY_URL = 'https://goingtang.github.io/petlife/privacy.html';
 const ITEMS: { title: string; body: string }[] = [
   { title: '資料只存在你的手機', body: 'PetPal 不需要註冊帳號，也沒有自己的伺服器。寵物資料、紀錄、照片和文件都存在這支手機的 App 資料夾裡，我們收不到。' },
   { title: '不追蹤、不放廣告', body: '沒有廣告，也沒有使用分析或追蹤工具。' },
-  { title: '定位：只在「附近地點」使用', body: '你按下「使用目前位置」才會取得位置。位置會先四捨五入到約 100 公尺，再送到 OpenStreetMap 的公開查詢服務找附近的醫院和商店；PetPal 不會儲存你的位置。' },
+  { title: '定位：只在「附近地點」使用', body: '第一次要你按下「使用目前位置」並允許；之後每次打開「附近地點」會自動取得位置。位置會先四捨五入到約 100 公尺，再送到以 OpenStreetMap 資料提供的公開查詢服務（overpass-api.de、overpass.private.coffee 鏡像、Nominatim）找附近的醫院和商店；PetPal 不會儲存你的位置。可隨時在手機設定關閉定位權限。' },
   { title: '相機與相簿', body: '只用在你自己選擇或拍攝的照片（寵物、日記、收據、文件），照片縮小後存在手機裡。' },
   { title: '通知', body: '提醒都在手機上排程，不經過任何伺服器。' },
   { title: '問 AI', body: '只有在你按下並同意後，才會把整理好的文字（寵物基本資料、用藥、近期健康紀錄與症狀）交給你選擇的 AI 服務，由該服務的隱私政策規範。' },

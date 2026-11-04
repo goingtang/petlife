@@ -14,3 +14,4 @@ a { color: var(--accent); }
 ul { padding-left: 1.3em; }
 table { width:100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align:left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+h3 { font-size: 1.02rem; margin: 1.2em 0 .3em; color: var(--ink); }

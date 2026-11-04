@@ -18,10 +18,13 @@ const MAX_SIDE = 1280;
 async function shrink(uri: string, w?: number, h?: number): Promise<string> {
   if (Platform.OS === 'web') return uri;
   try {
-    const ctx = ImageManipulator.manipulate(uri);
-    if (w && h && Math.max(w, h) > MAX_SIDE) ctx.resize(w >= h ? { width: MAX_SIDE } : { height: MAX_SIDE });
-    else if (!w || !h) ctx.resize({ width: MAX_SIDE });
-    const img = await ctx.renderAsync();
+    let img = await ImageManipulator.manipulate(uri).renderAsync();
+    // The picker doesn't always report a size (e.g. documents): use the decoded image's, and never enlarge.
+    const W = w || img.width;
+    const H = h || img.height;
+    if (Math.max(W, H) > MAX_SIDE) {
+      img = await ImageManipulator.manipulate(img).resize(W >= H ? { width: MAX_SIDE } : { height: MAX_SIDE }).renderAsync();
+    }
     const out = await img.saveAsync({ compress: 0.75, format: SaveFormat.JPEG });
     return out.uri;
   } catch {
@@ -227,26 +230,31 @@ export function cleanupCacheExports() {
  * Read a local image as a JPEG data URI for embedding in a PDF, shrunk so the longest side is at most
  * `maxSide` px (PDFs with many full-size photos are slow or fail on low-memory phones). HEIC/WebP become JPEG.
  */
-export async function imageDataUri(uri?: string | null, maxSide = 1000): Promise<string | null> {
+/** Files larger than this are not embedded as-is when they can't be compressed (they'd blow up the PDF). */
+const RAW_EMBED_MAX = 1.5 * 1024 * 1024;
+
+/**
+ * An image as a JPEG data URI for PDFs, at most `maxSide` px on its longest side (never enlarged).
+ * The file is decoded once; the resize works on the decoded image.
+ */
+export async function imageDataUri(uri?: string | null, maxSide = 1000, quality = 0.7): Promise<string | null> {
   if (!uri) return null;
   if (uri.startsWith('data:')) return uri;
   if (Platform.OS === 'web') return uri;
   try {
-    const orig = await ImageManipulator.manipulate(uri).renderAsync();
-    let ref = orig;
-    if (Math.max(orig.width, orig.height) > maxSide) {
-      const c = ImageManipulator.manipulate(uri);
-      c.resize(orig.width >= orig.height ? { width: maxSide } : { height: maxSide });
-      ref = await c.renderAsync();
+    let ref = await ImageManipulator.manipulate(uri).renderAsync();
+    if (Math.max(ref.width, ref.height) > maxSide) {
+      ref = await ImageManipulator.manipulate(ref).resize(ref.width >= ref.height ? { width: maxSide } : { height: maxSide }).renderAsync();
     }
-    const out = await ref.saveAsync({ compress: 0.7, format: SaveFormat.JPEG, base64: true });
+    const out = await ref.saveAsync({ compress: quality, format: SaveFormat.JPEG, base64: true });
     if (out.base64) return `data:image/jpeg;base64,${out.base64}`;
   } catch {
-    // fall back to the raw file
+    // fall back to the raw file (small files only)
   }
   try {
-    const b64 = await new File(uri).base64();
-    return `data:${mimeOf(uri)};base64,${b64}`;
+    const f = new File(uri);
+    if (!f.exists || (f.size ?? 0) > RAW_EMBED_MAX) return null;
+    return `data:${mimeOf(uri)};base64,${await f.base64()}`;
   } catch {
     return null;
   }

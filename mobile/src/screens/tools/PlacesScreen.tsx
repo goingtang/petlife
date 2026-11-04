@@ -93,6 +93,10 @@ export function addrFromDisplay(display: string): string {
 let lastNominatim = 0;
 const cache = new Map<string, { at: number; elements: any[] }>();
 const CACHE_MS = 10 * 60 * 1000;
+/** Forget recent searches (they contain the user's rough location), e.g. after 清除所有資料. */
+export function clearPlacesCache() {
+  cache.clear();
+}
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((res, rej) => {
     if (signal.aborted) return rej(new Error('aborted'));

@@ -46,7 +46,9 @@ Run lint and typecheck before declaring any task done.
 - Feedback: confirm a reversible action with `toast(msg, { action: { label: '復原', onPress } })` and restore the captured item in `onPress`. Keep `confirm()` (kit) for things that can't be undone, e.g. deletes that also remove photos; pass `{ destructive: false }` for plain questions.
 - Pet pickers: use `PetChips` (with `allowAll` for filters). Day counts use `daysTogether()` in `domain.ts`.
 - Privacy: anything that changes what leaves the phone must be reflected in `docs/privacy.html` (GitHub Pages), `src/screens/PrivacyScreen.tsx` and the store forms described in `RELEASE.md`.
-- Notifications are planned by the pure `planNotifications()` in `src/lib/notify.ts` (unit-tested) and re-synced automatically from `App.tsx`.
+- Notifications are planned by the pure `planNotifications()` in `src/lib/notify.ts` (unit-tested) and re-synced automatically from `App.tsx`; a sync with the same plan is skipped, so pass `force` after the user changes notification settings.
+- The symptom checker's text for external AI apps is built by `buildAiPrompt()` in `src/lib/aiPrompt.ts` (unit-tested: no phone numbers, addresses, URLs or photos). Toxic content in `src/data/` is checked by `__tests__/content.test.ts`: an item listed because it is toxic must never use level 1 (「少量可」).
+- Saves are debounced 1 s; `dailyMaintenance` prunes `taskDone` (60 days) and `doses` (90 days). Keep new per-day maps pruned the same way so the JSON file stays small.
 
 ## Building with EAS
 
@@ -56,5 +58,5 @@ Docs: https://docs.expo.dev/eas/index.md
 ## Rules
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
-- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+- Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally (there is no `development` profile in `eas.json` and `expo-dev-client` is not installed; add both if you need cloud dev builds). Prefer libraries included in Expo Go (e.g. `expo-image`).
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
